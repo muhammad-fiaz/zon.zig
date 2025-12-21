@@ -1,5 +1,7 @@
 <div align="center">
 
+<img width="300" height="300" alt="logo" src="https://github.com/user-attachments/assets/adbba32a-b035-473a-a3a3-3a331dc963f5" />
+
 # zon.zig
 
 <a href="https://muhammad-fiaz.github.io/zon.zig/"><img src="https://img.shields.io/badge/docs-muhammad--fiaz.github.io-blue" alt="Documentation"></a>
