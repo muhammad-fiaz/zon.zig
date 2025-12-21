@@ -1,7 +1,14 @@
 //! Document - ZON document operations.
 //!
-//! Provides methods for reading, writing, searching, and saving ZON data.
-//! Uses path-based access with dot notation for navigating nested structures.
+//! Provides a DOM-like interface for working with ZON data. The Document maintains
+//! an in-memory Value tree that can be queried, modified, and serialized.
+//!
+//! This approach differs from `std.zon.fromSlice` which deserializes directly into
+//! typed Zig structures. Document-based access is ideal when:
+//! - You need to edit and save configuration files
+//! - The structure isn't known at compile time
+//! - You want path-based access (e.g., "server.ssl.enabled")
+//! - You need find/replace or merge operations
 
 const std = @import("std");
 const Allocator = std.mem.Allocator;
@@ -55,6 +62,11 @@ pub const Document = struct {
         }
     }
 
+    /// Alias for deinit().
+    pub fn close(self: *Document) void {
+        self.deinit();
+    }
+
     /// Returns the string value at the given path.
     pub fn getString(self: *const Document, path: []const u8) ?[]const u8 {
         const val = self.getValueByPath(path) orelse return null;
@@ -71,6 +83,24 @@ pub const Document = struct {
     pub fn getInt(self: *const Document, path: []const u8) ?i64 {
         const val = self.getValueByPath(path) orelse return null;
         return val.asInt();
+    }
+
+    /// Returns the integer value as i128 at the given path.
+    pub fn getInt128(self: *const Document, path: []const u8) ?i128 {
+        const val = self.getValueByPath(path) orelse return null;
+        return val.asInt128();
+    }
+
+    /// Returns the unsigned integer value at the given path.
+    pub fn getUint(self: *const Document, path: []const u8) ?u64 {
+        const val = self.getValueByPath(path) orelse return null;
+        return val.asUint();
+    }
+
+    /// Coerces the value at the path to a boolean value.
+    pub fn toBool(self: *const Document, path: []const u8) bool {
+        const val = self.getValueByPath(path) orelse return false;
+        return val.toBool();
     }
 
     /// Returns the float value at the given path.
@@ -124,9 +154,32 @@ pub const Document = struct {
         };
     }
 
+    /// Returns the precise type name of the value at the path.
+    pub fn getTypeName(self: *const Document, path: []const u8) ?[]const u8 {
+        const val = self.getValueByPath(path) orelse return null;
+        return val.typeName();
+    }
+
     /// Returns the raw Value at the given path.
     pub fn getValue(self: *const Document, path: []const u8) ?*const Value {
         return self.getValueByPath(path);
+    }
+
+    /// Checks if two documents are deeply equal.
+    pub fn eql(self: *const Document, other: *const Document) bool {
+        return self.root.eql(&other.root);
+    }
+
+    /// Checks if the value at the path is NaN.
+    pub fn isNan(self: *const Document, path: []const u8) bool {
+        const val = self.getValueByPath(path) orelse return false;
+        return val.isNan();
+    }
+
+    /// Checks if the value at the path is infinity.
+    pub fn isInf(self: *const Document, path: []const u8) bool {
+        const val = self.getValueByPath(path) orelse return false;
+        return val.isPositiveInf() or val.isNegativeInf();
     }
 
     /// Sets a string value at the given path.
@@ -344,7 +397,7 @@ pub const Document = struct {
     }
 
     /// Appends an integer to an array.
-    pub fn appendIntToArray(self: *Document, path: []const u8, value: i64) !void {
+    pub fn appendIntToArray(self: *Document, path: []const u8, value: i128) !void {
         const val = self.getMutableValueByPath(path);
         if (val) |v| {
             if (v.asArray()) |arr| {
@@ -377,6 +430,70 @@ pub const Document = struct {
             }
         }
         return error.NotAnArray;
+    }
+
+    /// Removes an element from an array at the given index.
+    pub fn removeFromArray(self: *Document, path: []const u8, index: usize) bool {
+        const val = self.getMutableValueByPath(path);
+        if (val) |v| {
+            if (v.asArray()) |arr| {
+                return arr.remove(index);
+            }
+        }
+        return false;
+    }
+
+    /// Returns the number of keys or elements at the given path.
+    pub fn countAt(self: *const Document, path: []const u8) usize {
+        const val = self.getValueByPath(path) orelse return 0;
+        return switch (val.*) {
+            .object => |o| o.count(),
+            .array => |a| a.len(),
+            else => 0,
+        };
+    }
+
+    /// Inserts a string into an array at the given index.
+    pub fn insertStringIntoArray(self: *Document, path: []const u8, index: usize, value: []const u8) !void {
+        const owned = try self.allocator.dupe(u8, value);
+        errdefer self.allocator.free(owned);
+
+        const val = self.getMutableValueByPath(path);
+        if (val) |v| {
+            if (v.asArray()) |arr| {
+                try arr.insert(index, .{ .string = owned });
+                return;
+            }
+        }
+        return error.NotAnArray;
+    }
+
+    /// Inserts an integer into an array at the given index.
+    pub fn insertIntIntoArray(self: *Document, path: []const u8, index: usize, value: i128) !void {
+        const val = self.getMutableValueByPath(path);
+        if (val) |v| {
+            if (v.asArray()) |arr| {
+                try arr.insert(index, .{ .number = .{ .int = value } });
+                return;
+            }
+        }
+        return error.NotAnArray;
+    }
+
+    /// Returns the index of a string in an array, or null if not found.
+    pub fn indexOf(self: *const Document, path: []const u8, value: []const u8) ?usize {
+        const val = self.getValueByPath(path) orelse return null;
+        const arr = switch (val.*) {
+            .array => |a| a,
+            else => return null,
+        };
+
+        for (arr.items.items, 0..) |item, i| {
+            if (item.asString()) |s| {
+                if (std.mem.eql(u8, s, value)) return i;
+            }
+        }
+        return null;
     }
 
     /// Saves the document to the original file path.
@@ -475,7 +592,32 @@ pub const Document = struct {
         return stringify.stringify(self.allocator, &self.root, .{ .indent = indent_size });
     }
 
-    /// Merges another document into this one.
+    /// Merges another document into this one recursively.
+    pub fn mergeRecursive(self: *Document, other: *const Document) !void {
+        try self.mergeRecursiveValue(&self.root, &other.root);
+    }
+
+    fn mergeRecursiveValue(self: *Document, target: *Value, source: *const Value) !void {
+        if (target.* == .object and source.* == .object) {
+            var it = source.object.entries.iterator();
+            while (it.next()) |entry| {
+                const key = entry.key_ptr.*;
+                if (target.object.get(key)) |existing| {
+                    try self.mergeRecursiveValue(existing, entry.value_ptr);
+                } else {
+                    const cloned = try entry.value_ptr.clone(self.allocator);
+                    try target.object.put(key, cloned);
+                }
+            }
+        } else {
+            // Overwrite with cloned value
+            const cloned = try source.clone(self.allocator);
+            target.deinit(self.allocator);
+            target.* = cloned;
+        }
+    }
+
+    /// Merges another document into this one. (Old shallow-like merge preserved for compatibility)
     pub fn merge(self: *Document, other: *const Document) !void {
         const other_obj = switch (other.root) {
             .object => |o| o,
@@ -1014,4 +1156,24 @@ test "Document: toString" {
 
     try std.testing.expect(std.mem.indexOf(u8, output, ".name") != null);
     try std.testing.expect(std.mem.indexOf(u8, output, "\"test\"") != null);
+}
+
+test "Document: array operations extended" {
+    const allocator = std.testing.allocator;
+    var doc = Document.initEmpty(allocator);
+    defer doc.deinit();
+
+    try doc.setArray("arr");
+    try doc.appendToArray("arr", "two");
+    try doc.insertStringIntoArray("arr", 0, "one");
+    try doc.appendIntToArray("arr", 42);
+
+    try std.testing.expectEqual(@as(usize, 3), doc.countAt("arr"));
+    try std.testing.expectEqualStrings("one", doc.getArrayString("arr", 0).?);
+    try std.testing.expectEqualStrings("two", doc.getArrayString("arr", 1).?);
+    try std.testing.expectEqual(@as(usize, 1), doc.indexOf("arr", "two").?);
+
+    try std.testing.expect(doc.removeFromArray("arr", 1));
+    try std.testing.expectEqual(@as(usize, 2), doc.countAt("arr"));
+    try std.testing.expectEqualStrings("one", doc.getArrayString("arr", 0).?);
 }

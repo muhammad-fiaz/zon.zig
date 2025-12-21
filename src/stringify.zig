@@ -1,4 +1,10 @@
 //! Stringify - Converts Value trees to ZON source code.
+//!
+//! This module serializes the intermediate Value tree back to ZON format.
+//! Unlike `std.zon.Serializer` which serializes typed Zig values directly,
+//! this module works with the document-based Value representation.
+//!
+//! See also: https://codeberg.org/ziglang/zig/src/branch/master/lib/std/zon/Serializer.zig
 
 const std = @import("std");
 const Allocator = std.mem.Allocator;
@@ -82,9 +88,17 @@ fn stringifyValue(buffer: *Buffer, value: *const Value, indent: usize, indent_si
                 try buffer.appendSlice(slice);
             },
             .float => |f| {
-                var num_buf: [64]u8 = undefined;
-                const slice = std.fmt.bufPrint(&num_buf, "{d}", .{f}) catch unreachable;
-                try buffer.appendSlice(slice);
+                if (std.math.isPositiveInf(f)) {
+                    try buffer.appendSlice("inf");
+                } else if (std.math.isNegativeInf(f)) {
+                    try buffer.appendSlice("-inf");
+                } else if (std.math.isNan(f)) {
+                    try buffer.appendSlice("nan");
+                } else {
+                    var num_buf: [64]u8 = undefined;
+                    const slice = std.fmt.bufPrint(&num_buf, "{d}", .{f}) catch unreachable;
+                    try buffer.appendSlice(slice);
+                }
             },
         },
         .string => |s| try stringifyString(buffer, s),

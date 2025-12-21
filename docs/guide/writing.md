@@ -21,7 +21,7 @@ pub fn main() !void {
     zon.disableUpdateCheck();
 
     var doc = zon.create(allocator);
-    defer doc.deinit();
+    defer doc.close(); // semantic alias for deinit()
 
     // Add data...
 
@@ -104,15 +104,13 @@ try doc.setInt("timeout_ms", 30000);
 ### Large Hex Values (Fingerprints)
 
 ```zig
-const fingerprint: u64 = 0xaabbccdd11223344;
-try doc.setInt("fingerprint", @bitCast(fingerprint));
+const fingerprint: u64 = 0xee480fa30d50cbf6;
+try doc.setInt("fingerprint", @intCast(fingerprint));
 ```
-
-**Output:**
 
 ```zig
 .{
-    .fingerprint = -6144092016769617084,
+    .fingerprint = 0xee480fa30d50cbf6,
 }
 ```
 
@@ -370,9 +368,9 @@ pub fn main() !void {
     try doc.setString("version", "0.1.0");
     try doc.setString("minimum_zig_version", "0.15.0");
 
-    // Fingerprint
-    const fp: u64 = 0xaabbccdd11223344;
-    try doc.setInt("fingerprint", @bitCast(fp));
+    // Fingerprint (u64 / large hex)
+    const fp: u64 = 0xee480fa30d50cbf6;
+    try doc.setInt("fingerprint", @intCast(fp));
 
     // Paths
     try doc.setArray("paths");
@@ -404,7 +402,7 @@ pub fn main() !void {
             .url = "https://github.com/example/http",
         },
     },
-    .fingerprint = -6144092016769617084,
+    .fingerprint = 0xee480fa30d50cbf6,
     .minimum_zig_version = "0.15.0",
     .name = .my_package,
     .paths = .{

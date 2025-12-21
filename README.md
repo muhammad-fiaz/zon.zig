@@ -23,15 +23,45 @@
 <b>📚 <a href="https://muhammad-fiaz.github.io/zon.zig/">Documentation</a> |
 <a href="https://muhammad-fiaz.github.io/zon.zig/api/document">API Reference</a> |
 <a href="https://muhammad-fiaz.github.io/zon.zig/guide/getting-started">Quick Start</a> |
+<a href="https://muhammad-fiaz.github.io/zon.zig/guide/allocators">Allocators</a> |
 <a href="CONTRIBUTING.md">Contributing</a></b>
 
 </div>
 
 ---
 
-A production-ready, developer-friendly ZON (Zig Object Notation) library for Zig, designed with a clean, intuitive API for configuration file management and data serialization.
+A **document-based** ZON (Zig Object Notation) library for Zig, designed for configuration file editing, dynamic access, and data manipulation. Unlike [`std.zon`](https://codeberg.org/ziglang/zig/src/branch/master/lib/std/zon) which parses ZON into typed structures, zon.zig maintains an in-memory document tree that you can query, modify, and serialize.
 
 **⭐️ If you find `zon.zig` useful, please give it a star! ⭐️**
+
+---
+
+<details>
+<summary><strong>🔄 zon.zig vs std.zon</strong> (click to expand)</summary>
+
+| Feature            | zon.zig                           | std.zon                          |
+| ------------------ | --------------------------------- | -------------------------------- |
+| **Approach**       | Document-based (DOM tree)         | Type-based (deserialization)     |
+| **Best For**       | Config editing, dynamic access    | Type-safe parsing into structs   |
+| **Modification**   | **Full read/write/edit/merge**    | Read-only (serialize separately) |
+| **Path Access**    | **Dot notation (`"db.host"`)**    | Direct field access              |
+| **Dependencies**   | Custom parser (No Ast dependency) | Uses `std.zig.Ast`, `Zoir`       |
+| **Stability**      | Independent of compiler internals | Tied to Zig compiler API         |
+| **Special Values** | **NaN, Inf, -Inf support**        | Limited in some Zig versions     |
+
+**Use zon.zig when:**
+
+- You need to edit and save configuration files programmatically.
+- The structure isn't known at compile time or varies.
+- You want advanced features like **Deep Merge**, **Find & Replace**, and **Deep Equality**.
+- You need a lightweight parser that doesn't pull in `std.zig.Ast`.
+
+**Use std.zon when:**
+
+- You know the structure at compile time and want static type safety.
+- You're using `@import` for compile-time ZON values.
+
+</details>
 
 ---
 
@@ -49,12 +79,16 @@ A production-ready, developer-friendly ZON (Zig Object Notation) library for Zig
 | 📝 **Pretty Print**               | Formatted output with configurable indentation             |
 | 🔍 **Find & Replace**             | Search and replace values throughout the document          |
 | 📋 **Array Operations**           | Get length, elements, append to arrays                     |
-| 🔄 **Merge & Clone**              | Combine documents, create deep copies                      |
+| 🔄 **Merge & Clone**              | **Shallow & Deep Merge**, Combine documents, Deep copy     |
+| 📏 **Multi-line Strings**         | Full support for multi-line backslash syntax (`\\`)        |
+| ♾️ **Special Floats**             | Support for `inf`, `-inf`, and `nan` values                |
+| ⚖️ **Deep Equality**              | Deeply compare two ZON documents or values                 |
 | 🖥️ **Cross-Platform**             | Windows, Linux, macOS (32-bit and 64-bit)                  |
 | 📦 **Zero Dependencies**          | Built entirely on the Zig standard library                 |
 | ⚡ **High Performance**           | Efficient parsing and serialization                        |
 | 🔄 **Update Checker**             | Optional automatic update checking (can be disabled)       |
 | 📁 **File Operations**            | Delete, copy, rename, check existence                      |
+| 🧠 **Memory Flexibility**         | Full support for GPA, Arena, and custom allocators         |
 
 </details>
 
@@ -90,9 +124,10 @@ A production-ready, developer-friendly ZON (Zig Object Notation) library for Zig
 ## Installation
 
 ```bash
-zig fetch --save https://github.com/muhammad-fiaz/zon.zig/archive/refs/tags/0.0.2.tar.gz
+zig fetch --save https://github.com/muhammad-fiaz/zon.zig/archive/refs/tags/0.0.3.tar.gz
 ```
-or 
+
+or
 
 for Nightly Installation, use this
 
@@ -155,8 +190,8 @@ zon.zig fully supports the `build.zig.zon` format:
 ```zig
 .{
     .name = .zon,                        // Identifier as value
-    .version = "0.0.2",                  // String
-    .fingerprint = 0xee480fa30d50cbf6,   // Large hex numbers
+    .version = "0.0.3",                  // String
+    .fingerprint = 0xee480fa30d50cbf6,   // Multi-bit hex handled as i128
     .minimum_zig_version = "0.15.0",
     .paths = .{                          // Array of strings
         "build.zig",
@@ -266,8 +301,12 @@ try override.setInt("port", 9000);
 try override.setBool("debug", true);
 
 // Merge override into base
-try base.merge(&override);
+try base.merge(&override); // Shallow merge
+try base.mergeRecursive(&override); // Deep merge (merges nested objects)
 // base now has port=9000, debug=true
+
+// Deep equality
+if (base.eql(&override)) { ... }
 
 // Deep clone
 var copy = try base.clone();
@@ -280,31 +319,36 @@ defer copy.deinit();
 
 ### Module Functions
 
-| Function                                                      | Description                                |
-| ------------------------------------------------------------- | ------------------------------------------ |
-| `zon.open(allocator, path)`                                   | Open existing ZON file                     |
-| `zon.create(allocator)`                                       | Create new empty document                  |
-| `zon.parse(allocator, source)`                                | Parse ZON from string                      |
-| `zon.readFile(allocator, path)`                               | Read file into allocator-owned buffer     |
-| `zon.writeFileAtomic(allocator, path, data)`                  | Write data atomically (tmp + rename)      |
-| `zon.copyFile(source, dest, overwrite: bool)`                 | Copy a file (with optional overwrite)     |
-| `zon.moveFile(old, new, overwrite: bool)`                    | Move/rename file (with optional overwrite)|
-| `zon.deleteFile(path)`                                        | Delete a ZON file                          |
-| `zon.fileExists(path)`                                        | Check if file exists                       |
-| `zon.disableUpdateCheck()`                                    | Disable update checking                    |
+| Function                                      | Description                                |
+| --------------------------------------------- | ------------------------------------------ |
+| `zon.open(allocator, path)`                   | Open existing ZON file                     |
+| `zon.create(allocator)`                       | Create new empty document                  |
+| `zon.parse(allocator, source)`                | Parse ZON from string                      |
+| `zon.readFile(allocator, path)`               | Read file into allocator-owned buffer      |
+| `zon.writeFileAtomic(allocator, path, data)`  | Write data atomically (tmp + rename)       |
+| `zon.copyFile(source, dest, overwrite: bool)` | Copy a file (with optional overwrite)      |
+| `zon.moveFile(old, new, overwrite: bool)`     | Move/rename file (with optional overwrite) |
+| `zon.deleteFile(path)`                        | Delete a ZON file                          |
+| `zon.fileExists(path)`                        | Check if file exists                       |
+| `zon.disableUpdateCheck()`                    | Disable update checking                    |
 
 ### Document Methods - Getters
 
-| Method            | Description                 |
-| ----------------- | --------------------------- |
-| `getString(path)` | Get string value or null    |
-| `getBool(path)`   | Get bool value or null      |
-| `getInt(path)`    | Get integer value or null   |
-| `getFloat(path)`  | Get float value or null     |
-| `getNumber(path)` | Get number as float or null |
-| `isNull(path)`    | Check if value is null      |
-| `exists(path)`    | Check if path exists        |
-| `getType(path)`   | Get value type as string    |
+| Method              | Description                 |
+| ------------------- | --------------------------- |
+| `getString(path)`   | Get string value or null    |
+| `getBool(path)`     | Get bool value or null      |
+| `getInt(path)`      | Get integer value or null   |
+| `getUint(path)`     | Get u64 value or null       |
+| `getFloat(path)`    | Get float value or null     |
+| `getNumber(path)`   | Get number as float or null |
+| `toBool(path)`      | Coerce value to boolean     |
+| `isNull(path)`      | Check if value is null      |
+| `isNan(path)`       | Check if value is NaN       |
+| `isInf(path)`       | Check if value is Inf       |
+| `exists(path)`      | Check if path exists        |
+| `getType(path)`     | Get base type name          |
+| `getTypeName(path)` | Get precise type name       |
 
 ### Document Methods - Setters
 
@@ -320,13 +364,19 @@ defer copy.deinit();
 
 ### Document Methods - Array Operations
 
-| Method                          | Description            |
-| ------------------------------- | ---------------------- |
-| `arrayLen(path)`                | Get array length       |
-| `getArrayString(path, index)`   | Get string at index    |
-| `getArrayElement(path, index)`  | Get element at index   |
-| `appendToArray(path, value)`    | Append string to array |
-| `appendIntToArray(path, value)` | Append int to array    |
+| Method                                      | Description            |
+| ------------------------------------------- | ---------------------- |
+| `arrayLen(path)`                            | Get array length       |
+| `getArrayString(path, index)`               | Get string at index    |
+| `getArrayElement(path, index)`              | Get element at index   |
+| `getArrayBool(path, index)`                 | Get boolean element    |
+| `appendToArray(path, value)`                | Append string to array |
+| `appendIntToArray(path, value)`             | Append int to array    |
+| `insertStringIntoArray(path, index, value)` | Insert string          |
+| `insertIntIntoArray(path, index, value)`    | Insert integer         |
+| `removeFromArray(path, index)`              | Remove from array      |
+| `indexOf(path, value)`                      | Find string index      |
+| `countAt(path)`                             | Count items/keys       |
 
 ### Document Methods - Find & Replace
 
@@ -340,23 +390,24 @@ defer copy.deinit();
 
 ### Document Methods - Other
 
-| Method                        | Description                                                         |
-| ----------------------------- | ------------------------------------------------------------------- |
-| `delete(path)`                | Delete key, returns true if existed                                 |
-| `clear()`                     | Clear all data                                                      |
-| `count()`                     | Get number of root keys                                             |
-| `keys()`                      | Get all root keys                                                   |
-| `merge(other)`                | Merge another document                                              |
-| `clone()`                     | Create a deep copy                                                  |
-| `save()`                      | Save to original file path                                          |
-| `saveAs(path)`                | Save to specified path                                              |
-| `saveAsAtomic(path)`          | Atomically save to specified path (temporary file + rename)         |
-| `saveWithBackup(backup_ext)`  | Save and create a backup of the previous file using the extension   |
-| `saveIfChanged()`             | Only write when contents differ (normalizes trailing newline; returns bool) |
-| `toString()`                  | Get formatted ZON string                                            |
-| `toCompactString()`           | Get compact ZON string                                               |
-| `toPrettyString(indent)`      | Get ZON with custom indent                                           |
-| `deinit()`                    | Free all resources                                                   |
+| Method                       | Description                                                                 |
+| ---------------------------- | --------------------------------------------------------------------------- |
+| `delete(path)`               | Delete key, returns true if existed                                         |
+| `clear()`                    | Clear all data                                                              |
+| `count()`                    | Get number of root keys                                                     |
+| `keys()`                     | Get all root keys                                                           |
+| `merge(other)`               | Merge another document                                                      |
+| `clone()`                    | Create a deep copy                                                          |
+| `save()`                     | Save to original file path                                                  |
+| `saveAs(path)`               | Save to specified path                                                      |
+| `saveAsAtomic(path)`         | Atomically save to specified path (temporary file + rename)                 |
+| `saveWithBackup(backup_ext)` | Save and create a backup of the previous file using the extension           |
+| `saveIfChanged()`            | Only write when contents differ (normalizes trailing newline; returns bool) |
+| `toString()`                 | Get formatted ZON string                                                    |
+| `toCompactString()`          | Get compact ZON string                                                      |
+| `toPrettyString(indent)`     | Get ZON with custom indent                                                  |
+| `deinit()`                   | Free all resources                                                          |
+| `close()`                    | Alias for `deinit()`                                                        |
 
 ---
 
@@ -376,8 +427,6 @@ The `examples/` directory contains comprehensive examples:
 - **nested_creation.zig** - Creating deeply nested structures
 - **error_handling.zig** - Examples of parse and file error handling
 
-
-
 ### File helpers and utilities
 
 Added file helpers for safer file operations:
@@ -389,8 +438,6 @@ Added file helpers for safer file operations:
 - `Document.saveAsAtomic(path)` - Save a document atomically
 - `Document.saveWithBackup(path)` - Save and create a `.bak` backup of the previous file
 - `Document.saveIfChanged()` - Only write when contents differ (normalizes trailing newline; returns `true` if a write occurred)
-
-
 
 ---
 

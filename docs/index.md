@@ -2,13 +2,23 @@
 # https://vitepress.dev/reference/default-theme-home-page
 layout: home
 title: "zon.zig"
-description: "zon.zig is a small, zero-dependency Zig library for parsing, manipulating, and writing ZON configuration files. Supports reading, writing, find & replace, merge & clone, arrays, and pretty printing."
-keywords: ["Zig","ZON","zon","configuration","parser","serializer","pretty-print"]
+description: "zon.zig is a document-based Zig library for reading, writing, and manipulating ZON configuration files. Supports editing, find & replace, merge & clone, arrays, and pretty printing."
+keywords:
+  [
+    "Zig",
+    "ZON",
+    "zon",
+    "configuration",
+    "parser",
+    "serializer",
+    "pretty-print",
+    "std.zon",
+  ]
 
 hero:
   name: "ZON.zig"
-  text: "ZON File Library"
-  tagline: A simple, direct Zig library for reading and writing ZON files
+  text: "Document-Based ZON Library"
+  tagline: Read, write, and manipulate ZON files — complementary to std.zon
   image:
     src: /logo.svg
     alt: zon.zig
@@ -24,9 +34,9 @@ hero:
       link: https://github.com/muhammad-fiaz/zon.zig
 
 features:
-  - icon: 📦
-    title: Simple API
-    details: Intuitive getter/setter interface with dot notation for nested paths. Auto-creates intermediate objects automatically.
+  - icon: 📄
+    title: Document-Based API
+    details: Maintains an in-memory document tree for editing and manipulation, unlike std.zon which parses into typed structures.
   - icon: 🔧
     title: Full ZON Support
     details: Supports all ZON types including identifiers (.name = .value), large hex numbers, arrays, and nested objects.
@@ -40,8 +50,8 @@ features:
     title: Pretty Print
     details: Configurable output formatting with custom indentation levels or compact output.
   - icon: ⚡
-    title: Pure Zig
-    details: No dependencies on Zig compiler internals. Cross-platform with Windows, Linux, and macOS support.
+    title: Custom Parser
+    details: Does NOT depend on std.zig.Ast or compiler internals. Cross-platform with Windows, Linux, and macOS support.
 ---
 
 ## Quick Start
@@ -85,7 +95,7 @@ pub fn main() !void {
 ## Installation
 
 ```bash
-zig fetch --save https://github.com/muhammad-fiaz/zon.zig/archive/refs/tags/0.0.2.tar.gz
+zig fetch --save https://github.com/muhammad-fiaz/zon.zig/archive/refs/tags/0.0.3.tar.gz
 ```
 
 Then in your `build.zig`:

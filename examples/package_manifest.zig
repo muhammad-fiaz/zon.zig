@@ -40,8 +40,8 @@ pub fn main() !void {
     std.debug.print("Version: {s}\n", .{doc.getString("version").?});
     std.debug.print("Min Zig version: {s}\n", .{doc.getString("minimum_zig_version").?});
 
-    if (doc.getInt("fingerprint")) |fp| {
-        std.debug.print("Fingerprint: 0x{x}\n", .{@as(u64, @bitCast(fp))});
+    if (doc.getUint("fingerprint")) |fp| {
+        std.debug.print("Fingerprint: 0x{x}\n", .{fp});
     }
 
     std.debug.print("\nPaths ({d} items):\n", .{doc.arrayLen("paths").?});

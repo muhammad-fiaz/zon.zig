@@ -1,7 +1,13 @@
 //! Parser - Parses ZON source into a Value tree.
 //!
 //! This module provides a custom ZON parser that converts source text into a structured
-//! Value representation. It does not rely on `std.zig.Ast` or Zig compiler internals.
+//! Value representation. Unlike `std.zon.parse` which deserializes directly into Zig types,
+//! this parser creates an intermediate Value tree for document manipulation.
+//!
+//! Key differences from std.zon:
+//! - Does NOT rely on `std.zig.Ast`, `Zoir`, or Zig compiler internals
+//! - Produces a mutable Value tree instead of typed data
+//! - Designed for configuration file editing and dynamic access
 //!
 //! Supported Syntax:
 //! - Objects: `.{ .key = value, .key2 = value2 }`
@@ -16,6 +22,7 @@
 
 const std = @import("std");
 const Allocator = std.mem.Allocator;
+const ArrayList = std.ArrayList;
 const Tokenizer = @import("tokenizer.zig").Tokenizer;
 const Token = @import("tokenizer.zig").Token;
 const Value = @import("value.zig").Value;
@@ -78,6 +85,7 @@ pub const Parser = struct {
                 return .null_val;
             },
             .string_literal => return self.parseString(),
+            .multiline_string_literal => return self.parseMultilineString(),
             .char_literal => return self.parseChar(),
             .number_literal => return self.parseNumber(),
             .identifier => {
@@ -91,8 +99,29 @@ pub const Parser = struct {
                 } else if (std.mem.eql(u8, slice, "null")) {
                     self.advance();
                     return .null_val;
+                } else if (std.mem.eql(u8, slice, "inf")) {
+                    self.advance();
+                    return .{ .number = .{ .float = std.math.inf(f64) } };
+                } else if (std.mem.eql(u8, slice, "nan")) {
+                    self.advance();
+                    return .{ .number = .{ .float = std.math.nan(f64) } };
                 }
                 return error.UnexpectedToken;
+            },
+            .minus => {
+                self.advance();
+                const val = try self.parseValue();
+                return switch (val) {
+                    .number => |n| switch (n) {
+                        .int => |i| .{ .number = .{ .int = -i } },
+                        .float => |f| .{ .number = .{ .float = -f } },
+                    },
+                    else => error.UnexpectedToken,
+                };
+            },
+            .plus => {
+                self.advance();
+                return self.parseValue();
             },
             .at_sign => return self.parseAtExpression(),
             else => return error.UnexpectedToken,
@@ -235,6 +264,25 @@ pub const Parser = struct {
         return .{ .string = unescaped };
     }
 
+    fn parseMultilineString(self: *Parser) ParseError!Value {
+        var result = std.ArrayListUnmanaged(u8){};
+        errdefer result.deinit(self.allocator);
+
+        while (self.current.tag == .multiline_string_literal) {
+            const raw = self.tokenizer.slice(self.current);
+            // Skip the leading \\
+            if (raw.len >= 2) {
+                try result.appendSlice(self.allocator, raw[2..]);
+            }
+            self.advance();
+            if (self.current.tag == .multiline_string_literal) {
+                try result.append(self.allocator, '\n');
+            }
+        }
+
+        return .{ .string = try result.toOwnedSlice(self.allocator) };
+    }
+
     fn parseChar(self: *Parser) ParseError!Value {
         const raw = self.tokenizer.slice(self.current);
         self.advance();
@@ -341,22 +389,22 @@ pub const Parser = struct {
         if (raw.len > 2 and raw[0] == '0') {
             switch (raw[1]) {
                 'x', 'X' => {
-                    const val = std.fmt.parseInt(u64, raw[2..], 16) catch return error.InvalidNumber;
+                    const val = std.fmt.parseInt(u128, raw[2..], 16) catch return error.InvalidNumber;
                     return .{ .number = .{ .int = @bitCast(val) } };
                 },
                 'o', 'O' => {
-                    const val = std.fmt.parseInt(i64, raw[2..], 8) catch return error.InvalidNumber;
+                    const val = std.fmt.parseInt(i128, raw[2..], 8) catch return error.InvalidNumber;
                     return .{ .number = .{ .int = val } };
                 },
                 'b', 'B' => {
-                    const val = std.fmt.parseInt(i64, raw[2..], 2) catch return error.InvalidNumber;
+                    const val = std.fmt.parseInt(i128, raw[2..], 2) catch return error.InvalidNumber;
                     return .{ .number = .{ .int = val } };
                 },
                 else => {},
             }
         }
 
-        const val = std.fmt.parseInt(i64, raw, 10) catch return error.InvalidNumber;
+        const val = std.fmt.parseInt(i128, raw, 10) catch return error.InvalidNumber;
         return .{ .number = .{ .int = val } };
     }
 };
@@ -423,7 +471,8 @@ test "parse large hex fingerprint" {
 
     var obj = value.asObject().?;
     const fp = obj.get("fingerprint").?;
-    try std.testing.expect(fp.asInt() != null);
+    try std.testing.expect(fp.asUint() != null);
+    try std.testing.expectEqual(@as(u64, 0xee480fa30d50cbf6), fp.asUint().?);
 }
 
 test "parse build.zig.zon style" {
@@ -431,7 +480,7 @@ test "parse build.zig.zon style" {
     const source =
         \\.{
         \\    .name = .zon,
-        \\    .version = "0.0.2",
+        \\    .version = "0.0.3",
         \\    .fingerprint = 0xee480fa30d50cbf6,
         \\    .minimum_zig_version = "0.15.0",
         \\    .paths = .{
@@ -451,10 +500,10 @@ test "parse build.zig.zon style" {
     try std.testing.expectEqualStrings("zon", name.asString().?);
 
     const version = obj.get("version").?;
-    try std.testing.expectEqualStrings("0.0.2", version.asString().?);
+    try std.testing.expectEqualStrings("0.0.3", version.asString().?);
 
     const fp = obj.get("fingerprint").?;
-    try std.testing.expect(fp.asInt() != null);
+    try std.testing.expect(fp.asUint() != null);
 
     const paths = obj.get("paths").?;
     try std.testing.expect(paths.* == .array);
@@ -561,16 +610,19 @@ test "parse float" {
     try std.testing.expectApproxEqAbs(@as(f64, 3.14159), obj.get("value").?.asFloat().?, 0.00001);
 }
 
-test "parse large hex fingerprint with bitcast" {
+test "parse multiline string" {
     const allocator = std.testing.allocator;
-    const source = ".{ .fingerprint = 0xee480fa30d50cbf6 }";
+    const source =
+        \\.{
+        \\    .text = \\line 1
+        \\            \\line 2
+        \\}
+    ;
     var value = try parse(allocator, source);
     defer value.deinit(allocator);
 
     var obj = value.asObject().?;
-    const fp = obj.get("fingerprint").?.asInt().?;
-    const unsigned: u64 = @bitCast(fp);
-    try std.testing.expectEqual(@as(u64, 0xee480fa30d50cbf6), unsigned);
+    try std.testing.expectEqualStrings("line 1\nline 2", obj.get("text").?.asString().?);
 }
 
 test "parse build.zig.zon format" {

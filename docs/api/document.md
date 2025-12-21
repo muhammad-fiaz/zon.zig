@@ -46,7 +46,12 @@ All getters return `null` for missing paths or type mismatches.
 | `isNull(path)`        | `bool`          | Check if value is null       |
 | `isIdentifier(path)`  | `bool`          | Check if value is identifier |
 | `exists(path)`        | `bool`          | Check if path exists         |
-| `getType(path)`       | `?[]const u8`   | Get type name                |
+| `getType(path)`       | `?[]const u8`   | Get base type name           |
+| `getTypeName(path)`   | `?[]const u8`   | Get precise type name        |
+| `isNan(path)`         | `bool`          | Check if value is NaN        |
+| `isInf(path)`         | `bool`          | Check if value is Inf        |
+| `getUint(path)`       | `?u64`          | Get unsigned integer (u64)   |
+| `toBool(path)`        | `bool`          | Coerce value to boolean      |
 
 ## Setters
 
@@ -77,17 +82,22 @@ All setters auto-create intermediate objects.
 
 ## Array Operations
 
-| Method                            | Return          | Description          |
-| --------------------------------- | --------------- | -------------------- |
-| `arrayLen(path)`                  | `?usize`        | Get array length     |
-| `getArrayElement(path, index)`    | `?*const Value` | Get element at index |
-| `getArrayString(path, index)`     | `?[]const u8`   | Get string at index  |
-| `getArrayInt(path, index)`        | `?i64`          | Get integer at index |
-| `getArrayBool(path, index)`       | `?bool`         | Get boolean at index |
-| `appendToArray(path, string)`     | `!void`         | Append string        |
-| `appendIntToArray(path, int)`     | `!void`         | Append integer       |
-| `appendFloatToArray(path, float)` | `!void`         | Append float         |
-| `appendBoolToArray(path, bool)`   | `!void`         | Append boolean       |
+| Method                                  | Return          | Description          |
+| --------------------------------------- | --------------- | -------------------- |
+| `arrayLen(path)`                        | `?usize`        | Get array length     |
+| `getArrayElement(path, index)`          | `?*const Value` | Get element at index |
+| `getArrayString(path, index)`           | `?[]const u8`   | Get string at index  |
+| `getArrayInt(path, index)`              | `?i64`          | Get integer at index |
+| `getArrayBool(path, index)`             | `?bool`         | Get boolean at index |
+| `appendToArray(path, string)`           | `!void`         | Append string        |
+| `appendIntToArray(path, int)`           | `!void`         | Append integer       |
+| `appendFloatToArray(path, float)`       | `!void`         | Append float         |
+| `appendBoolToArray(path, bool)`         | `!void`         | Append boolean       |
+| `removeFromArray(path, index)`          | `bool`          | Remove item at index |
+| `insertStringIntoArray(path, idx, val)` | `!void`         | Insert string        |
+| `insertIntIntoArray(path, idx, val)`    | `!void`         | Insert integer       |
+| `indexOf(path, value)`                  | `?usize`        | Find string index    |
+| `countAt(path)`                         | `usize`         | Count items at path  |
 
 ## Find & Replace
 
@@ -101,24 +111,26 @@ All setters auto-create intermediate objects.
 
 ## Merge & Clone
 
-| Method         | Return          | Description           |
-| -------------- | --------------- | --------------------- |
-| `merge(other)` | `!void`         | Merge other into this |
-| `clone()`      | `!Document`     | Create deep copy      |
-| `diff(other)`  | `![][]const u8` | Get differing keys    |
+| Method                  | Return          | Description                |
+| ----------------------- | --------------- | -------------------------- |
+| `merge(other)`          | `!void`         | Shallow merge document     |
+| `mergeRecursive(other)` | `!void`         | **Recursive (deep) merge** |
+| `clone()`               | `!Document`     | Create deep copy           |
+| `eql(other)`            | `bool`          | **Deep equality check**    |
+| `diff(other)`           | `![][]const u8` | Get differing keys         |
 
 ## Output
 
-| Method                      | Return  | Description                                  |
-| --------------------------- | ------- | -------------------------------------------- |
-| `save()`                    | `!void` | Save to original path                        |
-| `saveAs(path)`              | `!void` | Save to specified path                       |
-| `saveAsAtomic(path)`        | `!void` | Atomically write file (write tmp + rename)   |
-| `saveWithBackup(ext)`       | `!void` | Save and move previous file to `<path><ext>` |
-| `saveIfChanged()`           | `!bool` | Save only if contents changed (returns true if written) |
-| `toString()`                | `![]u8` | 4-space indent (caller frees)               |
-| `toCompactString()`         | `![]u8` | No indentation                              |
-| `toPrettyString(indent)`    | `![]u8` | Custom indentation                           |
+| Method                   | Return  | Description                                             |
+| ------------------------ | ------- | ------------------------------------------------------- |
+| `save()`                 | `!void` | Save to original path                                   |
+| `saveAs(path)`           | `!void` | Save to specified path                                  |
+| `saveAsAtomic(path)`     | `!void` | Atomically write file (write tmp + rename)              |
+| `saveWithBackup(ext)`    | `!void` | Save and move previous file to `<path><ext>`            |
+| `saveIfChanged()`        | `!bool` | Save only if contents changed (returns true if written) |
+| `toString()`             | `![]u8` | 4-space indent (caller frees)                           |
+| `toCompactString()`      | `![]u8` | No indentation                                          |
+| `toPrettyString(indent)` | `![]u8` | Custom indentation                                      |
 
 ## Object & Array Access
 
@@ -130,11 +142,13 @@ All setters auto-create intermediate objects.
 ## Cleanup
 
 ```zig
+doc.close();
+// or
 doc.deinit();
 ```
 
-::: warning
-Always call `deinit()` when done with a document to prevent memory leaks.
+::: warning Resource Management
+Always call `close()` or `deinit()` when done with a document to prevent memory leaks.
 :::
 
 ## Complete Example

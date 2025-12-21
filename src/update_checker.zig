@@ -246,7 +246,7 @@ test "version comparison - local newer" {
 
 test "current version" {
     const ver = getCurrentVersion();
-    try std.testing.expectEqualStrings("0.0.2", ver);
+    try std.testing.expectEqualStrings("0.0.3", ver);
 }
 
 test "version tag parsing" {

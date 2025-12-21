@@ -258,19 +258,19 @@ zon.checkForUpdates(allocator);
 Library version string.
 
 ```zig
-pub const version: []const u8 = "0.0.2";
+pub const version: []const u8 = "0.0.3";
 ```
 
 **Example:**
 
 ```zig
-std.debug.print("zon.zig v{s}\n", .{zon.version});
+std.debug.print("zon.zig {s}\n", .{zon.version});
 ```
 
 **Output:**
 
 ```
-zon.zig v0.0.2
+zon.zig 0.0.3
 ```
 
 ## Complete Example
@@ -288,7 +288,7 @@ pub fn main() !void {
     zon.disableUpdateCheck();
 
     // Print version
-    std.debug.print("zon.zig v{s}\n", .{zon.version});
+    std.debug.print("zon.zig {s}\n", .{zon.version});
 
     // Check if config exists
     if (zon.fileExists("config.zon")) {
@@ -327,7 +327,7 @@ pub fn main() !void {
 **Output (first run):**
 
 ```
-zon.zig v0.0.2
+zon.zig 0.0.3
 Creating new config
 Parsed: true
 ```
@@ -335,7 +335,7 @@ Parsed: true
 **Output (second run):**
 
 ```
-zon.zig v0.0.2
+zon.zig 0.0.3
 Found existing config
 Parsed: true
 ```

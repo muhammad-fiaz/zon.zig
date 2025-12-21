@@ -1,4 +1,10 @@
-//! zon.zig - A Zig library for reading and writing ZON files.
+//! zon.zig - A document-based ZON library for Zig.
+//!
+//! Unlike `std.zon` which parses ZON directly into typed Zig structures,
+//! zon.zig maintains an in-memory document tree that you can query, modify, and serialize.
+//! This makes it ideal for configuration file editing, dynamic access, and find/replace operations.
+//!
+//! See: https://codeberg.org/ziglang/zig/src/branch/master/lib/std/zon for std.zon reference.
 //!
 //! Repository: https://github.com/muhammad-fiaz/zon.zig
 
@@ -181,7 +187,7 @@ test "parse build.zig.zon format" {
     const source =
         \\.{
         \\    .name = .zon,
-        \\    .version = "0.0.2",
+        \\    .version = "0.0.3",
         \\    .fingerprint = 0xee480fa30d50cbf6,
         \\    .minimum_zig_version = "0.15.0",
         \\    .paths = .{
@@ -196,8 +202,8 @@ test "parse build.zig.zon format" {
     defer doc.deinit();
 
     try std.testing.expectEqualStrings("zon", doc.getString("name").?);
-    try std.testing.expectEqualStrings("0.0.2", doc.getString("version").?);
-    try std.testing.expect(doc.getInt("fingerprint") != null);
+    try std.testing.expectEqualStrings("0.0.3", doc.getString("version").?);
+    try std.testing.expect(doc.getUint("fingerprint") != null);
     try std.testing.expectEqual(@as(usize, 3), doc.arrayLen("paths").?);
     try std.testing.expectEqualStrings("build.zig", doc.getArrayString("paths", 0).?);
 }
@@ -245,7 +251,7 @@ test "stringify document" {
 }
 
 test "version info" {
-    try std.testing.expectEqualStrings("0.0.2", version);
+    try std.testing.expectEqualStrings("0.0.3", version);
 }
 
 test "find and replace" {
@@ -339,4 +345,83 @@ test "file utilities: copy & move with overwrite" {
     // cleanup
     _ = std.fs.cwd().deleteFile("a.zon") catch null;
     _ = std.fs.cwd().deleteFile("c.zon") catch null;
+}
+
+test "advanced: special floats" {
+    const allocator = std.testing.allocator;
+    const source = ".{ .inf_val = inf, .nan_val = nan, .neg_inf = -inf }";
+    var doc = try parse(allocator, source);
+    defer doc.deinit();
+
+    try std.testing.expect(doc.isInf("inf_val"));
+    try std.testing.expect(doc.isNan("nan_val"));
+    try std.testing.expect(doc.isInf("neg_inf"));
+
+    const out = try doc.toString();
+    defer allocator.free(out);
+    try std.testing.expect(std.mem.indexOf(u8, out, ".inf_val = inf") != null);
+    try std.testing.expect(std.mem.indexOf(u8, out, ".nan_val = nan") != null);
+    try std.testing.expect(std.mem.indexOf(u8, out, ".neg_inf = -inf") != null);
+}
+
+test "advanced: multiline strings" {
+    const allocator = std.testing.allocator;
+    const source = ".{ .text = \\\\line 1\n\\\\line 2\n }";
+    var doc = try parse(allocator, source);
+    defer doc.deinit();
+
+    const expected = "line 1\nline 2";
+    try std.testing.expectEqualStrings(expected, doc.getString("text").?);
+}
+
+test "advanced: recursive merge" {
+    const allocator = std.testing.allocator;
+    var base = try parse(allocator, ".{ .db = .{ .host = \"localhost\", .port = 5432 }, .mode = \"dev\" }");
+    defer base.deinit();
+
+    const override = try parse(allocator, ".{ .db = .{ .port = 6000 }, .mode = \"prod\" }");
+    var override_mut = override;
+    defer override_mut.deinit();
+
+    try base.mergeRecursive(&override_mut);
+
+    try std.testing.expectEqualStrings("localhost", base.getString("db.host").?);
+    try std.testing.expectEqual(@as(i64, 6000), base.getInt("db.port").?);
+    try std.testing.expectEqualStrings("prod", base.getString("mode").?);
+}
+
+test "advanced: deep equality" {
+    const allocator = std.testing.allocator;
+    var doc1 = try parse(allocator, ".{ .a = 1, .b = .{ .c = 2 } }");
+    defer doc1.deinit();
+    var doc2 = try parse(allocator, ".{ .b = .{ .c = 2 }, .a = 1 }"); // order doesn't matter for eql
+    defer doc2.deinit();
+    var doc3 = try parse(allocator, ".{ .a = 1, .b = .{ .c = 3 } }");
+    defer doc3.deinit();
+
+    try std.testing.expect(doc1.eql(&doc2));
+    try std.testing.expect(!doc1.eql(&doc3));
+}
+
+test "advanced: coercion and uint" {
+    const allocator = std.testing.allocator;
+    var doc = try parse(allocator, ".{ .big = 0xee480fa30d50cbf6, .yes = true, .no = 0, .empty = \"\" }");
+    defer doc.deinit();
+
+    try std.testing.expectEqual(@as(u64, 0xee480fa30d50cbf6), doc.getUint("big").?);
+    try std.testing.expect(doc.toBool("yes"));
+    try std.testing.expect(!doc.toBool("no"));
+    try std.testing.expect(!doc.toBool("empty"));
+}
+
+test "advanced: type names" {
+    const allocator = std.testing.allocator;
+    var doc = try parse(allocator, ".{ .s = \"hi\", .i = 1, .b = true, .o = .{}, .a = .{1} }");
+    defer doc.deinit();
+
+    try std.testing.expectEqualStrings("string", doc.getTypeName("s").?);
+    try std.testing.expectEqualStrings("int", doc.getTypeName("i").?);
+    try std.testing.expectEqualStrings("bool", doc.getTypeName("b").?);
+    try std.testing.expectEqualStrings("object", doc.getTypeName("o").?);
+    try std.testing.expectEqualStrings("array", doc.getTypeName("a").?);
 }

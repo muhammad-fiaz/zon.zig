@@ -25,7 +25,7 @@ pub const Value = union(enum) {
 
 ```zig
 pub const Number = union(enum) {
-    int: i64,
+    int: i128,
     float: f64,
 };
 ```
@@ -34,10 +34,16 @@ pub const Number = union(enum) {
 
 ### Type Checking
 
-| Method           | Return | Description                     |
-| ---------------- | ------ | ------------------------------- |
-| `isNull()`       | `bool` | Check if value is null          |
-| `isIdentifier()` | `bool` | Check if value is an identifier |
+| Method             | Return       | Description                     |
+| ------------------ | ------------ | ------------------------------- |
+| `isNull()`         | `bool`       | Check if value is null          |
+| `isIdentifier()`   | `bool`       | Check if value is an identifier |
+| `isNan()`          | `bool`       | Check if value is NaN           |
+| `isPositiveInf()`  | `bool`       | Check if positive infinity      |
+| `isNegativeInf()`  | `bool`       | Check if negative infinity      |
+| `isSpecialFloat()` | `bool`       | Check if NaN or Infinity        |
+| `typeName()`       | `[]const u8` | Get precise type name           |
+| `toBool()`         | `bool`       | Coerce value to boolean         |
 
 ### Type Conversion
 
@@ -46,17 +52,23 @@ pub const Number = union(enum) {
 | `asString()`     | `?[]const u8` | Get as string (works for identifiers too) |
 | `asIdentifier()` | `?[]const u8` | Get as identifier only                    |
 | `asBool()`       | `?bool`       | Get as boolean                            |
-| `asInt()`        | `?i64`        | Get as integer                            |
+| `asInt()`        | `?i64`        | Get as i64 (null if overflow)             |
+| `asInt128()`     | `?i128`       | Get as i128 (all ZON integers)            |
+| `asUint()`       | `?u64`        | Get as u64 (useful for fingerprints)      |
 | `asFloat()`      | `?f64`        | Get as float (converts int to float)      |
 | `asObject()`     | `?*Object`    | Get as object                             |
 | `asArray()`      | `?*Array`     | Get as array                              |
 
 ### Memory Management
 
-| Method              | Description      |
-| ------------------- | ---------------- |
-| `deinit(allocator)` | Free all memory  |
-| `clone(allocator)`  | Create deep copy |
+| Method                 | Description               |
+| ---------------------- | ------------------------- |
+| Method                 | Description               |
+| -------------------    | ------------------------- |
+| `deinit(allocator)`    | Free all memory           |
+| `clone(allocator)`     | Create deep copy          |
+| `eql(other)`           | **Deep equality check**   |
+| `toDebugString(alloc)` | Get debug representation  |
 
 ## Object Type
 

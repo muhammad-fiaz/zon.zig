@@ -24,8 +24,9 @@ All getter methods return optionals. They never panic:
 // Returns null if path doesn't exist
 const name = doc.getString("name");
 
-// Returns null if type doesn't match
+// Returns null if type doesn't match OR if value overflows the target type
 const count = doc.getInt("name"); // null if name is a string
+const big = doc.getInt("fingerprint"); // null if fingerprint > i64_max (use getUint)
 
 // Safe access with orelse
 const host = doc.getString("host") orelse "localhost";

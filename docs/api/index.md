@@ -5,7 +5,13 @@ description: "Complete API reference for zon.zig: document creation, file utilit
 
 # API Overview
 
-Complete API reference for zon.zig.
+Complete API reference for zon.zig — a document-based ZON library.
+
+::: tip Document vs Type-Based API
+zon.zig provides a **document-based** (DOM-like) API where you work with a `Document` object containing a `Value` tree. This differs from Zig's [`std.zon`](https://codeberg.org/ziglang/zig/src/branch/master/lib/std/zon) which deserializes directly into typed Zig structures.
+
+Use zon.zig when you need to edit, search, or manipulate ZON files dynamically.
+:::
 
 ## Module Functions
 
@@ -108,7 +114,10 @@ std.debug.print("Version: {s}\n", .{zon.version});
 | `exists(path)`       | `bool`        | Check if path exists         |
 | `isNull(path)`       | `bool`        | Check if value is null       |
 | `isIdentifier(path)` | `bool`        | Check if value is identifier |
-| `getType(path)`      | `?[]const u8` | Get type name                |
+| `getType(path)`      | `?[]const u8` | Get base type name           |
+| `getTypeName(path)`  | `?[]const u8` | Get precise type name        |
+| `isNan(path)`        | `bool`        | Check if value is NaN        |
+| `isInf(path)`        | `bool`        | Check if value is Inf        |
 | `isEmpty()`          | `bool`        | Check if document empty      |
 
 ### Modification
@@ -122,17 +131,22 @@ std.debug.print("Version: {s}\n", .{zon.version});
 
 ### Array Operations
 
-| Method                            | Return          | Description         |
-| --------------------------------- | --------------- | ------------------- |
-| `arrayLen(path)`                  | `?usize`        | Get array length    |
-| `getArrayElement(path, index)`    | `?*const Value` | Get element         |
-| `getArrayString(path, index)`     | `?[]const u8`   | Get string element  |
-| `getArrayInt(path, index)`        | `?i64`          | Get integer element |
-| `getArrayBool(path, index)`       | `?bool`         | Get boolean element |
-| `appendToArray(path, string)`     | `!void`         | Append string       |
-| `appendIntToArray(path, int)`     | `!void`         | Append integer      |
-| `appendFloatToArray(path, float)` | `!void`         | Append float        |
-| `appendBoolToArray(path, bool)`   | `!void`         | Append boolean      |
+| Method                                  | Return          | Description         |
+| --------------------------------------- | --------------- | ------------------- |
+| `arrayLen(path)`                        | `?usize`        | Get array length    |
+| `getArrayElement(path, index)`          | `?*const Value` | Get element         |
+| `getArrayString(path, index)`           | `?[]const u8`   | Get string element  |
+| `getArrayInt(path, index)`              | `?i64`          | Get integer element |
+| `getArrayBool(path, index)`             | `?bool`         | Get boolean element |
+| `appendToArray(path, string)`           | `!void`         | Append string       |
+| `appendIntToArray(path, int)`           | `!void`         | Append integer      |
+| `appendFloatToArray(path, float)`       | `!void`         | Append float        |
+| `appendBoolToArray(path, bool)`         | `!void`         | Append boolean      |
+| `removeFromArray(path, index)`          | `bool`          | Remove item         |
+| `insertStringIntoArray(path, idx, val)` | `!void`         | Insert string       |
+| `insertIntIntoArray(path, idx, val)`    | `!void`         | Insert integer      |
+| `indexOf(path, value)`                  | `?usize`        | Find string index   |
+| `countAt(path)`                         | `usize`         | Count items at path |
 
 ### Find & Replace
 
@@ -146,11 +160,20 @@ std.debug.print("Version: {s}\n", .{zon.version});
 
 ### Merge & Clone
 
-| Method         | Return          | Description          |
-| -------------- | --------------- | -------------------- |
-| `merge(other)` | `!void`         | Merge other document |
-| `clone()`      | `!Document`     | Create deep copy     |
-| `diff(other)`  | `![][]const u8` | Get differing keys   |
+| Method                  | Return          | Description                |
+| ----------------------- | --------------- | -------------------------- |
+| `merge(other)`          | `!void`         | Shallow merge document     |
+| `mergeRecursive(other)` | `!void`         | **Recursive (deep) merge** |
+| `clone()`               | `!Document`     | Create deep copy           |
+| `eql(other)`            | `bool`          | **Deep equality check**    |
+| `diff(other)`           | `![][]const u8` | Get differing keys         |
+
+### Extra Conversions
+
+| Method          | Return | Description                  |
+| --------------- | ------ | ---------------------------- |
+| `getUint(path)` | `?u64` | Get u64 value (hashes, etc.) |
+| `toBool(path)`  | `bool` | Coerce value to boolean      |
 
 ### Output
 

@@ -54,6 +54,8 @@ pub const Token = struct {
         identifier,
         /// A string literal `"..."`
         string_literal,
+        /// A multiline string literal `\\...`
+        multiline_string_literal,
         /// A character literal `'...'`
         char_literal,
         /// A number literal (integer or float)
@@ -66,6 +68,10 @@ pub const Token = struct {
         keyword_null,
         /// `@`
         at_sign,
+        /// `-`
+        minus,
+        /// `+`
+        plus,
         /// End of file
         eof,
         /// Invalid token
@@ -141,9 +147,30 @@ pub const Tokenizer = struct {
                 self.index += 1;
                 return .{ .tag = .at_sign, .start = start, .end = self.index };
             },
+            '-' => {
+                if (self.index + 1 < self.source.len and isDigit(self.source[self.index + 1])) {
+                    return self.scanNumber();
+                }
+                self.index += 1;
+                return .{ .tag = .minus, .start = start, .end = self.index };
+            },
+            '+' => {
+                if (self.index + 1 < self.source.len and isDigit(self.source[self.index + 1])) {
+                    return self.scanNumber();
+                }
+                self.index += 1;
+                return .{ .tag = .plus, .start = start, .end = self.index };
+            },
             '"' => return self.scanString(),
             '\'' => return self.scanChar(),
-            '-', '+', '0'...'9' => return self.scanNumber(),
+            '\\' => {
+                if (self.index + 1 < self.source.len and self.source[self.index + 1] == '\\') {
+                    return self.scanMultilineString();
+                }
+                self.index += 1;
+                return .{ .tag = .invalid, .start = start, .end = self.index };
+            },
+            '0'...'9' => return self.scanNumber(),
             'a'...'z', 'A'...'Z', '_' => return self.scanIdentifier(),
             else => {
                 self.index += 1;
@@ -191,6 +218,20 @@ pub const Tokenizer = struct {
         }
 
         return .{ .tag = .invalid, .start = start, .end = self.index };
+    }
+
+    /// Scans a multiline string literal.
+    fn scanMultilineString(self: *Tokenizer) Token {
+        const start = self.index;
+        self.index += 2; // skip \\
+
+        while (self.index < self.source.len) {
+            const c = self.source[self.index];
+            if (c == '\n') break;
+            self.index += 1;
+        }
+
+        return .{ .tag = .multiline_string_literal, .start = start, .end = self.index };
     }
 
     /// Scans a character literal.

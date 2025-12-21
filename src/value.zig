@@ -15,7 +15,7 @@ pub const Value = union(enum) {
 
     /// Numeric value.
     pub const Number = union(enum) {
-        int: i64,
+        int: i128,
         float: f64,
     };
 
@@ -112,8 +112,19 @@ pub const Value = union(enum) {
             return &self.items.items[index];
         }
 
+        pub fn insert(self: *Array, index: usize, value: Value) !void {
+            try self.items.insert(self.allocator, index, value);
+        }
+
         pub fn len(self: *const Array) usize {
             return self.items.items.len;
+        }
+
+        pub fn remove(self: *Array, index: usize) bool {
+            if (index >= self.items.items.len) return false;
+            var item = self.items.orderedRemove(index);
+            item.deinit(self.allocator);
+            return true;
         }
     };
 
@@ -185,8 +196,19 @@ pub const Value = union(enum) {
     pub fn asInt(self: *const Value) ?i64 {
         return switch (self.*) {
             .number => |n| switch (n) {
-                .int => |i| i,
+                .int => |i| if (i >= std.math.minInt(i64) and i <= std.math.maxInt(i64)) @intCast(i) else null,
                 .float => |f| if (@abs(f - @trunc(f)) < 0.0001) @as(i64, @intFromFloat(f)) else null,
+            },
+            else => null,
+        };
+    }
+
+    /// Returns the integer value as i128.
+    pub fn asInt128(self: *const Value) ?i128 {
+        return switch (self.*) {
+            .number => |n| switch (n) {
+                .int => |i| i,
+                .float => |f| if (@abs(f - @trunc(f)) < 0.0001) @intFromFloat(f) else null,
             },
             else => null,
         };
@@ -218,6 +240,183 @@ pub const Value = union(enum) {
             .array => |*a| a,
             else => null,
         };
+    }
+
+    /// Returns an unsigned integer value if representable.
+    /// Useful for fingerprints and other unsigned values.
+    pub fn asUint(self: *const Value) ?u64 {
+        return switch (self.*) {
+            .number => |n| switch (n) {
+                .int => |i| if (i >= 0 and i <= std.math.maxInt(u64)) @intCast(i) else null,
+                .float => |f| if (f >= 0 and @abs(f - @trunc(f)) < 0.0001 and f <= @as(f64, @floatFromInt(std.math.maxInt(u64)))) @intFromFloat(f) else null,
+            },
+            else => null,
+        };
+    }
+
+    /// Check if this value is positive infinity (like std.zon supports).
+    pub fn isPositiveInf(self: *const Value) bool {
+        return switch (self.*) {
+            .number => |n| switch (n) {
+                .float => |f| std.math.isPositiveInf(f),
+                else => false,
+            },
+            else => false,
+        };
+    }
+
+    /// Check if this value is negative infinity.
+    pub fn isNegativeInf(self: *const Value) bool {
+        return switch (self.*) {
+            .number => |n| switch (n) {
+                .float => |f| std.math.isNegativeInf(f),
+                else => false,
+            },
+            else => false,
+        };
+    }
+
+    /// Check if this value is NaN.
+    pub fn isNan(self: *const Value) bool {
+        return switch (self.*) {
+            .number => |n| switch (n) {
+                .float => |f| std.math.isNan(f),
+                else => false,
+            },
+            else => false,
+        };
+    }
+
+    /// Check if this value is a special float (inf, -inf, nan).
+    pub fn isSpecialFloat(self: *const Value) bool {
+        return self.isPositiveInf() or self.isNegativeInf() or self.isNan();
+    }
+
+    /// Returns true if this value deeply equals another value.
+    pub fn eql(self: *const Value, other: *const Value) bool {
+        return switch (self.*) {
+            .null_val => other.* == .null_val,
+            .bool_val => |a| switch (other.*) {
+                .bool_val => |b| a == b,
+                else => false,
+            },
+            .number => |a| switch (other.*) {
+                .number => |b| blk: {
+                    const af = switch (a) {
+                        .int => |i| @as(f64, @floatFromInt(i)),
+                        .float => |f| f,
+                    };
+                    const bf = switch (b) {
+                        .int => |i| @as(f64, @floatFromInt(i)),
+                        .float => |f| f,
+                    };
+                    // Handle NaN
+                    if (std.math.isNan(af) and std.math.isNan(bf)) break :blk true;
+                    break :blk af == bf;
+                },
+                else => false,
+            },
+            .string => |a| switch (other.*) {
+                .string => |b| std.mem.eql(u8, a, b),
+                else => false,
+            },
+            .identifier => |a| switch (other.*) {
+                .identifier => |b| std.mem.eql(u8, a, b),
+                else => false,
+            },
+            .object => |a| switch (other.*) {
+                .object => |b| blk: {
+                    if (a.count() != b.count()) break :blk false;
+                    var it = a.entries.iterator();
+                    while (it.next()) |entry| {
+                        const other_val = b.entries.getPtr(entry.key_ptr.*) orelse break :blk false;
+                        if (!entry.value_ptr.eql(other_val)) break :blk false;
+                    }
+                    break :blk true;
+                },
+                else => false,
+            },
+            .array => |a| switch (other.*) {
+                .array => |b| blk: {
+                    if (a.len() != b.len()) break :blk false;
+                    for (a.items.items, 0..) |*item, i| {
+                        if (!item.eql(&b.items.items[i])) break :blk false;
+                    }
+                    break :blk true;
+                },
+                else => false,
+            },
+        };
+    }
+
+    /// Returns the type name as a string.
+    pub fn typeName(self: *const Value) []const u8 {
+        return switch (self.*) {
+            .null_val => "null",
+            .bool_val => "bool",
+            .number => |n| switch (n) {
+                .int => "int",
+                .float => "float",
+            },
+            .string => "string",
+            .identifier => "identifier",
+            .object => "object",
+            .array => "array",
+        };
+    }
+
+    /// Attempts to coerce the value to a boolean.
+    /// - null -> false
+    /// - bool -> bool
+    /// - int 0 -> false, else true
+    /// - empty string/array/object -> false, else true
+    pub fn toBool(self: *const Value) bool {
+        return switch (self.*) {
+            .null_val => false,
+            .bool_val => |b| b,
+            .number => |n| switch (n) {
+                .int => |i| i != 0,
+                .float => |f| f != 0.0 and !std.math.isNan(f),
+            },
+            .string => |s| s.len > 0,
+            .identifier => |s| s.len > 0,
+            .object => |o| o.count() > 0,
+            .array => |a| a.len() > 0,
+        };
+    }
+
+    /// Converts value to a string representation for debugging.
+    pub fn toDebugString(self: *const Value, allocator: Allocator) ![]u8 {
+        var buf = std.ArrayList(u8).init(allocator);
+        errdefer buf.deinit();
+
+        try self.formatDebug(buf.writer());
+        return buf.toOwnedSlice();
+    }
+
+    fn formatDebug(self: *const Value, writer: anytype) !void {
+        switch (self.*) {
+            .null_val => try writer.writeAll("null"),
+            .bool_val => |b| try writer.print("{}", .{b}),
+            .number => |n| switch (n) {
+                .int => |i| try writer.print("{d}", .{i}),
+                .float => |f| {
+                    if (std.math.isPositiveInf(f)) {
+                        try writer.writeAll("inf");
+                    } else if (std.math.isNegativeInf(f)) {
+                        try writer.writeAll("-inf");
+                    } else if (std.math.isNan(f)) {
+                        try writer.writeAll("nan");
+                    } else {
+                        try writer.print("{d}", .{f});
+                    }
+                },
+            },
+            .string => |s| try writer.print("\"{s}\"", .{s}),
+            .identifier => |s| try writer.print(".{s}", .{s}),
+            .object => try writer.writeAll(".{...}"),
+            .array => try writer.writeAll(".{...}"),
+        }
     }
 };
 
