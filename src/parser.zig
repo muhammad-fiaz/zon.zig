@@ -9,6 +9,8 @@
 //! - Produces a mutable Value tree instead of typed data
 //! - Designed for configuration file editing and dynamic access
 //!
+//! Includes a JSON import utility that converts standard JSON to the Value tree.
+//!
 //! Supported Syntax:
 //! - Objects: `.{ .key = value, .key2 = value2 }`
 //! - Arrays: `.{ value1, value2 }` or `.{ "string1", "string2" }`
@@ -36,21 +38,69 @@ pub const ParseError = error{
     OutOfMemory,
 };
 
+/// Diagnostic information for errors.
+pub const Diagnostic = struct {
+    line: usize,
+    column: usize,
+    message: []const u8,
+};
+
 /// Parses ZON source code into a Value tree.
 pub const Parser = struct {
     allocator: Allocator,
     tokenizer: Tokenizer,
     current: Token,
+    diag: ?Diagnostic = null,
 
     /// Creates a new parser for the given source.
     pub fn init(allocator: Allocator, source: []const u8) Parser {
         var tokenizer = Tokenizer.init(source);
-        const current = tokenizer.next();
+        const current = tokenizer.nextValid();
         return .{
             .allocator = allocator,
             .tokenizer = tokenizer,
             .current = current,
+            .diag = null,
         };
+    }
+
+    /// Parses JSON content into a Value tree.
+    pub fn parseJson(allocator: Allocator, source: []const u8) !Value {
+        const parsed = try std.json.parseFromSlice(std.json.Value, allocator, source, .{});
+        defer parsed.deinit();
+
+        return jsonValueToValue(allocator, parsed.value);
+    }
+
+    fn jsonValueToValue(allocator: Allocator, jv: std.json.Value) !Value {
+        switch (jv) {
+            .null => return .null_val,
+            .bool => |b| return .{ .bool_val = b },
+            .integer => |i| return .{ .number = .{ .int = @intCast(i) } },
+            .float => |f| return .{ .number = .{ .float = f } },
+            .string => |s| return .{ .string = try allocator.dupe(u8, s) },
+            .array => |a| {
+                var arr = Value.Array.init(allocator);
+                errdefer arr.deinit();
+                for (a.items) |v| {
+                    try arr.append(try jsonValueToValue(allocator, v));
+                }
+                return .{ .array = arr };
+            },
+            .object => |o| {
+                var obj = Value.Object.init(allocator);
+                errdefer obj.deinit();
+                var it = o.iterator();
+                while (it.next()) |entry| {
+                    try obj.put(entry.key_ptr.*, try jsonValueToValue(allocator, entry.value_ptr.*));
+                }
+                return .{ .object = obj };
+            },
+            .number_string => |s| {
+                const f = std.fmt.parseFloat(f64, s) catch 0.0;
+                return .{ .number = .{ .float = f } };
+            },
+        }
     }
 
     /// Parses the source and returns the root Value.
@@ -59,12 +109,21 @@ pub const Parser = struct {
     }
 
     fn advance(self: *Parser) void {
-        self.current = self.tokenizer.next();
+        self.current = self.tokenizer.nextValid();
+    }
+
+    fn fail(self: *Parser, message: []const u8) ParseError {
+        self.diag = .{
+            .line = self.tokenizer.lineAt(self.current.start),
+            .column = self.tokenizer.columnAt(self.current.start),
+            .message = message,
+        };
+        return error.UnexpectedToken;
     }
 
     fn expect(self: *Parser, tag: Token.Tag) ParseError!void {
         if (self.current.tag != tag) {
-            return error.UnexpectedToken;
+            return self.fail("expected a different token");
         }
         self.advance();
     }
@@ -135,9 +194,8 @@ pub const Parser = struct {
             return self.parseObjectOrArray();
         } else if (self.current.tag == .l_bracket) {
             return self.parseBracketArray();
-        } else if (self.current.tag == .identifier) {
-            const name = try self.allocator.dupe(u8, self.tokenizer.slice(self.current));
-            self.advance();
+        } else if (self.current.tag == .identifier or self.current.tag == .at_sign) {
+            const name = try self.parseKey();
             return .{ .identifier = name };
         }
 
@@ -154,11 +212,13 @@ pub const Parser = struct {
 
         if (self.current.tag == .dot) {
             var temp_tokenizer = self.tokenizer;
-            const peek = temp_tokenizer.next();
-            if (peek.tag == .identifier) {
-                var temp2 = temp_tokenizer;
-                const peek2 = temp2.next();
-                if (peek2.tag == .equals) {
+            var peek = temp_tokenizer.nextValid();
+            if (peek.tag == .at_sign) {
+                peek = temp_tokenizer.nextValid();
+            }
+            if (peek.tag == .identifier or peek.tag == .string_literal) {
+                const next_tok = temp_tokenizer.nextValid();
+                if (next_tok.tag == .equals) {
                     return self.parseObjectBody();
                 }
             }
@@ -175,13 +235,8 @@ pub const Parser = struct {
             if (self.current.tag == .dot) {
                 self.advance();
 
-                if (self.current.tag != .identifier) {
-                    return error.UnexpectedToken;
-                }
-
-                const key = try self.allocator.dupe(u8, self.tokenizer.slice(self.current));
+                const key = try self.parseKey();
                 errdefer self.allocator.free(key);
-                self.advance();
 
                 try self.expect(.equals);
 
@@ -240,6 +295,20 @@ pub const Parser = struct {
         return .{ .array = arr };
     }
 
+    fn parseKey(self: *Parser) ParseError![]const u8 {
+        if (self.current.tag == .identifier) {
+            const key = try self.allocator.dupe(u8, self.tokenizer.slice(self.current));
+            self.advance();
+            return key;
+        } else if (self.current.tag == .at_sign) {
+            self.advance();
+            if (self.current.tag != .string_literal) return error.UnexpectedToken;
+            const val = try self.parseString();
+            return val.string;
+        }
+        return error.UnexpectedToken;
+    }
+
     fn parseAtExpression(self: *Parser) ParseError!Value {
         try self.expect(.at_sign);
 
@@ -293,8 +362,17 @@ pub const Parser = struct {
 
         const content = raw[1 .. raw.len - 1];
         const unescaped = try self.unescapeString(content);
+        defer self.allocator.free(unescaped);
 
-        return .{ .string = unescaped };
+        if (unescaped.len == 0) return error.InvalidString;
+
+        // Zig character literals are integers (UTF-8 codepoints)
+        const codepoint = if (unescaped.len == 1)
+            @as(u128, unescaped[0])
+        else
+            @as(u128, std.unicode.utf8Decode(unescaped) catch return error.InvalidString);
+
+        return .{ .number = .{ .int = @as(i128, @bitCast(codepoint)) } };
     }
 
     fn unescapeString(self: *Parser, input: []const u8) ParseError![]u8 {

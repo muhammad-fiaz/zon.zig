@@ -89,6 +89,15 @@ A **document-based** ZON (Zig Object Notation) library for Zig, designed for con
 | 🔄 **Update Checker**             | Optional automatic update checking (can be disabled)       |
 | 📁 **File Operations**            | Delete, copy, rename, check existence                      |
 | 🧠 **Memory Flexibility**         | Full support for GPA, Arena, and custom allocators         |
+| 🌐 **JSON Interop**               | **Import from and Export to standard JSON**                |
+| 📏 **Object Iterators**           | Programmatic iteration over key-value pairs and arrays     |
+| 🏗️ **Flatten & Expand**           | Convert nested ZON to flat dot-notation maps               |
+| 🛡️ **Integrity Suite**            | **Stable Hashing (Order-independent)** & **Checksums**     |
+| 📏 **Size Metrics**               | Calculate byte size and compact size of documents          |
+| 🔍 **Recursive Search**           | Find keys anywhere (`find`, `findAll`)                     |
+| 🔁 **Aliases**                    | Use preferred naming (e.g., `init`/`new`, `len`/`size`)    |
+| 📂 **File Key Utils**             | Move/Copy keys directly in files without full parsing      |
+| 📊 **Diagnostic Errors**          | High-quality syntax error reporting with line/column       |
 
 </details>
 

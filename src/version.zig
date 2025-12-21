@@ -66,6 +66,18 @@ pub fn compareVersions(a: []const u8, b: []const u8) i8 {
     return 0;
 }
 
+/// Returns true if this library version is compatible with the required version.
+/// Uses semver compatibility rules (0.x.x is breaking at any change).
+pub fn isCompatible(required: []const u8) bool {
+    const req = std.SemanticVersion.parse(required) catch return false;
+    const current = semanticVersion();
+
+    if (current.major == 0) {
+        return current.major == req.major and current.minor == req.minor and current.patch >= req.patch;
+    }
+    return current.major == req.major and current.minor >= req.minor;
+}
+
 test "version constants" {
     try std.testing.expect(major == 0);
     try std.testing.expect(minor == 0);

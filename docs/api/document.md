@@ -23,6 +23,13 @@ var doc = try zon.open(allocator, "config.zon");
 defer doc.deinit();
 ```
 
+### Load or Create
+
+```zig
+var doc = try zon.loadOrCreate(allocator, "settings.zon", ".{ .theme = .dark }");
+defer doc.deinit();
+```
+
 ### Parse From String
 
 ```zig
@@ -37,15 +44,21 @@ All getters return `null` for missing paths or type mismatches.
 | Method                | Return Type     | Description                  |
 | --------------------- | --------------- | ---------------------------- |
 | `getString(path)`     | `?[]const u8`   | Get string value             |
+| `getStr(path)`        | `?[]const u8`   | Alias for getString          |
 | `getIdentifier(path)` | `?[]const u8`   | Get identifier value         |
 | `getBool(path)`       | `?bool`         | Get boolean value            |
 | `getInt(path)`        | `?i64`          | Get integer value            |
+| `getNum(path)`        | `?i64`          | Alias for getInt             |
+| `getInteger(path)`    | `?i64`          | Alias for getInt             |
 | `getFloat(path)`      | `?f64`          | Get float value              |
+| `getDecimal(path)`    | `?f64`          | Alias for getFloat           |
 | `getNumber(path)`     | `?f64`          | Alias for getFloat           |
 | `getValue(path)`      | `?*const Value` | Get raw Value                |
 | `isNull(path)`        | `bool`          | Check if value is null       |
 | `isIdentifier(path)`  | `bool`          | Check if value is identifier |
 | `exists(path)`        | `bool`          | Check if path exists         |
+| `has(path)`           | `bool`          | Alias for exists             |
+| `contains(path)`      | `bool`          | Alias for exists             |
 | `getType(path)`       | `?[]const u8`   | Get base type name           |
 | `getTypeName(path)`   | `?[]const u8`   | Get precise type name        |
 | `isNan(path)`         | `bool`          | Check if value is NaN        |
@@ -57,26 +70,39 @@ All getters return `null` for missing paths or type mismatches.
 
 All setters auto-create intermediate objects.
 
-| Method                       | Description               |
-| ---------------------------- | ------------------------- |
-| `setString(path, value)`     | Set string value          |
-| `setIdentifier(path, value)` | Set identifier (`.value`) |
-| `setBool(path, value)`       | Set boolean value         |
-| `setInt(path, value)`        | Set integer value         |
-| `setFloat(path, value)`      | Set float value           |
-| `setNumber(path, value)`     | Alias for setFloat        |
-| `setNull(path)`              | Set value to null         |
-| `setObject(path)`            | Create empty object       |
-| `setArray(path)`             | Create empty array        |
-| `setValue(path, value)`      | Set raw Value             |
+| Method                 | Description               |
+| ---------------------- | ------------------------- |
+| `setString(path, val)` | Set string value          |
+| `setStr(path, val)`    | Alias for setString       |
+| `putStr(path, val)`    | Alias for setString       |
+| `setIdentifier(p, v)`  | Set identifier (`.value`) |
+| `setBool(p, v)`        | Set boolean value         |
+| `setInt(p, v)`         | Set integer value         |
+| `putInt(p, v)`         | Alias for setInt          |
+| `setNum(p, v)`         | Alias for setInt          |
+| `setFloat(p, v)`       | Set float value           |
+| `setNumber(p, v)`      | Alias for setFloat        |
+| `setNull(path)`        | Set value to null         |
+| `putNull(path)`        | Alias for setNull         |
+| `clearPath(path)`      | Alias for setNull         |
+| `setObject(path)`      | Create empty object       |
+| `setArray(path)`       | Create empty array        |
+| `setValue(path, v)`    | Set raw Value             |
+| `put(path, v)`         | Alias for setValue        |
 
 ## Modification
 
 | Method         | Return          | Description                         |
 | -------------- | --------------- | ----------------------------------- |
 | `delete(path)` | `bool`          | Delete key, returns true if existed |
+| `remove(path)` | `bool`          | Alias for delete                    |
+| `rename(o, n)` | `!bool`         | Rename key/path                     |
+| `move(o, n)`   | `!bool`         | Alias for rename                    |
+| `copy(s, d)`   | `!bool`         | Duplicate path                      |
 | `clear()`      | `void`          | Clear all data                      |
 | `count()`      | `usize`         | Number of root keys                 |
+| `size()`       | `usize`         | Alias for count                     |
+| `len()`        | `usize`         | Alias for count                     |
 | `keys()`       | `![][]const u8` | All root keys (caller frees)        |
 | `isEmpty()`    | `bool`          | Check if document is empty          |
 
@@ -108,16 +134,41 @@ All setters auto-create intermediate objects.
 | `replaceAll(find, replace)`   | `!usize`        | Replace all, returns count   |
 | `replaceFirst(find, replace)` | `!bool`         | Replace first                |
 | `replaceLast(find, replace)`  | `!bool`         | Replace last                 |
+| `find(key)`                   | `?*Value`       | **Recursive key search**     |
+| `findAll(key)`                | `![][]const u8` | **Deep key search (paths)**  |
+| `rename(old, new)`            | `!bool`         | Rename key/path              |
+| `move(old, new)`              | `!bool`         | Alias for rename             |
+| `copy(src, dst)`              | `!bool`         | Duplicate path               |
+| `diff(other)`                 | `![]const []u8` | **Deep recursive diff**      |
+| `flatten()`                   | `!Document`     | **Convert to flat map**      |
+
+## Integrity & Size
+
+| Method                 | Return   | Description                  |
+| ---------------------- | -------- | ---------------------------- |
+| `hash()`               | `u64`    | Stable 64-bit content hash   |
+| `checksum(algo, &out)` | `void`   | Generate crypto digest       |
+| `byteSize()`           | `!usize` | Size in bytes when formatted |
+| `compactSize()`        | `!usize` | Size in bytes when compact   |
 
 ## Merge & Clone
 
-| Method                  | Return          | Description                |
-| ----------------------- | --------------- | -------------------------- |
-| `merge(other)`          | `!void`         | Shallow merge document     |
-| `mergeRecursive(other)` | `!void`         | **Recursive (deep) merge** |
-| `clone()`               | `!Document`     | Create deep copy           |
-| `eql(other)`            | `bool`          | **Deep equality check**    |
-| `diff(other)`           | `![][]const u8` | Get differing keys         |
+| Method                  | Return      | Description                |
+| ----------------------- | ----------- | -------------------------- |
+| `merge(other)`          | `!void`     | Shallow merge document     |
+| `mergeRecursive(other)` | `!void`     | **Recursive (deep) merge** |
+| `clone()`               | `!Document` | Create deep copy           |
+| `eql(other)`            | `bool`      | **Deep equality check**    |
+
+## Convenience Methods
+
+| Method                       | Return        | Description             |
+| ---------------------------- | ------------- | ----------------------- |
+| `getStringOr(path, default)` | `[]const u8`  | Get string or fallback  |
+| `getIntOr(path, default)`    | `i64`         | Get integer or fallback |
+| `getBoolOr(path, default)`   | `bool`        | Get boolean or fallback |
+| `getFloatOr(path, default)`  | `f64`         | Get float or fallback   |
+| `getTypeName(path)`          | `?[]const u8` | Get precise type name   |
 
 ## Output
 
@@ -131,6 +182,24 @@ All setters auto-create intermediate objects.
 | `toString()`             | `![]u8` | 4-space indent (caller frees)                           |
 | `toCompactString()`      | `![]u8` | No indentation                                          |
 | `toPrettyString(indent)` | `![]u8` | Custom indentation                                      |
+
+## Utilities (Top-level)
+
+| Method                    | Return  | Description                 |
+| ------------------------- | ------- | --------------------------- |
+| `zon.validate(src)`       | `bool`  | Check if ZON is valid       |
+| `zon.validateFile(path)`  | `bool`  | Check if file is valid ZON  |
+| `zon.format(src)`         | `![]u8` | Re-format ZON source        |
+| `zon.formatFile(path)`    | `!void` | Re-format ZON file in-place |
+| `zon.deleteFile(path)`    | `!void` | Delete a file               |
+| `zon.removeFile(path)`    | `!void` | Alias for deleteFile        |
+| `zon.copyFile(src,dst)`   | `!void` | Copy a file                 |
+| `zon.moveFile(old,new)`   | `!void` | Rename/Move a file          |
+| `zon.renameFile(old,new)` | `!void` | Alias for moveFile          |
+| `zon.movePathInFile()`    | `!void` | Move key inside ZON file    |
+| `zon.copyPathInFile()`    | `!void` | Copy key inside ZON file    |
+| `zon.isZonValid(src)`     | `bool`  | Alias for validate          |
+| `zon.isZonFileValid(p)`   | `bool`  | Alias for validateFile      |
 
 ## Object & Array Access
 

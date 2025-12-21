@@ -34,16 +34,19 @@ pub const Number = union(enum) {
 
 ### Type Checking
 
-| Method             | Return       | Description                     |
-| ------------------ | ------------ | ------------------------------- |
-| `isNull()`         | `bool`       | Check if value is null          |
-| `isIdentifier()`   | `bool`       | Check if value is an identifier |
-| `isNan()`          | `bool`       | Check if value is NaN           |
-| `isPositiveInf()`  | `bool`       | Check if positive infinity      |
-| `isNegativeInf()`  | `bool`       | Check if negative infinity      |
-| `isSpecialFloat()` | `bool`       | Check if NaN or Infinity        |
-| `typeName()`       | `[]const u8` | Get precise type name           |
-| `toBool()`         | `bool`       | Coerce value to boolean         |
+| Method              | Return       | Description                     |
+| ------------------- | ------------ | ------------------------------- |
+| `isNull()`          | `bool`       | Check if value is null          |
+| `isIdentifier()`    | `bool`       | Check if value is an identifier |
+| `isNan()`           | `bool`       | Check if value is NaN           |
+| `isPositiveInf()`   | `bool`       | Check if positive infinity      |
+| `isNegativeInf()`   | `bool`       | Check if negative infinity      |
+| `isSpecialFloat()`  | `bool`       | Check if NaN or Infinity        |
+| `typeName()`        | `[]const u8` | Get precise type name           |
+| `toBool()`          | `bool`       | Coerce value to boolean         |
+| `hash()`            | `u64`        | **Stable content hash**         |
+| `checksum(A, &out)` | `void`       | **Crypto checksum**             |
+| `eql(Value)`        | `bool`       | **Deep equality check**         |
 
 ### Type Conversion
 
@@ -88,10 +91,22 @@ pub const Object = struct {
 | `init(allocator)` | `Object`        | Create empty object         |
 | `deinit()`        | `void`          | Free all memory             |
 | `get(key)`        | `?*Value`       | Get value by key            |
+| `fetch(key)`      | `?*Value`       | Alias for get               |
+| `at(key)`         | `?*Value`       | Alias for get               |
 | `put(key, value)` | `!void`         | Set value                   |
+| `set(key, value)` | `!void`         | Alias for put               |
+| `insert(k, v)`    | `!void`         | Alias for put               |
 | `remove(key)`     | `bool`          | Remove key                  |
+| `delete(key)`     | `bool`          | Alias for remove            |
+| `unset(key)`      | `bool`          | Alias for remove            |
 | `count()`         | `usize`         | Number of keys              |
+| `size()`          | `usize`         | Alias for count             |
+| `len()`           | `usize`         | Alias for count             |
 | `keys(allocator)` | `![][]const u8` | Get all keys (caller frees) |
+| `clear()`         | `void`          | Remove all entries          |
+| `reset()`         | `void`          | Alias for clear             |
+| `empty()`         | `void`          | Alias for clear             |
+| `iterator()`      | `Iterator`      | Get object iterator         |
 
 ## Array Type
 
@@ -106,13 +121,22 @@ pub const Array = struct {
 
 ### Array Methods
 
-| Method            | Return    | Description        |
-| ----------------- | --------- | ------------------ |
-| `init(allocator)` | `Array`   | Create empty array |
-| `deinit()`        | `void`    | Free all memory    |
-| `append(value)`   | `!void`   | Add value          |
-| `get(index)`      | `?*Value` | Get value at index |
-| `len()`           | `usize`   | Number of elements |
+| Method            | Return     | Description        |
+| ----------------- | ---------- | ------------------ |
+| `init(allocator)` | `Array`    | Create empty array |
+| `deinit()`        | `void`     | Free all memory    |
+| `append(value)`   | `!void`    | Add value          |
+| `add(value)`      | `!void`    | Alias for append   |
+| `push(value)`     | `!void`    | Alias for append   |
+| `get(index)`      | `?*Value`  | Get value at index |
+| `at(index)`       | `?*Value`  | Alias for get      |
+| `len()`           | `usize`    | Number of elements |
+| `size()`          | `usize`    | Alias for len      |
+| `count()`         | `usize`    | Alias for len      |
+| `clear()`         | `void`     | Remove all items   |
+| `reset()`         | `void`     | Alias for clear    |
+| `empty()`         | `void`     | Alias for clear    |
+| `iterator()`      | `Iterator` | Get array iterator |
 
 ## Examples
 

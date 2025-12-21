@@ -22,14 +22,17 @@ Top-level functions exposed by the `zon` module.
 ```zig
 const zon = @import("zon");
 
-// Create empty document
+// Create empty document (aliases: init, new)
 var doc = zon.create(allocator);
 
-// Open file
+// Open file (aliases: load, fromFile)
 var doc = try zon.open(allocator, "config.zon");
 
-// Parse string
+// Parse string (aliases: fromSource, parseString)
 var doc = try zon.parse(allocator, source);
+
+// Load or Create
+var doc = try zon.loadOrCreate(allocator, "settings.zon", ".{}");
 ```
 
 ### File Utilities
@@ -45,8 +48,14 @@ allocator.free(contents);
 // Copy file (overwrite = true to replace destination)
 try zon.copyFile("source.zon", "dest.zon", true);
 
-// Move (rename) file (overwrite = true to replace destination)
+// Move (rename) file (alias: renameFile)
 try zon.moveFile("old.zon", "new.zon", true);
+
+// Delete file (alias: removeFile)
+try zon.deleteFile("temp.zon");
+
+// Key Operations (alias: movePathInFile, copyPathInFile)
+try zon.movePathInFile(allocator, "config.zon", "old.key", "new.key");
 
 // Write atomically (writes to temp and renames)
 try zon.writeFileAtomic(allocator, "out.zon", sourceData);

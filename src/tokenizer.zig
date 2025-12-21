@@ -72,6 +72,10 @@ pub const Token = struct {
         minus,
         /// `+`
         plus,
+        /// `// ...`
+        comment,
+        /// `/// ...`
+        doc_comment,
         /// End of file
         eof,
         /// Invalid token
@@ -147,6 +151,18 @@ pub const Tokenizer = struct {
                 self.index += 1;
                 return .{ .tag = .at_sign, .start = start, .end = self.index };
             },
+            '/' => {
+                if (self.index + 1 < self.source.len and self.source[self.index + 1] == '/') {
+                    const is_doc = if (self.index + 2 < self.source.len and self.source[self.index + 2] == '/') true else false;
+                    self.index += if (is_doc) @as(usize, 3) else @as(usize, 2);
+                    while (self.index < self.source.len and self.source[self.index] != '\n') {
+                        self.index += 1;
+                    }
+                    return .{ .tag = if (is_doc) .doc_comment else .comment, .start = start, .end = self.index };
+                }
+                self.index += 1;
+                return .{ .tag = .invalid, .start = start, .end = self.index };
+            },
             '-' => {
                 if (self.index + 1 < self.source.len and isDigit(self.source[self.index + 1])) {
                     return self.scanNumber();
@@ -179,7 +195,55 @@ pub const Tokenizer = struct {
         }
     }
 
-    /// Skips whitespace and line comments.
+    /// Skips whitespace and returns next non-whitespace/comment token.
+    pub fn nextValid(self: *Tokenizer) Token {
+        while (true) {
+            const tok = self.next();
+            switch (tok.tag) {
+                .comment, .doc_comment => continue,
+                else => return tok,
+            }
+        }
+    }
+
+    /// Calculates the line number (1-based) for the given byte offset.
+    pub fn lineAt(self: *const Tokenizer, offset: usize) usize {
+        var line: usize = 1;
+        var i: usize = 0;
+        const target = @min(offset, self.source.len);
+        while (i < target) : (i += 1) {
+            if (self.source[i] == '\n') line += 1;
+        }
+        return line;
+    }
+
+    /// Calculates the column number (1-based) for the given byte offset.
+    pub fn columnAt(self: *const Tokenizer, offset: usize) usize {
+        var col: usize = 1;
+        var i: usize = 0;
+        const target = @min(offset, self.source.len);
+        while (i < target) : (i += 1) {
+            if (self.source[i] == '\n') {
+                col = 1;
+            } else {
+                col += 1;
+            }
+        }
+        return col;
+    }
+
+    /// Skips whitespace.
+    fn skipWhitespace(self: *Tokenizer) void {
+        while (self.index < self.source.len) {
+            const c = self.source[self.index];
+            switch (c) {
+                ' ', '\t', '\n', '\r' => self.index += 1,
+                else => return,
+            }
+        }
+    }
+
+    /// Skips whitespace and line comments (compat alias).
     fn skipWhitespaceAndComments(self: *Tokenizer) void {
         while (self.index < self.source.len) {
             const c = self.source[self.index];

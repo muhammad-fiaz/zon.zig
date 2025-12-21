@@ -37,6 +37,11 @@ pub fn setReleasesEndpoint(url: []const u8) void {
     config.releases_endpoint = url;
 }
 
+/// Configure the update checker behavior.
+pub fn configure(new_config: UpdateConfig) void {
+    config = new_config;
+}
+
 var check_thread: ?std.Thread = null;
 var check_result: ?UpdateInfo = null;
 var result_mutex: std.Thread.Mutex = .{};

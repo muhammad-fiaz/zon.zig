@@ -51,7 +51,16 @@ features:
     details: Configurable output formatting with custom indentation levels or compact output.
   - icon: ⚡
     title: Custom Parser
-    details: Does NOT depend on std.zig.Ast or compiler internals. Cross-platform with Windows, Linux, and macOS support.
+    details: Does NOT depend on std.zig.Ast or compiler internals. Provides diagnostic error reporting with line/column tracking.
+  - icon: 🌐
+    title: JSON Interoperability
+    details: Import from and Export to standard JSON seamlessly. Ideal for data transformation and cross-tooling.
+  - icon: 🛡️
+    title: Integrity Suite
+    details: Stable order-independent hashing and cryptographic checksums for document validation.
+  - icon: 🏗️
+    title: Flatten & Expand
+    details: Convert nested configurations to flat maps for environment overrides and simplified summaries.
 ---
 
 ## Quick Start
