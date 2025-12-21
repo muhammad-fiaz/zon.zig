@@ -390,7 +390,7 @@ Added file helpers for safer file operations:
 - `Document.saveWithBackup(path)` - Save and create a `.bak` backup of the previous file
 - `Document.saveIfChanged()` - Only write when contents differ (normalizes trailing newline; returns `true` if a write occurred)
 
-These helpers are documented in the new guide at `docs/guide/file-operations.md` and have example usage in `examples/file_operations.zig`.
+
 
 ---
 
