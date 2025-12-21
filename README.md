@@ -280,16 +280,18 @@ defer copy.deinit();
 
 ### Module Functions
 
-| Function                       | Description               |
-| ------------------------------ | ------------------------- |
-| `zon.open(allocator, path)`    | Open existing ZON file    |
-| `zon.create(allocator)`        | Create new empty document |
-| `zon.parse(allocator, source)` | Parse ZON from string     |
-| `zon.deleteFile(path)`         | Delete a ZON file         |
-| `zon.fileExists(path)`         | Check if file exists      |
-| `zon.copyFile(src, dest)`      | Copy a file               |
-| `zon.renameFile(old, new)`     | Rename/move a file        |
-| `zon.disableUpdateCheck()`     | Disable update checking   |
+| Function                                                      | Description                                |
+| ------------------------------------------------------------- | ------------------------------------------ |
+| `zon.open(allocator, path)`                                   | Open existing ZON file                     |
+| `zon.create(allocator)`                                       | Create new empty document                  |
+| `zon.parse(allocator, source)`                                | Parse ZON from string                      |
+| `zon.readFile(allocator, path)`                               | Read file into allocator-owned buffer     |
+| `zon.writeFileAtomic(allocator, path, data)`                  | Write data atomically (tmp + rename)      |
+| `zon.copyFile(source, dest, overwrite: bool)`                 | Copy a file (with optional overwrite)     |
+| `zon.moveFile(old, new, overwrite: bool)`                    | Move/rename file (with optional overwrite)|
+| `zon.deleteFile(path)`                                        | Delete a ZON file                          |
+| `zon.fileExists(path)`                                        | Check if file exists                       |
+| `zon.disableUpdateCheck()`                                    | Disable update checking                    |
 
 ### Document Methods - Getters
 
@@ -338,20 +340,23 @@ defer copy.deinit();
 
 ### Document Methods - Other
 
-| Method                   | Description                         |
-| ------------------------ | ----------------------------------- |
-| `delete(path)`           | Delete key, returns true if existed |
-| `clear()`                | Clear all data                      |
-| `count()`                | Get number of root keys             |
-| `keys()`                 | Get all root keys                   |
-| `merge(other)`           | Merge another document              |
-| `clone()`                | Create a deep copy                  |
-| `save()`                 | Save to original file path          |
-| `saveAs(path)`           | Save to specified path              |
-| `toString()`             | Get formatted ZON string            |
-| `toCompactString()`      | Get compact ZON string              |
-| `toPrettyString(indent)` | Get ZON with custom indent          |
-| `deinit()`               | Free all resources                  |
+| Method                        | Description                                                         |
+| ----------------------------- | ------------------------------------------------------------------- |
+| `delete(path)`                | Delete key, returns true if existed                                 |
+| `clear()`                     | Clear all data                                                      |
+| `count()`                     | Get number of root keys                                             |
+| `keys()`                      | Get all root keys                                                   |
+| `merge(other)`                | Merge another document                                              |
+| `clone()`                     | Create a deep copy                                                  |
+| `save()`                      | Save to original file path                                          |
+| `saveAs(path)`                | Save to specified path                                              |
+| `saveAsAtomic(path)`          | Atomically save to specified path (temporary file + rename)         |
+| `saveWithBackup(backup_ext)`  | Save and create a backup of the previous file using the extension   |
+| `saveIfChanged()`             | Only write when contents differ (normalizes trailing newline; returns bool) |
+| `toString()`                  | Get formatted ZON string                                            |
+| `toCompactString()`           | Get compact ZON string                                               |
+| `toPrettyString(indent)`      | Get ZON with custom indent                                           |
+| `deinit()`                    | Free all resources                                                   |
 
 ---
 
@@ -366,6 +371,26 @@ The `examples/` directory contains comprehensive examples:
 - **pretty_print.zig** - Pretty printing with different indentation
 - **merge_clone.zig** - Merging and cloning documents
 - **config_management.zig** - Configuration file management
+- **file_operations.zig** - Atomic writes, backups, and file helpers
+- **identifier_values.zig** - Identifier value parsing and usage
+- **nested_creation.zig** - Creating deeply nested structures
+- **error_handling.zig** - Examples of parse and file error handling
+
+
+
+### File helpers and utilities
+
+Added file helpers for safer file operations:
+
+- `zon.readFile(path, allocator)` - Read file contents into allocator-managed buffer
+- `zon.writeFileAtomic(path, contents)` - Atomically write using a temporary file + rename
+- `zon.copyFile(src, dest, overwrite)` - Copy file with optional overwrite
+- `zon.moveFile(src, dest, overwrite)` - Move/rename file with optional overwrite
+- `Document.saveAsAtomic(path)` - Save a document atomically
+- `Document.saveWithBackup(path)` - Save and create a `.bak` backup of the previous file
+- `Document.saveIfChanged()` - Only write when contents differ (normalizes trailing newline; returns `true` if a write occurred)
+
+These helpers are documented in the new guide at `docs/guide/file-operations.md` and have example usage in `examples/file_operations.zig`.
 
 ---
 
