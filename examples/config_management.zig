@@ -46,20 +46,25 @@ pub fn main() !void {
     defer allocator.free(dev_config);
     std.debug.print("{s}\n\n", .{dev_config});
 
-    std.debug.print("=== Creating production config ===\n\n", .{});
+    std.debug.print("=== Creating production config with mergeRecursive ===\n\n", .{});
 
     var prod_config = try config.clone();
     defer prod_config.deinit();
 
-    try prod_config.setString("app.environment", "production");
-    try prod_config.setBool("server.ssl.enabled", true);
-    try prod_config.setString("database.host", "db.production.example.com");
-    try prod_config.setString("database.name", "myapp_prod");
-    try prod_config.setString("database.password", "secure_password_123");
-    try prod_config.setInt("database.pool_size", 50);
-    try prod_config.setString("logging.level", "warn");
-    try prod_config.setBool("logging.colorize", false);
-    try prod_config.setString("cache.host", "cache.production.example.com");
+    var overrides = zon.create(allocator);
+    defer overrides.deinit();
+
+    try overrides.setString("app.environment", "production");
+    try overrides.setBool("server.ssl.enabled", true);
+    try overrides.setString("database.host", "db.production.example.com");
+    try overrides.setString("database.name", "myapp_prod");
+    try overrides.setString("database.password", "secure_password_123");
+    try overrides.setInt("database.pool_size", 50);
+    try overrides.setString("logging.level", "warn");
+    try overrides.setBool("logging.colorize", false);
+    try overrides.setString("cache.host", "cache.production.example.com");
+
+    try prod_config.mergeRecursive(&overrides);
 
     std.debug.print("Production configuration:\n", .{});
     const prod_str = try prod_config.toString();

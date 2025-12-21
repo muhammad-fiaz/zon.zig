@@ -164,21 +164,21 @@ try zon.moveFile("temp.zon", "config.zon", true);
 
 ### renameFile
 
-Rename or move a file.
+Rename or move a file (alias for `moveFile`).
 
 ```zig
-pub fn renameFile(old_path: []const u8, new_path: []const u8) !void
+pub fn renameFile(old_path: []const u8, new_path: []const u8, overwrite: bool) !void
 ```
 
 **Example:**
 
 ```zig
-try zon.renameFile("config.old.zon", "config.zon");
+try zon.renameFile("config.old.zon", "config.zon", true);
 ```
 
 ### deleteFile
 
-Delete a file.
+Delete a file (alias: `removeFile`).
 
 ```zig
 pub fn deleteFile(file_path: []const u8) !void
@@ -188,6 +188,48 @@ pub fn deleteFile(file_path: []const u8) !void
 
 ```zig
 try zon.deleteFile("temp.zon");
+```
+
+### loadOrCreate
+
+Loads a ZON file, or creates it with default `content` if it doesn't exist.
+
+```zig
+pub fn loadOrCreate(allocator: Allocator, path: []const u8, content: []const u8) !Document
+```
+
+**Example:**
+
+```zig
+var doc = try zon.loadOrCreate(allocator, "settings.zon", ".{ .theme = .dark }");
+```
+
+### movePathInFile
+
+Moves (renames) a key path directly inside a ZON file on disk.
+
+```zig
+pub fn movePathInFile(allocator: Allocator, path: []const u8, old_key: []const u8, new_key: []const u8) !void
+```
+
+**Example:**
+
+```zig
+try zon.movePathInFile(allocator, "config.zon", "db.pass", "db.secret");
+```
+
+### copyPathInFile
+
+Copies a key path directly inside a ZON file on disk.
+
+```zig
+pub fn copyPathInFile(allocator: Allocator, path: []const u8, src_key: []const u8, dst_key: []const u8) !void
+```
+
+**Example:**
+
+```zig
+try zon.copyPathInFile(allocator, "config.zon", "template.settings", "user.settings");
 ```
 
 ## Update Checking
@@ -258,19 +300,19 @@ zon.checkForUpdates(allocator);
 Library version string.
 
 ```zig
-pub const version: []const u8 = "0.0.2";
+pub const version: []const u8 = "0.0.3";
 ```
 
 **Example:**
 
 ```zig
-std.debug.print("zon.zig v{s}\n", .{zon.version});
+std.debug.print("zon.zig {s}\n", .{zon.version});
 ```
 
 **Output:**
 
 ```
-zon.zig v0.0.2
+zon.zig 0.0.3
 ```
 
 ## Complete Example
@@ -288,7 +330,7 @@ pub fn main() !void {
     zon.disableUpdateCheck();
 
     // Print version
-    std.debug.print("zon.zig v{s}\n", .{zon.version});
+    std.debug.print("zon.zig {s}\n", .{zon.version});
 
     // Check if config exists
     if (zon.fileExists("config.zon")) {
@@ -327,7 +369,7 @@ pub fn main() !void {
 **Output (first run):**
 
 ```
-zon.zig v0.0.2
+zon.zig 0.0.3
 Creating new config
 Parsed: true
 ```
@@ -335,7 +377,7 @@ Parsed: true
 **Output (second run):**
 
 ```
-zon.zig v0.0.2
+zon.zig 0.0.3
 Found existing config
 Parsed: true
 ```

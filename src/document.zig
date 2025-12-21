@@ -1,7 +1,14 @@
 //! Document - ZON document operations.
 //!
-//! Provides methods for reading, writing, searching, and saving ZON data.
-//! Uses path-based access with dot notation for navigating nested structures.
+//! Provides a DOM-like interface for working with ZON data. The Document maintains
+//! an in-memory Value tree that can be queried, modified, and serialized.
+//!
+//! This approach differs from `std.zon.fromSlice` which deserializes directly into
+//! typed Zig structures. Document-based access is ideal when:
+//! - You need to edit and save configuration files
+//! - The structure isn't known at compile time
+//! - You want path-based access (e.g., "server.ssl.enabled")
+//! - You need find/replace or merge operations
 
 const std = @import("std");
 const Allocator = std.mem.Allocator;
@@ -34,6 +41,46 @@ pub const Document = struct {
         };
     }
 
+    /// Parses JSON content from source string.
+    pub fn initFromJson(allocator: Allocator, source: []const u8) !Document {
+        const root = try parser.Parser.parseJson(allocator, source);
+        return .{
+            .allocator = allocator,
+            .root = root,
+            .file_path = null,
+        };
+    }
+
+    /// Creates a document from a map of key-value pairs (dot-notation).
+    pub fn initFromMap(allocator: Allocator, map: anytype) !Document {
+        var doc = initEmpty(allocator);
+        errdefer doc.deinit();
+
+        const info = @typeInfo(@TypeOf(map));
+        if (info == .@"struct") {
+            inline for (info.@"struct".fields) |field| {
+                const val = @field(map, field.name);
+                switch (@typeInfo(@TypeOf(val))) {
+                    .int, .comptime_int => try doc.setInt(field.name, @intCast(val)),
+                    .float, .comptime_float => try doc.setFloat(field.name, @floatCast(val)),
+                    .bool => try doc.setBool(field.name, val),
+                    .pointer => |p| {
+                        if (p.size == .slice) {
+                            if (p.child == u8) try doc.setString(field.name, val);
+                        } else if (p.size == .one) {
+                            const child_info = @typeInfo(p.child);
+                            if (child_info == .array and child_info.array.child == u8) {
+                                try doc.setString(field.name, val[0..]);
+                            }
+                        }
+                    },
+                    else => {},
+                }
+            }
+        }
+        return doc;
+    }
+
     /// Opens and parses a ZON file.
     pub fn initFromFile(allocator: Allocator, path: []const u8) !Document {
         const file = try std.fs.cwd().openFile(path, .{});
@@ -55,10 +102,20 @@ pub const Document = struct {
         }
     }
 
+    /// Alias for deinit().
+    pub fn close(self: *Document) void {
+        self.deinit();
+    }
+
     /// Returns the string value at the given path.
     pub fn getString(self: *const Document, path: []const u8) ?[]const u8 {
         const val = self.getValueByPath(path) orelse return null;
         return val.asString();
+    }
+
+    /// Alias for getString().
+    pub fn getStr(self: *const Document, path: []const u8) ?[]const u8 {
+        return self.getString(path);
     }
 
     /// Returns the boolean value at the given path.
@@ -73,15 +130,66 @@ pub const Document = struct {
         return val.asInt();
     }
 
+    /// Alias for getInt().
+    pub fn getNum(self: *const Document, path: []const u8) ?i64 {
+        return self.getInt(path);
+    }
+
+    /// Alias for getInt().
+    pub fn getInteger(self: *const Document, path: []const u8) ?i64 {
+        return self.getInt(path);
+    }
+
+    /// Returns the integer value as i128 at the given path.
+    pub fn getInt128(self: *const Document, path: []const u8) ?i128 {
+        const val = self.getValueByPath(path) orelse return null;
+        return val.asInt128();
+    }
+
+    /// Returns the unsigned integer value at the given path.
+    pub fn getUint(self: *const Document, path: []const u8) ?u64 {
+        const val = self.getValueByPath(path) orelse return null;
+        return val.asUint();
+    }
+
+    /// Coerces the value at the path to a boolean value.
+    pub fn toBool(self: *const Document, path: []const u8) bool {
+        const val = self.getValueByPath(path) orelse return false;
+        return val.toBool();
+    }
+
     /// Returns the float value at the given path.
     pub fn getFloat(self: *const Document, path: []const u8) ?f64 {
         const val = self.getValueByPath(path) orelse return null;
         return val.asFloat();
     }
 
+    /// Alias for getFloat().
+    pub fn getDecimal(self: *const Document, path: []const u8) ?f64 {
+        return self.getFloat(path);
+    }
+
     /// Returns the numeric value as float.
     pub fn getNumber(self: *const Document, path: []const u8) ?f64 {
         return self.getFloat(path);
+    }
+
+    /// Attempts to convert the value at the path to an integer of type T.
+    pub fn toInt(self: *const Document, path: []const u8, comptime T: type) T {
+        const val = self.getValueByPath(path) orelse return 0;
+        return val.toInt(T);
+    }
+
+    /// Attempts to convert the value at the path to an unsigned integer of type T.
+    pub fn toUint(self: *const Document, path: []const u8, comptime T: type) T {
+        const val = self.getValueByPath(path) orelse return 0;
+        return val.toUint(T);
+    }
+
+    /// Attempts to convert the value at the path to a float of type T.
+    pub fn toFloat(self: *const Document, path: []const u8, comptime T: type) T {
+        const val = self.getValueByPath(path) orelse return 0.0;
+        return val.toFloat(T);
     }
 
     /// Returns the identifier value at the given path.
@@ -107,6 +215,36 @@ pub const Document = struct {
         return self.getValueByPath(path) != null;
     }
 
+    /// Alias for exists().
+    pub fn has(self: *const Document, path: []const u8) bool {
+        return self.exists(path);
+    }
+
+    /// Alias for exists().
+    pub fn contains(self: *const Document, path: []const u8) bool {
+        return self.exists(path);
+    }
+
+    /// Returns the string value at the path, or a default value.
+    pub fn getStringOr(self: *const Document, path: []const u8, default: []const u8) []const u8 {
+        return self.getString(path) orelse default;
+    }
+
+    /// Returns the integer value at the path, or a default value.
+    pub fn getIntOr(self: *const Document, path: []const u8, default: i64) i64 {
+        return self.getInt(path) orelse default;
+    }
+
+    /// Returns the boolean value at the path, or a default value.
+    pub fn getBoolOr(self: *const Document, path: []const u8, default: bool) bool {
+        return self.getBool(path) orelse default;
+    }
+
+    /// Returns the float value at the path, or a default value.
+    pub fn getFloatOr(self: *const Document, path: []const u8, default: f64) f64 {
+        return self.getFloat(path) orelse default;
+    }
+
     /// Returns the type of value at the path.
     pub fn getType(self: *const Document, path: []const u8) ?[]const u8 {
         const val = self.getValueByPath(path) orelse return null;
@@ -124,9 +262,32 @@ pub const Document = struct {
         };
     }
 
+    /// Returns the precise type name of the value at the path.
+    pub fn getTypeName(self: *const Document, path: []const u8) ?[]const u8 {
+        const val = self.getValueByPath(path) orelse return null;
+        return val.typeName();
+    }
+
     /// Returns the raw Value at the given path.
     pub fn getValue(self: *const Document, path: []const u8) ?*const Value {
         return self.getValueByPath(path);
+    }
+
+    /// Checks if two documents are deeply equal.
+    pub fn eql(self: *const Document, other: *const Document) bool {
+        return self.root.eql(&other.root);
+    }
+
+    /// Checks if the value at the path is NaN.
+    pub fn isNan(self: *const Document, path: []const u8) bool {
+        const val = self.getValueByPath(path) orelse return false;
+        return val.isNan();
+    }
+
+    /// Checks if the value at the path is infinity.
+    pub fn isInf(self: *const Document, path: []const u8) bool {
+        const val = self.getValueByPath(path) orelse return false;
+        return val.isPositiveInf() or val.isNegativeInf();
     }
 
     /// Sets a string value at the given path.
@@ -134,6 +295,16 @@ pub const Document = struct {
         const owned = try self.allocator.dupe(u8, value);
         errdefer self.allocator.free(owned);
         try self.setValueByPath(path, .{ .string = owned });
+    }
+
+    /// Alias for setString().
+    pub fn setStr(self: *Document, path: []const u8, value: []const u8) !void {
+        try self.setString(path, value);
+    }
+
+    /// Alias for setString().
+    pub fn putStr(self: *Document, path: []const u8, value: []const u8) !void {
+        try self.setString(path, value);
     }
 
     /// Sets an identifier value at the given path. Outputs as `.name = .value`.
@@ -153,6 +324,16 @@ pub const Document = struct {
         try self.setValueByPath(path, .{ .number = .{ .int = value } });
     }
 
+    /// Alias for setInt().
+    pub fn putInt(self: *Document, path: []const u8, value: i64) !void {
+        try self.setInt(path, value);
+    }
+
+    /// Alias for setInt().
+    pub fn setNum(self: *Document, path: []const u8, value: i64) !void {
+        try self.setInt(path, value);
+    }
+
     /// Sets a float value at the given path.
     pub fn setFloat(self: *Document, path: []const u8, value: f64) !void {
         try self.setValueByPath(path, .{ .number = .{ .float = value } });
@@ -168,6 +349,16 @@ pub const Document = struct {
         try self.setValueByPath(path, .null_val);
     }
 
+    /// Alias for setNull().
+    pub fn putNull(self: *Document, path: []const u8) !void {
+        try self.setNull(path);
+    }
+
+    /// Alias for setNull().
+    pub fn clearPath(self: *Document, path: []const u8) !void {
+        try self.setNull(path);
+    }
+
     /// Sets an empty object at the given path.
     pub fn setObject(self: *Document, path: []const u8) !void {
         try self.setValueByPath(path, .{ .object = Value.Object.init(self.allocator) });
@@ -181,6 +372,11 @@ pub const Document = struct {
     /// Sets a raw Value at the given path.
     pub fn setValue(self: *Document, path: []const u8, value: Value) !void {
         try self.setValueByPath(path, value);
+    }
+
+    /// Alias for setValue().
+    pub fn put(self: *Document, path: []const u8, value: Value) !void {
+        try self.setValue(path, value);
     }
 
     /// Deletes the key at the given path. Returns true if it existed.
@@ -204,6 +400,33 @@ pub const Document = struct {
         return current.remove(parts[parts.len - 1]);
     }
 
+    /// Renames a key from old_path to new_path.
+    pub fn rename(self: *Document, old_path: []const u8, new_path: []const u8) !bool {
+        const val = self.getValue(old_path) orelse return false;
+        const cloned = try val.clone(self.allocator);
+        try self.setValue(new_path, cloned);
+        _ = self.delete(old_path);
+        return true;
+    }
+
+    /// Copies a value from src_path to dst_path.
+    pub fn copy(self: *Document, src_path: []const u8, dst_path: []const u8) !bool {
+        const val = self.getValue(src_path) orelse return false;
+        const cloned = try val.clone(self.allocator);
+        try self.setValue(dst_path, cloned);
+        return true;
+    }
+
+    /// Alias for rename().
+    pub fn move(self: *Document, old_path: []const u8, new_path: []const u8) !bool {
+        return self.rename(old_path, new_path);
+    }
+
+    /// Alias for delete().
+    pub fn remove(self: *Document, path: []const u8) bool {
+        return self.delete(path);
+    }
+
     /// Clears all data.
     pub fn clear(self: *Document) void {
         self.root.deinit(self.allocator);
@@ -216,6 +439,16 @@ pub const Document = struct {
             .object => |o| o.count(),
             else => 0,
         };
+    }
+
+    /// Alias for count().
+    pub fn size(self: *const Document) usize {
+        return self.count();
+    }
+
+    /// Alias for count().
+    pub fn len(self: *const Document) usize {
+        return self.count();
     }
 
     /// Returns all keys at the root level. Caller must free.
@@ -268,19 +501,19 @@ pub const Document = struct {
     }
 
     /// Replaces all occurrences of a string value. Returns count.
-    pub fn replaceAll(self: *Document, find: []const u8, replacement: []const u8) !usize {
-        return self.replaceInValue(&self.root, find, replacement, .all);
+    pub fn replaceAll(self: *Document, needle: []const u8, replacement: []const u8) !usize {
+        return self.replaceInValue(&self.root, needle, replacement, .all);
     }
 
     /// Replaces the first occurrence of a string value.
-    pub fn replaceFirst(self: *Document, find: []const u8, replacement: []const u8) !bool {
-        const count_val = try self.replaceInValue(&self.root, find, replacement, .first);
+    pub fn replaceFirst(self: *Document, needle: []const u8, replacement: []const u8) !bool {
+        const count_val = try self.replaceInValue(&self.root, needle, replacement, .first);
         return count_val > 0;
     }
 
     /// Replaces the last occurrence of a string value.
-    pub fn replaceLast(self: *Document, find: []const u8, replacement: []const u8) !bool {
-        const paths = try self.findExact(find);
+    pub fn replaceLast(self: *Document, needle: []const u8, replacement: []const u8) !bool {
+        const paths = try self.findExact(needle);
         defer {
             for (paths) |p| self.allocator.free(p);
             self.allocator.free(paths);
@@ -344,7 +577,7 @@ pub const Document = struct {
     }
 
     /// Appends an integer to an array.
-    pub fn appendIntToArray(self: *Document, path: []const u8, value: i64) !void {
+    pub fn appendIntToArray(self: *Document, path: []const u8, value: i128) !void {
         const val = self.getMutableValueByPath(path);
         if (val) |v| {
             if (v.asArray()) |arr| {
@@ -377,6 +610,70 @@ pub const Document = struct {
             }
         }
         return error.NotAnArray;
+    }
+
+    /// Removes an element from an array at the given index.
+    pub fn removeFromArray(self: *Document, path: []const u8, index: usize) bool {
+        const val = self.getMutableValueByPath(path);
+        if (val) |v| {
+            if (v.asArray()) |arr| {
+                return arr.remove(index);
+            }
+        }
+        return false;
+    }
+
+    /// Returns the number of keys or elements at the given path.
+    pub fn countAt(self: *const Document, path: []const u8) usize {
+        const val = self.getValueByPath(path) orelse return 0;
+        return switch (val.*) {
+            .object => |o| o.count(),
+            .array => |a| a.len(),
+            else => 0,
+        };
+    }
+
+    /// Inserts a string into an array at the given index.
+    pub fn insertStringIntoArray(self: *Document, path: []const u8, index: usize, value: []const u8) !void {
+        const owned = try self.allocator.dupe(u8, value);
+        errdefer self.allocator.free(owned);
+
+        const val = self.getMutableValueByPath(path);
+        if (val) |v| {
+            if (v.asArray()) |arr| {
+                try arr.insert(index, .{ .string = owned });
+                return;
+            }
+        }
+        return error.NotAnArray;
+    }
+
+    /// Inserts an integer into an array at the given index.
+    pub fn insertIntIntoArray(self: *Document, path: []const u8, index: usize, value: i128) !void {
+        const val = self.getMutableValueByPath(path);
+        if (val) |v| {
+            if (v.asArray()) |arr| {
+                try arr.insert(index, .{ .number = .{ .int = value } });
+                return;
+            }
+        }
+        return error.NotAnArray;
+    }
+
+    /// Returns the index of a string in an array, or null if not found.
+    pub fn indexOf(self: *const Document, path: []const u8, value: []const u8) ?usize {
+        const val = self.getValueByPath(path) orelse return null;
+        const arr = switch (val.*) {
+            .array => |a| a,
+            else => return null,
+        };
+
+        for (arr.items.items, 0..) |item, i| {
+            if (item.asString()) |s| {
+                if (std.mem.eql(u8, s, value)) return i;
+            }
+        }
+        return null;
     }
 
     /// Saves the document to the original file path.
@@ -465,6 +762,202 @@ pub const Document = struct {
         return stringify.stringify(self.allocator, &self.root, .{});
     }
 
+    /// Serializes the document to a JSON string. Caller must free.
+    pub fn toJsonString(self: *const Document) ![]u8 {
+        return stringify.stringifyJson(self.allocator, &self.root);
+    }
+
+    /// Recursively search for the first occurrence of a key in the document.
+    pub fn find(self: *const Document, key_to_find: []const u8) ?*Value {
+        return self.findInValue(&self.root, key_to_find);
+    }
+
+    /// Recursively search for all occurrences of a key in the document.
+    /// Returns a list of paths. Caller must free results and each path.
+    pub fn findAll(self: *const Document, key_to_find: []const u8) ![][]const u8 {
+        var results: std.ArrayListUnmanaged([]const u8) = .empty;
+        errdefer {
+            for (results.items) |p| self.allocator.free(p);
+            results.deinit(self.allocator);
+        }
+
+        try self.findAllInValue(&self.root, key_to_find, "", &results);
+        return results.toOwnedSlice(self.allocator);
+    }
+
+    fn findAllInValue(self: *const Document, val: *const Value, key_to_find: []const u8, prefix: []const u8, results: *std.ArrayListUnmanaged([]const u8)) !void {
+        switch (val.*) {
+            .object => |*o| {
+                if (o.entries.getPtr(key_to_find)) |_| {
+                    const path = if (prefix.len == 0)
+                        try self.allocator.dupe(u8, key_to_find)
+                    else
+                        try std.fmt.allocPrint(self.allocator, "{s}.{s}", .{ prefix, key_to_find });
+                    try results.append(self.allocator, path);
+                }
+                var it = o.entries.iterator();
+                while (it.next()) |entry| {
+                    const next_prefix = if (prefix.len == 0)
+                        try self.allocator.dupe(u8, entry.key_ptr.*)
+                    else
+                        try std.fmt.allocPrint(self.allocator, "{s}.{s}", .{ prefix, entry.key_ptr.* });
+                    defer self.allocator.free(next_prefix);
+                    try self.findAllInValue(entry.value_ptr, key_to_find, next_prefix, results);
+                }
+            },
+            .array => |*a| {
+                for (a.items.items, 0..) |*item, i| {
+                    const next_prefix = if (prefix.len == 0)
+                        try std.fmt.allocPrint(self.allocator, "[{d}]", .{i})
+                    else
+                        try std.fmt.allocPrint(self.allocator, "{s}[{d}]", .{ prefix, i });
+                    defer self.allocator.free(next_prefix);
+                    try self.findAllInValue(item, key_to_find, next_prefix, results);
+                }
+            },
+            else => {},
+        }
+    }
+
+    fn findInValue(self: *const Document, val: *const Value, key_to_find: []const u8) ?*Value {
+        switch (val.*) {
+            .object => |*o| {
+                if (o.entries.getPtr(key_to_find)) |v| return v;
+                var it = o.entries.iterator();
+                while (it.next()) |entry| {
+                    if (self.findInValue(entry.value_ptr, key_to_find)) |v| return v;
+                }
+            },
+            .array => |*a| {
+                for (a.items.items) |*item| {
+                    if (self.findInValue(item, key_to_find)) |v| return v;
+                }
+            },
+            else => {},
+        }
+        return null;
+    }
+
+    /// Returns a stable 64-bit fingerprint (hash) of the document content.
+    pub fn hash(self: *const Document) u64 {
+        return self.root.hash();
+    }
+
+    /// Generates a checksum for the document using the provided algorithm.
+    pub fn checksum(self: *const Document, comptime Algo: type, out: *[Algo.digest_length]u8) void {
+        self.root.checksum(Algo, out);
+    }
+
+    /// Returns the size of the document in bytes when stringified with default options.
+    pub fn byteSize(self: *const Document) !usize {
+        const out = try self.toString();
+        defer self.allocator.free(out);
+        return out.len;
+    }
+
+    /// Returns the size of the document in bytes when stringified in compact mode.
+    pub fn compactSize(self: *const Document) !usize {
+        const out = try self.toCompactString();
+        defer self.allocator.free(out);
+        return out.len;
+    }
+
+    /// Compares this document with another and returns a list of paths
+    /// that have different values. Caller must free results.
+    pub fn diff(self: *const Document, other: *const Document) ![][]const u8 {
+        var results: std.ArrayListUnmanaged([]const u8) = .empty;
+        errdefer {
+            for (results.items) |p| self.allocator.free(p);
+            results.deinit(self.allocator);
+        }
+
+        try self.diffRecursive(&self.root, &other.root, "", &results);
+        return results.toOwnedSlice(self.allocator);
+    }
+
+    fn diffRecursive(self: *const Document, a: *const Value, b: *const Value, path: []const u8, results: *std.ArrayListUnmanaged([]const u8)) !void {
+        if (!a.eql(b)) {
+            // If they are strictly different, check if they are both objects to recurse
+            if (a.* == .object and b.* == .object) {
+                const obj_a = a.asObject().?;
+                const obj_b = b.asObject().?;
+
+                // Check keys in A
+                var it_a = obj_a.entries.iterator();
+                while (it_a.next()) |entry| {
+                    const next_path = if (path.len == 0)
+                        try self.allocator.dupe(u8, entry.key_ptr.*)
+                    else
+                        try std.fmt.allocPrint(self.allocator, "{s}.{s}", .{ path, entry.key_ptr.* });
+                    defer self.allocator.free(next_path);
+
+                    if (obj_b.get(entry.key_ptr.*)) |val_b| {
+                        try self.diffRecursive(entry.value_ptr, val_b, next_path, results);
+                    } else {
+                        try results.append(self.allocator, try self.allocator.dupe(u8, next_path));
+                    }
+                }
+
+                // Check keys in B that are not in A
+                var it_b = obj_b.entries.iterator();
+                while (it_b.next()) |entry| {
+                    if (!obj_a.entries.contains(entry.key_ptr.*)) {
+                        const next_path = if (path.len == 0)
+                            try self.allocator.dupe(u8, entry.key_ptr.*)
+                        else
+                            try std.fmt.allocPrint(self.allocator, "{s}.{s}", .{ path, entry.key_ptr.* });
+                        try results.append(self.allocator, next_path);
+                    }
+                }
+            } else {
+                // Different types or both non-objects, and not equal
+                try results.append(self.allocator, try self.allocator.dupe(u8, path));
+            }
+        }
+    }
+
+    /// Returns a flattened version of the document, where nested paths are
+    /// converted to dot-notation keys (e.g., "db.port").
+    /// Caller must free both the keys and the values.
+    pub fn flatten(self: *const Document) !Document {
+        var flat_doc = Document.initEmpty(self.allocator);
+        errdefer flat_doc.deinit();
+
+        try self.flattenRecursive(&self.root, "", &flat_doc);
+        return flat_doc;
+    }
+
+    fn flattenRecursive(self: *const Document, val: *const Value, path: []const u8, flat_doc: *Document) !void {
+        switch (val.*) {
+            .object => |o| {
+                var it = o.entries.iterator();
+                while (it.next()) |entry| {
+                    const new_path = if (path.len == 0)
+                        try self.allocator.dupe(u8, entry.key_ptr.*)
+                    else
+                        try std.fmt.allocPrint(self.allocator, "{s}.{s}", .{ path, entry.key_ptr.* });
+                    defer self.allocator.free(new_path);
+                    try self.flattenRecursive(entry.value_ptr, new_path, flat_doc);
+                }
+            },
+            .array => |a| {
+                for (a.items.items, 0..) |*item, i| {
+                    const new_path = if (path.len == 0)
+                        try std.fmt.allocPrint(self.allocator, "[{d}]", .{i})
+                    else
+                        try std.fmt.allocPrint(self.allocator, "{s}[{d}]", .{ path, i });
+                    defer self.allocator.free(new_path);
+                    try self.flattenRecursive(item, new_path, flat_doc);
+                }
+            },
+            else => {
+                if (path.len > 0) {
+                    try flat_doc.setValue(path, try val.clone(self.allocator));
+                }
+            },
+        }
+    }
+
     /// Returns the ZON string with no indentation.
     pub fn toCompactString(self: *const Document) ![]u8 {
         return stringify.stringify(self.allocator, &self.root, .{ .indent = 0 });
@@ -475,7 +968,32 @@ pub const Document = struct {
         return stringify.stringify(self.allocator, &self.root, .{ .indent = indent_size });
     }
 
-    /// Merges another document into this one.
+    /// Merges another document into this one recursively.
+    pub fn mergeRecursive(self: *Document, other: *const Document) !void {
+        try self.mergeRecursiveValue(&self.root, &other.root);
+    }
+
+    fn mergeRecursiveValue(self: *Document, target: *Value, source: *const Value) !void {
+        if (target.* == .object and source.* == .object) {
+            var it = source.object.entries.iterator();
+            while (it.next()) |entry| {
+                const key = entry.key_ptr.*;
+                if (target.object.get(key)) |existing| {
+                    try self.mergeRecursiveValue(existing, entry.value_ptr);
+                } else {
+                    const cloned = try entry.value_ptr.clone(self.allocator);
+                    try target.object.put(key, cloned);
+                }
+            }
+        } else {
+            // Overwrite with cloned value
+            const cloned = try source.clone(self.allocator);
+            target.deinit(self.allocator);
+            target.* = cloned;
+        }
+    }
+
+    /// Merges another document into this one. (Old shallow-like merge preserved for compatibility)
     pub fn merge(self: *Document, other: *const Document) !void {
         const other_obj = switch (other.root) {
             .object => |o| o,
@@ -500,42 +1018,6 @@ pub const Document = struct {
             .root = try self.root.clone(self.allocator),
             .file_path = if (self.file_path) |p| try self.allocator.dupe(u8, p) else null,
         };
-    }
-
-    /// Returns keys that differ between this and another document.
-    pub fn diff(self: *const Document, other: *const Document) ![][]const u8 {
-        var results: std.ArrayListUnmanaged([]const u8) = .empty;
-        errdefer {
-            for (results.items) |item| self.allocator.free(item);
-            results.deinit(self.allocator);
-        }
-
-        const self_keys = try self.keys();
-        defer self.allocator.free(self_keys);
-
-        const other_obj = switch (other.root) {
-            .object => |o| o,
-            else => return results.toOwnedSlice(self.allocator),
-        };
-
-        for (self_keys) |key| {
-            const self_val = self.getString(key);
-            const other_val_ptr = other_obj.entries.get(key);
-
-            if (other_val_ptr == null) {
-                const path = try self.allocator.dupe(u8, key);
-                try results.append(self.allocator, path);
-            } else if (self_val != null) {
-                if (other_val_ptr.?.asString()) |other_str| {
-                    if (!std.mem.eql(u8, self_val.?, other_str)) {
-                        const path = try self.allocator.dupe(u8, key);
-                        try results.append(self.allocator, path);
-                    }
-                }
-            }
-        }
-
-        return results.toOwnedSlice(self.allocator);
     }
 
     /// Returns a mutable pointer to the object at the path.
@@ -758,12 +1240,12 @@ pub const Document = struct {
         }
     }
 
-    fn replaceInValue(self: *Document, value: *Value, find: []const u8, replacement: []const u8, mode: ReplaceMode) !usize {
+    fn replaceInValue(self: *Document, value: *Value, needle: []const u8, replacement: []const u8, mode: ReplaceMode) !usize {
         var replaced: usize = 0;
 
         switch (value.*) {
             .string => |s| {
-                if (std.mem.eql(u8, s, find)) {
+                if (std.mem.eql(u8, s, needle)) {
                     self.allocator.free(s);
                     value.* = .{ .string = try self.allocator.dupe(u8, replacement) };
                     replaced += 1;
@@ -772,14 +1254,14 @@ pub const Document = struct {
             .object => |*o| {
                 var it = o.entries.iterator();
                 while (it.next()) |entry| {
-                    const count_val = try self.replaceInValue(entry.value_ptr, find, replacement, mode);
+                    const count_val = try self.replaceInValue(entry.value_ptr, needle, replacement, mode);
                     replaced += count_val;
                     if (mode == .first and replaced > 0) return replaced;
                 }
             },
             .array => |*a| {
                 for (a.items.items) |*item| {
-                    const count_val = try self.replaceInValue(item, find, replacement, mode);
+                    const count_val = try self.replaceInValue(item, needle, replacement, mode);
                     replaced += count_val;
                     if (mode == .first and replaced > 0) return replaced;
                 }
@@ -1014,4 +1496,24 @@ test "Document: toString" {
 
     try std.testing.expect(std.mem.indexOf(u8, output, ".name") != null);
     try std.testing.expect(std.mem.indexOf(u8, output, "\"test\"") != null);
+}
+
+test "Document: array operations extended" {
+    const allocator = std.testing.allocator;
+    var doc = Document.initEmpty(allocator);
+    defer doc.deinit();
+
+    try doc.setArray("arr");
+    try doc.appendToArray("arr", "two");
+    try doc.insertStringIntoArray("arr", 0, "one");
+    try doc.appendIntToArray("arr", 42);
+
+    try std.testing.expectEqual(@as(usize, 3), doc.countAt("arr"));
+    try std.testing.expectEqualStrings("one", doc.getArrayString("arr", 0).?);
+    try std.testing.expectEqualStrings("two", doc.getArrayString("arr", 1).?);
+    try std.testing.expectEqual(@as(usize, 1), doc.indexOf("arr", "two").?);
+
+    try std.testing.expect(doc.removeFromArray("arr", 1));
+    try std.testing.expectEqual(@as(usize, 2), doc.countAt("arr"));
+    try std.testing.expectEqualStrings("one", doc.getArrayString("arr", 0).?);
 }

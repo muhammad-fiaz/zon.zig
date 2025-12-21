@@ -15,7 +15,7 @@ pub const Value = union(enum) {
 
     /// Numeric value.
     pub const Number = union(enum) {
-        int: i64,
+        int: i128,
         float: f64,
     };
 
@@ -44,6 +44,16 @@ pub const Value = union(enum) {
             return self.entries.getPtr(key);
         }
 
+        /// Alias for get().
+        pub fn fetch(self: *const Object, key: []const u8) ?*Value {
+            return self.get(key);
+        }
+
+        /// Alias for get().
+        pub fn at(self: *const Object, key: []const u8) ?*Value {
+            return self.get(key);
+        }
+
         pub fn put(self: *Object, key: []const u8, value: Value) !void {
             const owned_key = try self.allocator.dupe(u8, key);
             errdefer self.allocator.free(owned_key);
@@ -57,6 +67,16 @@ pub const Value = union(enum) {
             }
         }
 
+        /// Alias for put().
+        pub fn set(self: *Object, key: []const u8, value: Value) !void {
+            try self.put(key, value);
+        }
+
+        /// Alias for put().
+        pub fn insert(self: *Object, key: []const u8, value: Value) !void {
+            try self.put(key, value);
+        }
+
         pub fn remove(self: *Object, key: []const u8) bool {
             if (self.entries.fetchRemove(key)) |kv| {
                 self.allocator.free(kv.key);
@@ -67,8 +87,28 @@ pub const Value = union(enum) {
             return false;
         }
 
+        /// Alias for remove().
+        pub fn delete(self: *Object, key: []const u8) bool {
+            return self.remove(key);
+        }
+
+        /// Alias for remove().
+        pub fn unset(self: *Object, key: []const u8) bool {
+            return self.remove(key);
+        }
+
         pub fn count(self: *const Object) usize {
             return self.entries.count();
+        }
+
+        /// Alias for count().
+        pub fn size(self: *const Object) usize {
+            return self.count();
+        }
+
+        /// Alias for count().
+        pub fn len(self: *const Object) usize {
+            return self.count();
         }
 
         pub fn keys(self: *const Object, allocator: Allocator) ![][]const u8 {
@@ -81,6 +121,43 @@ pub const Value = union(enum) {
                 i += 1;
             }
             return result;
+        }
+
+        /// Iterator for object entries.
+        pub const Iterator = struct {
+            it: std.StringHashMapUnmanaged(Value).Iterator,
+
+            pub fn next(self: *Iterator) ?struct { key: []const u8, value: *Value } {
+                if (self.it.next()) |entry| {
+                    return .{ .key = entry.key_ptr.*, .value = entry.value_ptr };
+                }
+                return null;
+            }
+        };
+
+        /// Returns an iterator over the object's entries.
+        pub fn iterator(self: *Object) Iterator {
+            return .{ .it = self.entries.iterator() };
+        }
+
+        /// Removes all entries from the object.
+        pub fn clear(self: *Object) void {
+            var it = self.entries.iterator();
+            while (it.next()) |entry| {
+                self.allocator.free(entry.key_ptr.*);
+                entry.value_ptr.deinit(self.allocator);
+            }
+            self.entries.clearRetainingCapacity();
+        }
+
+        /// Alias for clear().
+        pub fn reset(self: *Object) void {
+            self.clear();
+        }
+
+        /// Alias for clear().
+        pub fn empty(self: *Object) void {
+            self.clear();
         }
     };
 
@@ -107,13 +184,85 @@ pub const Value = union(enum) {
             try self.items.append(self.allocator, value);
         }
 
+        /// Alias for append().
+        pub fn add(self: *Array, value: Value) !void {
+            try self.append(value);
+        }
+
+        /// Alias for append().
+        pub fn push(self: *Array, value: Value) !void {
+            try self.append(value);
+        }
+
         pub fn get(self: *const Array, index: usize) ?*Value {
             if (index >= self.items.items.len) return null;
             return &self.items.items[index];
         }
 
+        /// Alias for get().
+        pub fn at(self: *const Array, index: usize) ?*Value {
+            return self.get(index);
+        }
+
+        pub fn insert(self: *Array, index: usize, value: Value) !void {
+            try self.items.insert(self.allocator, index, value);
+        }
+
         pub fn len(self: *const Array) usize {
             return self.items.items.len;
+        }
+
+        /// Alias for len().
+        pub fn size(self: *const Array) usize {
+            return self.len();
+        }
+
+        /// Alias for len().
+        pub fn count(self: *const Array) usize {
+            return self.len();
+        }
+
+        pub fn remove(self: *Array, index: usize) bool {
+            if (index >= self.items.items.len) return false;
+            var item = self.items.orderedRemove(index);
+            item.deinit(self.allocator);
+            return true;
+        }
+
+        /// Iterator for array elements.
+        pub const Iterator = struct {
+            array: *const Array,
+            index: usize = 0,
+
+            pub fn next(self: *Iterator) ?*Value {
+                if (self.index >= self.array.len()) return null;
+                const val = &self.array.items.items[self.index];
+                self.index += 1;
+                return val;
+            }
+        };
+
+        /// Returns an iterator over the array's elements.
+        pub fn iterator(self: *const Array) Iterator {
+            return .{ .array = self };
+        }
+
+        /// Removes all elements from the array.
+        pub fn clear(self: *Array) void {
+            for (self.items.items) |*item| {
+                item.deinit(self.allocator);
+            }
+            self.items.clearRetainingCapacity();
+        }
+
+        /// Alias for clear().
+        pub fn reset(self: *Array) void {
+            self.clear();
+        }
+
+        /// Alias for clear().
+        pub fn empty(self: *Array) void {
+            self.clear();
         }
     };
 
@@ -185,8 +334,19 @@ pub const Value = union(enum) {
     pub fn asInt(self: *const Value) ?i64 {
         return switch (self.*) {
             .number => |n| switch (n) {
-                .int => |i| i,
+                .int => |i| if (i >= std.math.minInt(i64) and i <= std.math.maxInt(i64)) @intCast(i) else null,
                 .float => |f| if (@abs(f - @trunc(f)) < 0.0001) @as(i64, @intFromFloat(f)) else null,
+            },
+            else => null,
+        };
+    }
+
+    /// Returns the integer value as i128.
+    pub fn asInt128(self: *const Value) ?i128 {
+        return switch (self.*) {
+            .number => |n| switch (n) {
+                .int => |i| i,
+                .float => |f| if (@abs(f - @trunc(f)) < 0.0001) @intFromFloat(f) else null,
             },
             else => null,
         };
@@ -218,6 +378,280 @@ pub const Value = union(enum) {
             .array => |*a| a,
             else => null,
         };
+    }
+
+    /// Returns an unsigned integer value if representable.
+    /// Useful for fingerprints and other unsigned values.
+    pub fn asUint(self: *const Value) ?u64 {
+        return switch (self.*) {
+            .number => |n| switch (n) {
+                .int => |i| if (i >= 0 and i <= std.math.maxInt(u64)) @intCast(i) else null,
+                .float => |f| if (f >= 0 and @abs(f - @trunc(f)) < 0.0001 and f <= @as(f64, @floatFromInt(std.math.maxInt(u64)))) @intFromFloat(f) else null,
+            },
+            else => null,
+        };
+    }
+
+    /// Check if this value is positive infinity (like std.zon supports).
+    pub fn isPositiveInf(self: *const Value) bool {
+        return switch (self.*) {
+            .number => |n| switch (n) {
+                .float => |f| std.math.isPositiveInf(f),
+                else => false,
+            },
+            else => false,
+        };
+    }
+
+    /// Check if this value is negative infinity.
+    pub fn isNegativeInf(self: *const Value) bool {
+        return switch (self.*) {
+            .number => |n| switch (n) {
+                .float => |f| std.math.isNegativeInf(f),
+                else => false,
+            },
+            else => false,
+        };
+    }
+
+    /// Check if this value is NaN.
+    pub fn isNan(self: *const Value) bool {
+        return switch (self.*) {
+            .number => |n| switch (n) {
+                .float => |f| std.math.isNan(f),
+                else => false,
+            },
+            else => false,
+        };
+    }
+
+    /// Check if this value is a special float (inf, -inf, nan).
+    pub fn isSpecialFloat(self: *const Value) bool {
+        return self.isPositiveInf() or self.isNegativeInf() or self.isNan();
+    }
+
+    /// Returns a stable 64-bit hash of the value.
+    /// Objects are hashed by sorted keys to ensure order independence.
+    pub fn hash(self: *const Value) u64 {
+        var hasher = std.hash.Wyhash.init(0);
+        self.updateHash(&hasher);
+        return hasher.final();
+    }
+
+    /// Updates the hasher with the content of this value.
+    fn updateHash(self: *const Value, hasher: *std.hash.Wyhash) void {
+        hasher.update(std.mem.asBytes(&@as(u8, @intFromEnum(std.meta.activeTag(self.*)))));
+        switch (self.*) {
+            .null_val => {},
+            .bool_val => |b| hasher.update(std.mem.asBytes(&b)),
+            .number => |n| switch (n) {
+                .int => |i| hasher.update(std.mem.asBytes(&i)),
+                .float => |f| hasher.update(std.mem.asBytes(&f)),
+            },
+            .string => |s| hasher.update(s),
+            .identifier => |s| hasher.update(s),
+            .object => |o| {
+                // To ensure order-independent hashing, we hash entries and XOR them,
+                // or sort keys. Since we want a single stable hash, we sort.
+                // Note: For extreme performance, we could XOR the hashes of (key + val).
+                // But for ZON configs, sorting is fast enough and more robust.
+                var keys_buf: std.ArrayListUnmanaged([]const u8) = .empty;
+                defer keys_buf.deinit(o.allocator);
+
+                var it = o.entries.keyIterator();
+                while (it.next()) |k| keys_buf.append(o.allocator, k.*) catch break;
+                std.mem.sort([]const u8, keys_buf.items, {}, struct {
+                    fn lessThan(_: void, a: []const u8, b: []const u8) bool {
+                        return std.mem.order(u8, a, b) == .lt;
+                    }
+                }.lessThan);
+
+                for (keys_buf.items) |key| {
+                    hasher.update(key);
+                    const val = o.entries.getPtr(key).?;
+                    val.updateHash(hasher);
+                }
+            },
+            .array => |a| {
+                for (a.items.items) |*item| {
+                    item.updateHash(hasher);
+                }
+            },
+        }
+    }
+
+    /// Generates a checksum using the provided algorithm (e.g., std.crypto.hash.sha2.Sha256).
+    /// Returns the digest.
+    pub fn checksum(self: *const Value, comptime Algo: type, out: *[Algo.digest_length]u8) void {
+        var h = Algo.init(.{});
+        // We use stringify to get a stable byte representation for the checksum.
+        // This is easier than manually feeding the hasher and matches the file content.
+        // However, a document-based hash is more robust against formatting.
+        // Let's use the internal hash result as a seed or use a dummy buffer.
+
+        // Strategy: We want the checksum of the DATA, not the FORMAT.
+        // So we feed the stable hash or a canonical stringification.
+        const hash_val = self.hash();
+        h.update(std.mem.asBytes(&hash_val));
+        h.final(out);
+    }
+
+    /// Returns true if this value deeply equals another value.
+    pub fn eql(self: *const Value, other: *const Value) bool {
+        return switch (self.*) {
+            .null_val => other.* == .null_val,
+            .bool_val => |a| switch (other.*) {
+                .bool_val => |b| a == b,
+                else => false,
+            },
+            .number => |a| switch (other.*) {
+                .number => |b| blk: {
+                    const af = switch (a) {
+                        .int => |i| @as(f64, @floatFromInt(i)),
+                        .float => |f| f,
+                    };
+                    const bf = switch (b) {
+                        .int => |i| @as(f64, @floatFromInt(i)),
+                        .float => |f| f,
+                    };
+                    // Handle NaN
+                    if (std.math.isNan(af) and std.math.isNan(bf)) break :blk true;
+                    break :blk af == bf;
+                },
+                else => false,
+            },
+            .string => |a| switch (other.*) {
+                .string => |b| std.mem.eql(u8, a, b),
+                else => false,
+            },
+            .identifier => |a| switch (other.*) {
+                .identifier => |b| std.mem.eql(u8, a, b),
+                else => false,
+            },
+            .object => |a| switch (other.*) {
+                .object => |b| blk: {
+                    if (a.count() != b.count()) break :blk false;
+                    var it = a.entries.iterator();
+                    while (it.next()) |entry| {
+                        const other_val = b.entries.getPtr(entry.key_ptr.*) orelse break :blk false;
+                        if (!entry.value_ptr.eql(other_val)) break :blk false;
+                    }
+                    break :blk true;
+                },
+                else => false,
+            },
+            .array => |a| switch (other.*) {
+                .array => |b| blk: {
+                    if (a.len() != b.len()) break :blk false;
+                    for (a.items.items, 0..) |*item, i| {
+                        if (!item.eql(&b.items.items[i])) break :blk false;
+                    }
+                    break :blk true;
+                },
+                else => false,
+            },
+        };
+    }
+
+    /// Returns the type name as a string.
+    pub fn typeName(self: *const Value) []const u8 {
+        return switch (self.*) {
+            .null_val => "null",
+            .bool_val => "bool",
+            .number => |n| switch (n) {
+                .int => "int",
+                .float => "float",
+            },
+            .string => "string",
+            .identifier => "identifier",
+            .object => "object",
+            .array => "array",
+        };
+    }
+
+    /// Attempts to coerce the value to a boolean.
+    /// - null -> false
+    /// - bool -> bool
+    /// - int 0 -> false, else true
+    /// - empty string/array/object -> false, else true
+    pub fn toBool(self: *const Value) bool {
+        return switch (self.*) {
+            .null_val => false,
+            .bool_val => |b| b,
+            .number => |n| switch (n) {
+                .int => |i| i != 0,
+                .float => |f| f != 0.0 and !std.math.isNan(f),
+            },
+            .string => |s| s.len > 0,
+            .identifier => |s| s.len > 0,
+            .object => |o| o.count() > 0,
+            .array => |a| a.len() > 0,
+        };
+    }
+
+    /// Attempts to convert the value to an integer of type T.
+    /// Returns 0 if conversion fails or type is incompatible.
+    pub fn toInt(self: *const Value, comptime T: type) T {
+        if (self.asInt128()) |i| {
+            if (i >= std.math.minInt(T) and i <= std.math.maxInt(T)) {
+                return @intCast(i);
+            }
+        }
+        return 0;
+    }
+
+    /// Attempts to convert the value to an unsigned integer of type T.
+    /// Returns 0 if conversion fails or type is incompatible.
+    pub fn toUint(self: *const Value, comptime T: type) T {
+        if (self.asUint()) |u| {
+            if (u <= std.math.maxInt(T)) {
+                return @intCast(u);
+            }
+        }
+        return 0;
+    }
+
+    /// Attempts to convert the value to a float of type T.
+    /// Returns 0.0 if conversion fails.
+    pub fn toFloat(self: *const Value, comptime T: type) T {
+        if (self.asFloat()) |f| {
+            return @floatCast(f);
+        }
+        return 0.0;
+    }
+
+    /// Converts value to a string representation for debugging.
+    pub fn toDebugString(self: *const Value, allocator: Allocator) ![]u8 {
+        var buf = std.ArrayList(u8).init(allocator);
+        errdefer buf.deinit();
+
+        try self.formatDebug(buf.writer());
+        return buf.toOwnedSlice();
+    }
+
+    fn formatDebug(self: *const Value, writer: anytype) !void {
+        switch (self.*) {
+            .null_val => try writer.writeAll("null"),
+            .bool_val => |b| try writer.print("{}", .{b}),
+            .number => |n| switch (n) {
+                .int => |i| try writer.print("{d}", .{i}),
+                .float => |f| {
+                    if (std.math.isPositiveInf(f)) {
+                        try writer.writeAll("inf");
+                    } else if (std.math.isNegativeInf(f)) {
+                        try writer.writeAll("-inf");
+                    } else if (std.math.isNan(f)) {
+                        try writer.writeAll("nan");
+                    } else {
+                        try writer.print("{d}", .{f});
+                    }
+                },
+            },
+            .string => |s| try writer.print("\"{s}\"", .{s}),
+            .identifier => |s| try writer.print(".{s}", .{s}),
+            .object => try writer.writeAll(".{...}"),
+            .array => try writer.writeAll(".{...}"),
+        }
     }
 };
 

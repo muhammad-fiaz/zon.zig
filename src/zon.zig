@@ -1,4 +1,10 @@
-//! zon.zig - A Zig library for reading and writing ZON files.
+//! zon.zig - A document-based ZON library for Zig.
+//!
+//! Unlike `std.zon` which parses ZON directly into typed Zig structures,
+//! zon.zig maintains an in-memory document tree that you can query, modify, and serialize.
+//! This makes it ideal for configuration file editing, dynamic access, and find/replace operations.
+//!
+//! See: https://codeberg.org/ziglang/zig/src/branch/master/lib/std/zon for std.zon reference.
 //!
 //! Repository: https://github.com/muhammad-fiaz/zon.zig
 
@@ -13,7 +19,14 @@ pub const update_checker = @import("update_checker.zig");
 pub const Value = @import("value.zig").Value;
 
 pub const Document = document.Document;
+pub const Parser = @import("parser.zig").Parser;
+pub const ParseError = @import("parser.zig").ParseError;
+pub const Diagnostic = @import("parser.zig").Diagnostic;
+pub const Tokenizer = @import("tokenizer.zig").Tokenizer;
+pub const Token = @import("tokenizer.zig").Token;
 pub const version = version_info.version;
+pub const stringify = @import("stringify.zig").stringify;
+pub const stringifyJson = @import("stringify.zig").stringifyJson;
 
 /// Disables update checking.
 pub fn disableUpdateCheck() void {
@@ -35,19 +48,84 @@ pub fn checkForUpdates(allocator: Allocator) void {
     update_checker.checkAndNotify(allocator);
 }
 
+/// Creates a new empty ZON document.
+pub fn create(allocator: Allocator) Document {
+    return Document.initEmpty(allocator);
+}
+
+/// Alias for create().
+pub fn new(allocator: Allocator) Document {
+    return create(allocator);
+}
+
+/// Alias for create().
+pub fn init(allocator: Allocator) Document {
+    return create(allocator);
+}
+
+/// Parses ZON content from source text.
+pub fn parse(allocator: Allocator, source: []const u8) !Document {
+    return Document.initFromSource(allocator, source);
+}
+
+/// Alias for parse().
+pub fn fromSource(allocator: Allocator, source: []const u8) !Document {
+    return parse(allocator, source);
+}
+
+/// Alias for parse().
+pub fn parseString(allocator: Allocator, source: []const u8) !Document {
+    return parse(allocator, source);
+}
+
+/// Parses JSON content into a ZON document.
+pub fn fromJson(allocator: Allocator, json: []const u8) !Document {
+    return Document.initFromJson(allocator, json);
+}
+
+/// Alias for fromJson().
+pub fn parseJson(allocator: Allocator, json: []const u8) !Document {
+    return fromJson(allocator, json);
+}
+
+/// Creates a ZON document from a map of key-value pairs.
+pub fn fromMap(allocator: Allocator, map: anytype) !Document {
+    return Document.initFromMap(allocator, map);
+}
+
+/// Alias for fromMap().
+pub fn initFromMap(allocator: Allocator, map: anytype) !Document {
+    return fromMap(allocator, map);
+}
+
+/// Opens and parses a ZON file.
+pub fn load(allocator: Allocator, path: []const u8) !Document {
+    return Document.initFromFile(allocator, path);
+}
+
+/// Alias for load().
+pub fn fromFile(allocator: Allocator, path: []const u8) !Document {
+    return load(allocator, path);
+}
+
+/// Alias for load().
+pub fn openFile(allocator: Allocator, path: []const u8) !Document {
+    return load(allocator, path);
+}
+
 /// Opens an existing ZON file.
 pub fn open(allocator: Allocator, file_path: []const u8) !Document {
     return Document.initFromFile(allocator, file_path);
 }
 
-/// Creates a new empty document.
-pub fn create(allocator: Allocator) Document {
-    return Document.initEmpty(allocator);
+/// Alias for open().
+pub fn loadFile(allocator: Allocator, file_path: []const u8) !Document {
+    return open(allocator, file_path);
 }
 
-/// Parses ZON from a string.
-pub fn parse(allocator: Allocator, source: []const u8) !Document {
-    return Document.initFromSource(allocator, source);
+/// Alias for load().
+pub fn parseFile(allocator: Allocator, path: []const u8) !Document {
+    return load(allocator, path);
 }
 
 /// Deletes a file.
@@ -96,6 +174,11 @@ pub fn readFile(allocator: Allocator, path: []const u8) ![]u8 {
     return try f.readToEndAlloc(allocator, 1024 * 1024 * 64);
 }
 
+/// Alias for readFile().
+pub fn read(allocator: Allocator, path: []const u8) ![]u8 {
+    return readFile(allocator, path);
+}
+
 /// Write data to `path` atomically: write to a temporary file and rename.
 pub fn writeFileAtomic(allocator: Allocator, path: []const u8, data: []const u8) !void {
     const tmp = try std.fmt.allocPrint(allocator, "{s}.tmp", .{path});
@@ -108,6 +191,107 @@ pub fn writeFileAtomic(allocator: Allocator, path: []const u8, data: []const u8)
     try f.writeAll("\n");
 
     try std.fs.cwd().rename(tmp, path);
+}
+
+/// Alias for writeFileAtomic().
+pub fn writeAtomic(allocator: Allocator, path: []const u8, data: []const u8) !void {
+    try writeFileAtomic(allocator, path, data);
+}
+
+/// Alias for writeFileAtomic().
+pub fn saveAtomic(allocator: Allocator, path: []const u8, data: []const u8) !void {
+    try writeFileAtomic(allocator, path, data);
+}
+
+/// Loads a ZON file, or creates it with default_content if it doesn't exist.
+pub fn loadOrCreate(allocator: Allocator, path: []const u8, default_content: []const u8) !Document {
+    if (!fileExists(path)) {
+        try writeFileAtomic(allocator, path, default_content);
+    }
+    return try load(allocator, path);
+}
+
+/// Returns true if the source is valid ZON.
+pub fn validate(allocator: Allocator, source: []const u8) bool {
+    var doc = Document.initFromSource(allocator, source) catch return false;
+    doc.deinit();
+    return true;
+}
+
+/// Alias for validate().
+pub fn isValid(allocator: Allocator, source: []const u8) bool {
+    return validate(allocator, source);
+}
+
+/// Alias for validate().
+pub fn isZonValid(allocator: Allocator, source: []const u8) bool {
+    return validate(allocator, source);
+}
+
+/// Returns true if the file contains valid ZON.
+pub fn validateFile(allocator: Allocator, path: []const u8) bool {
+    const source = readFile(allocator, path) catch return false;
+    defer allocator.free(source);
+    return validate(allocator, source);
+}
+
+/// Alias for validateFile().
+pub fn isValidFile(allocator: Allocator, path: []const u8) bool {
+    return validateFile(allocator, path);
+}
+
+/// Alias for validateFile().
+pub fn isZonFileValid(allocator: Allocator, path: []const u8) bool {
+    return validateFile(allocator, path);
+}
+
+/// Re-formats ZON source code.
+pub fn format(allocator: Allocator, source: []const u8) ![]u8 {
+    var doc = try Document.initFromSource(allocator, source);
+    defer doc.deinit();
+    return try doc.toString();
+}
+
+/// Re-formats a ZON file in-place.
+pub fn formatFile(allocator: Allocator, path: []const u8) !void {
+    const source = try readFile(allocator, path);
+    defer allocator.free(source);
+    const formatted = try format(allocator, source);
+    defer allocator.free(formatted);
+    try writeFileAtomic(allocator, path, formatted);
+}
+
+/// Rename a key path in a ZON file.
+pub fn movePathInFile(allocator: Allocator, path: []const u8, old_key: []const u8, new_key: []const u8) !void {
+    var doc = try load(allocator, path);
+    defer doc.deinit();
+    if (try doc.rename(old_key, new_key)) {
+        try doc.save();
+    }
+}
+
+/// Copy a key path in a ZON file.
+pub fn copyPathInFile(allocator: Allocator, path: []const u8, src_key: []const u8, dst_key: []const u8) !void {
+    var doc = try load(allocator, path);
+    defer doc.deinit();
+    if (try doc.copy(src_key, dst_key)) {
+        try doc.save();
+    }
+}
+
+/// Alias for moveFile().
+pub fn renameFile(old_path: []const u8, new_path: []const u8, overwrite: bool) !void {
+    try moveFile(old_path, new_path, overwrite);
+}
+
+/// Alias for deleteFile().
+pub fn removeFile(path: []const u8) !void {
+    try deleteFile(path);
+}
+
+/// Alias for fileExists().
+pub fn hasFile(path: []const u8) bool {
+    return fileExists(path);
 }
 
 test "create and set values" {
@@ -181,7 +365,7 @@ test "parse build.zig.zon format" {
     const source =
         \\.{
         \\    .name = .zon,
-        \\    .version = "0.0.2",
+        \\    .version = "0.0.3",
         \\    .fingerprint = 0xee480fa30d50cbf6,
         \\    .minimum_zig_version = "0.15.0",
         \\    .paths = .{
@@ -196,8 +380,8 @@ test "parse build.zig.zon format" {
     defer doc.deinit();
 
     try std.testing.expectEqualStrings("zon", doc.getString("name").?);
-    try std.testing.expectEqualStrings("0.0.2", doc.getString("version").?);
-    try std.testing.expect(doc.getInt("fingerprint") != null);
+    try std.testing.expectEqualStrings("0.0.3", doc.getString("version").?);
+    try std.testing.expect(doc.getUint("fingerprint") != null);
     try std.testing.expectEqual(@as(usize, 3), doc.arrayLen("paths").?);
     try std.testing.expectEqualStrings("build.zig", doc.getArrayString("paths", 0).?);
 }
@@ -245,7 +429,7 @@ test "stringify document" {
 }
 
 test "version info" {
-    try std.testing.expectEqualStrings("0.0.2", version);
+    try std.testing.expectEqualStrings("0.0.3", version);
 }
 
 test "find and replace" {
@@ -339,4 +523,292 @@ test "file utilities: copy & move with overwrite" {
     // cleanup
     _ = std.fs.cwd().deleteFile("a.zon") catch null;
     _ = std.fs.cwd().deleteFile("c.zon") catch null;
+}
+
+test "advanced: special floats" {
+    const allocator = std.testing.allocator;
+    const source = ".{ .inf_val = inf, .nan_val = nan, .neg_inf = -inf }";
+    var doc = try parse(allocator, source);
+    defer doc.deinit();
+
+    try std.testing.expect(doc.isInf("inf_val"));
+    try std.testing.expect(doc.isNan("nan_val"));
+    try std.testing.expect(doc.isInf("neg_inf"));
+
+    const out = try doc.toString();
+    defer allocator.free(out);
+    try std.testing.expect(std.mem.indexOf(u8, out, ".inf_val = inf") != null);
+    try std.testing.expect(std.mem.indexOf(u8, out, ".nan_val = nan") != null);
+    try std.testing.expect(std.mem.indexOf(u8, out, ".neg_inf = -inf") != null);
+}
+
+test "advanced: multiline strings" {
+    const allocator = std.testing.allocator;
+    const source = ".{ .text = \\\\line 1\n\\\\line 2\n }";
+    var doc = try parse(allocator, source);
+    defer doc.deinit();
+
+    const expected = "line 1\nline 2";
+    try std.testing.expectEqualStrings(expected, doc.getString("text").?);
+}
+
+test "advanced: recursive merge" {
+    const allocator = std.testing.allocator;
+    var base = try parse(allocator, ".{ .db = .{ .host = \"localhost\", .port = 5432 }, .mode = \"dev\" }");
+    defer base.deinit();
+
+    const override = try parse(allocator, ".{ .db = .{ .port = 6000 }, .mode = \"prod\" }");
+    var override_mut = override;
+    defer override_mut.deinit();
+
+    try base.mergeRecursive(&override_mut);
+
+    try std.testing.expectEqualStrings("localhost", base.getString("db.host").?);
+    try std.testing.expectEqual(@as(i64, 6000), base.getInt("db.port").?);
+    try std.testing.expectEqualStrings("prod", base.getString("mode").?);
+}
+
+test "advanced: deep equality" {
+    const allocator = std.testing.allocator;
+    var doc1 = try parse(allocator, ".{ .a = 1, .b = .{ .c = 2 } }");
+    defer doc1.deinit();
+    var doc2 = try parse(allocator, ".{ .b = .{ .c = 2 }, .a = 1 }"); // order doesn't matter for eql
+    defer doc2.deinit();
+    var doc3 = try parse(allocator, ".{ .a = 1, .b = .{ .c = 3 } }");
+    defer doc3.deinit();
+
+    try std.testing.expect(doc1.eql(&doc2));
+    try std.testing.expect(!doc1.eql(&doc3));
+}
+
+test "advanced: coercion and uint" {
+    const allocator = std.testing.allocator;
+    var doc = try parse(allocator, ".{ .big = 0xee480fa30d50cbf6, .yes = true, .no = 0, .empty = \"\" }");
+    defer doc.deinit();
+
+    try std.testing.expectEqual(@as(u64, 0xee480fa30d50cbf6), doc.getUint("big").?);
+    try std.testing.expect(doc.toBool("yes"));
+    try std.testing.expect(!doc.toBool("no"));
+    try std.testing.expect(!doc.toBool("empty"));
+}
+
+test "advanced: type names" {
+    const allocator = std.testing.allocator;
+    var doc = try parse(allocator, ".{ .s = \"hi\", .i = 1, .b = true, .o = .{}, .a = .{1} }");
+    defer doc.deinit();
+
+    try std.testing.expectEqualStrings("string", doc.getTypeName("s").?);
+    try std.testing.expectEqualStrings("int", doc.getTypeName("i").?);
+    try std.testing.expectEqualStrings("bool", doc.getTypeName("b").?);
+    try std.testing.expectEqualStrings("object", doc.getTypeName("o").?);
+    try std.testing.expectEqualStrings("object", doc.getTypeName("o").?);
+    try std.testing.expectEqualStrings("array", doc.getTypeName("a").?);
+}
+
+test "advanced: JSON export" {
+    const allocator = std.testing.allocator;
+    const source = ".{ .name = \"test\", .enabled = true, .count = 42, .tags = .{ \"a\", \"b\" } }";
+    var doc = try parse(allocator, source);
+    defer doc.deinit();
+
+    const json = try doc.toJsonString();
+    defer allocator.free(json);
+
+    // Basic JSON checks - note order may vary due to HashMap
+    try std.testing.expect(std.mem.indexOf(u8, json, "\"name\":\"test\"") != null or std.mem.indexOf(u8, json, "\"name\": \"test\"") != null);
+    try std.testing.expect(std.mem.indexOf(u8, json, "\"enabled\":true") != null or std.mem.indexOf(u8, json, "\"enabled\": true") != null);
+    try std.testing.expect(std.mem.indexOf(u8, json, "\"tags\":[\"a\", \"b\"]") != null or std.mem.indexOf(u8, json, "\"tags\": [\"a\", \"b\"]") != null);
+}
+
+test "advanced: iterators" {
+    const allocator = std.testing.allocator;
+    const source = ".{ .items = .{ 1, 2, 3 }, .meta = .{ .id = 100 } }";
+    var doc = try parse(allocator, source);
+    defer doc.deinit();
+
+    const items = doc.root.asObject().?.get("items").?.asArray().?;
+    var it = items.iterator();
+    var sum: i64 = 0;
+    while (it.next()) |val| {
+        sum += val.asInt().?;
+    }
+    try std.testing.expectEqual(@as(i64, 6), sum);
+
+    const meta = doc.root.asObject().?.get("meta").?.asObject().?;
+    var obj_it = meta.iterator();
+    if (obj_it.next()) |entry| {
+        try std.testing.expectEqualStrings("id", entry.key);
+        try std.testing.expectEqual(@as(i64, 100), entry.value.asInt().?);
+    }
+}
+
+test "advanced: recursive find" {
+    const allocator = std.testing.allocator;
+    const source = ".{ .outer = .{ .inner = .{ .target = \"found me\" } } }";
+    var doc = try parse(allocator, source);
+    defer doc.deinit();
+
+    const result = doc.find("target");
+    try std.testing.expect(result != null);
+    try std.testing.expectEqualStrings("found me", result.?.asString().?);
+
+    try std.testing.expect(doc.find("missing") == null);
+}
+
+test "advanced: numeric coercion" {
+    const allocator = std.testing.allocator;
+    var doc = try Document.initFromSource(allocator, ".{ .val = 123 }");
+    defer doc.deinit();
+
+    try std.testing.expectEqual(@as(u32, 123), doc.toUint("val", u32));
+    try std.testing.expectEqual(@as(i16, 123), doc.toInt("val", i16));
+    try std.testing.expectApproxEqAbs(@as(f32, 123.0), doc.toFloat("val", f32), 0.001);
+}
+
+test "advanced: hash and size" {
+    const allocator = std.testing.allocator;
+    const s1 = ".{ .a = 1, .b = 2 }";
+    const s2 = ".{ .b = 2, .a = 1 }"; // Different order
+
+    var doc1 = try Document.initFromSource(allocator, s1);
+    defer doc1.deinit();
+    var doc2 = try Document.initFromSource(allocator, s2);
+    defer doc2.deinit();
+
+    // Stability: same content should have same hash regardless of order
+    try std.testing.expectEqual(doc1.hash(), doc2.hash());
+
+    // Size checks
+    try std.testing.expect(try doc1.byteSize() > 0);
+    try std.testing.expect(try doc1.compactSize() > 0);
+}
+
+test "advanced: checksum" {
+    const allocator = std.testing.allocator;
+    var doc = try Document.initFromSource(allocator, ".{ .name = \"checksum_test\" }");
+    defer doc.deinit();
+
+    var sha256_1: [32]u8 = undefined;
+    doc.checksum(std.crypto.hash.sha2.Sha256, &sha256_1);
+
+    var sha256_2: [32]u8 = undefined;
+    doc.checksum(std.crypto.hash.sha2.Sha256, &sha256_2);
+
+    // Consistency check
+    try std.testing.expectEqualStrings(&sha256_1, &sha256_2);
+}
+
+test "advanced: json import" {
+    const allocator = std.testing.allocator;
+    const json = "{\"a\": 1, \"b\": [true, null], \"c\": \"hello\"}";
+    var doc = try Document.initFromJson(allocator, json);
+    defer doc.deinit();
+
+    try std.testing.expectEqual(@as(i64, 1), doc.getInt("a").?);
+    try std.testing.expectEqual(true, doc.getArrayBool("b", 0).?);
+    try std.testing.expect(doc.getArrayElement("b", 1).?.isNull());
+    try std.testing.expectEqualStrings("hello", doc.getString("c").?);
+}
+
+test "advanced: flatten" {
+    const allocator = std.testing.allocator;
+    const source = ".{ .db = .{ .host = \"localhost\", .ports = .{ 80, 443 } } }";
+    var doc = try Document.initFromSource(allocator, source);
+    defer doc.deinit();
+
+    var flat = try doc.flatten();
+    defer flat.deinit();
+
+    try std.testing.expectEqualStrings("localhost", flat.getString("db.host").?);
+    try std.testing.expectEqual(@as(i64, 80), flat.getInt("db.ports[0]").?);
+    try std.testing.expectEqual(@as(i64, 443), flat.getInt("db.ports[1]").?);
+}
+
+test "advanced: raw identifiers and findAll" {
+    const allocator = std.testing.allocator;
+    const source = ".{ .@\"special-key\" = 1, .nested = .{ .@\"special-key\" = 2 } }";
+    var doc = try Document.initFromSource(allocator, source);
+    defer doc.deinit();
+
+    try std.testing.expectEqual(@as(i64, 1), doc.getInt("special-key").?);
+    try std.testing.expectEqual(@as(i64, 2), doc.getInt("nested.special-key").?);
+
+    const paths = try doc.findAll("special-key");
+    defer {
+        for (paths) |p| allocator.free(p);
+        allocator.free(paths);
+    }
+
+    try std.testing.expectEqual(@as(usize, 2), paths.len);
+}
+
+test "advanced: rename and copy" {
+    const allocator = std.testing.allocator;
+    var doc = try parse(allocator, ".{ .a = 1 }");
+    defer doc.deinit();
+
+    try std.testing.expect(try doc.rename("a", "b"));
+    try std.testing.expect(!doc.exists("a"));
+    try std.testing.expectEqual(@as(i64, 1), doc.getInt("b").?);
+
+    try std.testing.expect(try doc.copy("b", "c"));
+    try std.testing.expectEqual(@as(i64, 1), doc.getInt("b").?);
+    try std.testing.expectEqual(@as(i64, 1), doc.getInt("c").?);
+}
+
+test "advanced: character literals" {
+    const allocator = std.testing.allocator;
+    const source = ".{ .char = 'A', .newline = '\\n' }";
+    var doc = try Document.initFromSource(allocator, source);
+    defer doc.deinit();
+
+    try std.testing.expectEqual(@as(i64, 65), doc.getInt("char").?);
+    try std.testing.expectEqual(@as(i64, 10), doc.getInt("newline").?);
+}
+
+test "advanced: getOr variants" {
+    const allocator = std.testing.allocator;
+    var doc = Document.initEmpty(allocator);
+    defer doc.deinit();
+
+    try std.testing.expectEqualStrings("default", doc.getStringOr("missing", "default"));
+    try std.testing.expectEqual(@as(i64, 42), doc.getIntOr("missing", 42));
+    try std.testing.expectEqual(true, doc.getBoolOr("missing", true));
+
+    try doc.setInt("exists", 100);
+    try std.testing.expectEqual(@as(i64, 100), doc.getIntOr("exists", 0));
+}
+
+test "advanced: initFromMap" {
+    const allocator = std.testing.allocator;
+    var doc = try Document.initFromMap(allocator, .{
+        .name = "zon",
+        .version = @as(i32, 3),
+        .active = true,
+    });
+    defer doc.deinit();
+
+    try std.testing.expectEqualStrings("zon", doc.getString("name").?);
+    try std.testing.expectEqual(@as(i64, 3), doc.getInt("version").?);
+    try std.testing.expectEqual(true, doc.getBool("active").?);
+}
+
+test "advanced: file path utilities" {
+    const allocator = std.testing.allocator;
+    const path = "test_path_utils.zon";
+    defer _ = std.fs.cwd().deleteFile(path) catch null;
+
+    try writeFileAtomic(allocator, path, ".{ .old = 123 }");
+
+    try movePathInFile(allocator, path, "old", "new");
+    var doc1 = try load(allocator, path);
+    defer doc1.deinit();
+    try std.testing.expect(!doc1.exists("old"));
+    try std.testing.expectEqual(@as(i64, 123), doc1.getInt("new").?);
+
+    try copyPathInFile(allocator, path, "new", "dupe");
+    var doc2 = try load(allocator, path);
+    defer doc2.deinit();
+    try std.testing.expectEqual(@as(i64, 123), doc2.getInt("new").?);
+    try std.testing.expectEqual(@as(i64, 123), doc2.getInt("dupe").?);
 }

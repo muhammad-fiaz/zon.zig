@@ -44,6 +44,32 @@ defer {
 }
 ```
 
+## Finding Keys
+
+You can search for keys anywhere in the document tree recursively.
+
+### Find First Key
+
+Returns the `*Value` of the first matching key found:
+
+```zig
+if (doc.find("port")) |val| {
+    std.debug.print("Found port: {any}\n", .{val});
+}
+```
+
+### Find All Keys
+
+Returns a list of all paths where the key exists (e.g. `server.port`, `db.port`):
+
+```zig
+const paths = try doc.findAll("port");
+defer {
+    for (paths) |p| allocator.free(p);
+    allocator.free(paths);
+}
+```
+
 ## Replacing Values
 
 ### Replace All

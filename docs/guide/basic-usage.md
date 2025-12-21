@@ -76,9 +76,9 @@ try doc.setBool("debug", false);
 try doc.setInt("port", 8080);
 try doc.setInt("max_connections", 100);
 
-// Large hex values
-const fingerprint: u64 = 0xaabbccdd11223344;
-try doc.setInt("fingerprint", @bitCast(fingerprint));
+// Large hex values (automatically handled as i128 transitionally)
+const fingerprint: u64 = 0xee480fa30d50cbf6;
+try doc.setInt("fingerprint", @intCast(fingerprint));
 ```
 
 **Output:**
@@ -104,6 +104,24 @@ try doc.setFloat("rate", 0.05);
 .{
     .pi = 3.14159,
     .rate = 0.05,
+}
+```
+
+### Special Float Values
+
+Support for `inf`, `-inf`, and `nan`:
+
+```zig
+try doc.setFloat("limit", std.math.inf(f64));
+try doc.setFloat("result", std.math.nan(f64));
+```
+
+**Output:**
+
+```zig
+.{
+    .limit = inf,
+    .result = nan,
 }
 ```
 
@@ -167,6 +185,11 @@ const enabled = doc.getBool("enabled") orelse false;
 if (enabled) {
     std.debug.print("Feature is enabled\n", .{});
 }
+
+// truthiness coercion (0, "", null, and empty collections are false)
+if (doc.toBool("paths")) {
+    std.debug.print("Paths array is not empty\n", .{});
+}
 ```
 
 ### Integer Values
@@ -175,10 +198,9 @@ if (enabled) {
 const port = doc.getInt("port") orelse 8080;
 std.debug.print("Port: {d}\n", .{port});
 
-// Large hex values
-if (doc.getInt("fingerprint")) |fp| {
-    const unsigned: u64 = @bitCast(fp);
-    std.debug.print("Fingerprint: 0x{x}\n", .{unsigned});
+// Large hex values / Unsigned integers
+if (doc.getUint("fingerprint")) |fp| {
+    std.debug.print("Fingerprint: 0x{x}\n", .{fp});
 }
 ```
 
@@ -187,6 +209,14 @@ if (doc.getInt("fingerprint")) |fp| {
 ```zig
 const rate = doc.getFloat("rate") orelse 0.0;
 std.debug.print("Rate: {d}\n", .{rate});
+
+// Special float checks
+if (doc.isNan("result")) {
+    std.debug.print("Calculation failed (NaN)\n", .{});
+}
+if (doc.isInf("limit")) {
+    std.debug.print("Approaching infinity\n", .{});
+}
 ```
 
 ## Checking Values

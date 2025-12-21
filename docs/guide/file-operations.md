@@ -39,11 +39,15 @@ const written = try doc.saveIfChanged(); // returns true when a write occurred
 - `zon.writeFileAtomic(allocator, path, data)` writes atomically (tmp + rename).
 - `zon.copyFile(src, dst, overwrite)` copies with optional overwrite.
 - `zon.moveFile(old, new, overwrite)` moves with optional overwrite.
+- `zon.deleteFile(path)` (alias: `removeFile`) deletes a file.
+- `zon.renameFile(old, new, overwrite)` alias for `moveFile`.
+- `zon.movePathInFile(allocator, path, oldKey, newKey)` moves a value inside a file.
+- `zon.copyPathInFile(allocator, path, srcKey, dstKey)` copies a value inside a file.
 
-### Parsing from files / tokenizing files
+### Parsing from files
 
-- `zon.parseFile(allocator, path)` parses a ZON file directly.
-- `tokenizer.loadSourceFromFile(allocator, path)` loads raw source for tokenization.
+- `zon.load(allocator, path)` (aliases: `open`, `parseFile`, `loadFile`) parses a ZON file directly.
+- `zon.loadOrCreate(allocator, path, default)` loads or creates a file with default content.
 
 ---
 

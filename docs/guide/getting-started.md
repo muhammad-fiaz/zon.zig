@@ -20,7 +20,7 @@ Add zon.zig as a dependency in your `build.zig.zon`:
 ```zig
 .dependencies = .{
     .zon = .{
-        .url = "https://github.com/muhammad-fiaz/zon.zig/archive/refs/tags/0.0.2.tar.gz",
+        .url = "https://github.com/muhammad-fiaz/zon.zig/archive/refs/tags/0.0.3.tar.gz",
         .hash = "...", // Will be provided by `zig fetch`
     },
 },
@@ -29,7 +29,7 @@ Add zon.zig as a dependency in your `build.zig.zon`:
 Or use the `zig fetch` command:
 
 ```bash
-zig fetch --save https://github.com/muhammad-fiaz/zon.zig/archive/refs/tags/0.0.2.tar.gz
+zig fetch --save https://github.com/muhammad-fiaz/zon.zig/archive/refs/tags/0.0.3.tar.gz
 ```
 
 Then update your `build.zig`:
@@ -107,7 +107,7 @@ pub fn main() !void {
 
     // Open existing file
     var doc = try zon.open(allocator, "config.zon");
-    defer doc.deinit();
+    defer doc.close(); // or doc.deinit();
 
     // Read values
     const name = doc.getString("name") orelse "unknown";

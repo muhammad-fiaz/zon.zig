@@ -7,7 +7,9 @@ description: "Reading ZON files from disk and parsing from strings; tips for han
 
 Comprehensive guide to reading ZON files and data.
 
-## Open a File
+## Opening Existing Files
+
+The standard workflow for interacting with an existing ZON configuration on disk involves **Opening**, **Reading/Querying**, and **Closing**.
 
 ```zig
 const std = @import("std");
@@ -18,13 +20,29 @@ pub fn main() !void {
     defer _ = gpa.deinit();
     const allocator = gpa.allocator();
 
-    zon.disableUpdateCheck();
-
+    // 1. OPEN: Load and parse the file from disk
     var doc = try zon.open(allocator, "config.zon");
-    defer doc.deinit();
 
-    // Use doc...
+    // 2. READ: Query values using path-based access
+    if (doc.getString("name")) |name| {
+        std.debug.print("Project Name: {s}\n", .{name});
+    }
+
+    // 3. CLOSE: Free memory when finished
+    doc.close();
 }
+```
+
+### Automatic Error Handling
+
+`zon.open` handles file access and parsing in one step. It will return errors if the file is missing, inaccessible, or contains invalid ZON syntax.
+
+```zig
+var doc = zon.open(allocator, "settings.zon") catch |err| {
+    std.debug.print("Failed to load config: {any}\n", .{err});
+    return err;
+};
+defer doc.close();
 ```
 
 ## Parse from String
@@ -39,7 +57,7 @@ const source =
 ;
 
 var doc = try zon.parse(allocator, source);
-defer doc.deinit();
+defer doc.close();
 ```
 
 ## Read String Values
@@ -121,9 +139,8 @@ std.debug.print("Port: {d}\n", .{port});
 ### Large Hex Values (Fingerprints)
 
 ```zig
-if (doc.getInt("fingerprint")) |fp| {
-    const unsigned: u64 = @bitCast(fp);
-    std.debug.print("Fingerprint: 0x{x}\n", .{unsigned});
+if (doc.getUint("fingerprint")) |fp| {
+    std.debug.print("Fingerprint: 0x{x}\n", .{fp});
 }
 ```
 
@@ -333,9 +350,9 @@ std.debug.print("Package: .{s}\n", .{doc.getIdentifier("name").?});
 // Version
 std.debug.print("Version: {s}\n", .{doc.getString("version").?});
 
-// Fingerprint
-if (doc.getInt("fingerprint")) |fp| {
-    std.debug.print("Fingerprint: 0x{x}\n", .{@as(u64, @bitCast(fp))});
+// Fingerprint (getUint recommended for u64)
+if (doc.getUint("fingerprint")) |fp| {
+    std.debug.print("Fingerprint: 0x{x}\n", .{fp});
 }
 
 // Paths

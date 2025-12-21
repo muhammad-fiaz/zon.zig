@@ -79,6 +79,33 @@ try doc.setArray("numbers");
 try doc.appendIntToArray("numbers", 1);
 try doc.appendIntToArray("numbers", 2);
 try doc.appendIntToArray("numbers", 3);
+
+// Insert at specific index
+try doc.insertStringIntoArray("items", 0, "zeroth");
+
+// Remove from specific index
+_ = doc.removeFromArray("items", 1);
+```
+
+## Advanced Array Operations
+
+### Finding Elements
+
+Use `indexOf` to find the first occurrence of a string value in an array:
+
+```zig
+if (doc.indexOf("items", "second")) |index| {
+    std.debug.print("Found 'second' at index {d}\n", .{index});
+}
+```
+
+### Counting Items at Path
+
+`countAt` works on both objects (counting keys) and arrays (counting elements):
+
+```zig
+const count = doc.countAt("items");
+std.debug.print("Array has {d} items\n", .{count});
 ```
 
 ## Practical Example
@@ -128,7 +155,7 @@ pub fn main() !void {
     // Create new array
     try doc.setArray("tags");
     try doc.appendToArray("tags", "stable");
-    try doc.appendToArray("tags", "v0.0.2");
+    try doc.appendToArray("tags", "0.0.3");
 
     const output = try doc.toString();
     defer allocator.free(output);

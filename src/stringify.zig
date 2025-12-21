@@ -1,4 +1,10 @@
 //! Stringify - Converts Value trees to ZON source code.
+//!
+//! This module serializes the intermediate Value tree back to ZON format.
+//! Unlike `std.zon.Serializer` which serializes typed Zig values directly,
+//! this module works with the document-based Value representation.
+//!
+//! See also: https://codeberg.org/ziglang/zig/src/branch/master/lib/std/zon/Serializer.zig
 
 const std = @import("std");
 const Allocator = std.mem.Allocator;
@@ -44,12 +50,21 @@ pub const Buffer = struct {
     }
 };
 
-/// Converts a Value to a ZON string. Caller must free.
 pub fn stringify(allocator: Allocator, value: *const Value, options: StringifyOptions) StringifyError![]u8 {
     var buffer = Buffer.init(allocator);
     errdefer buffer.deinit();
 
     try stringifyValue(&buffer, value, options.initial_indent, options.indent);
+
+    return buffer.toOwnedSlice();
+}
+
+/// Converts a Value to a JSON string. Caller must free.
+pub fn stringifyJson(allocator: Allocator, value: *const Value) StringifyError![]u8 {
+    var buffer = Buffer.init(allocator);
+    errdefer buffer.deinit();
+
+    try stringifyValueJson(&buffer, value);
 
     return buffer.toOwnedSlice();
 }
@@ -82,9 +97,17 @@ fn stringifyValue(buffer: *Buffer, value: *const Value, indent: usize, indent_si
                 try buffer.appendSlice(slice);
             },
             .float => |f| {
-                var num_buf: [64]u8 = undefined;
-                const slice = std.fmt.bufPrint(&num_buf, "{d}", .{f}) catch unreachable;
-                try buffer.appendSlice(slice);
+                if (std.math.isPositiveInf(f)) {
+                    try buffer.appendSlice("inf");
+                } else if (std.math.isNegativeInf(f)) {
+                    try buffer.appendSlice("-inf");
+                } else if (std.math.isNan(f)) {
+                    try buffer.appendSlice("nan");
+                } else {
+                    var num_buf: [64]u8 = undefined;
+                    const slice = std.fmt.bufPrint(&num_buf, "{d}", .{f}) catch unreachable;
+                    try buffer.appendSlice(slice);
+                }
             },
         },
         .string => |s| try stringifyString(buffer, s),
@@ -144,6 +167,56 @@ fn stringifyObject(buffer: *Buffer, obj: *const Value.Object, indent: usize, ind
 
     try appendIndent(buffer, indent);
     try buffer.append('}');
+}
+
+fn stringifyValueJson(buffer: *Buffer, value: *const Value) StringifyError!void {
+    switch (value.*) {
+        .null_val => try buffer.appendSlice("null"),
+        .bool_val => |b| try buffer.appendSlice(if (b) "true" else "false"),
+        .number => |n| switch (n) {
+            .int => |i| {
+                var num_buf: [32]u8 = undefined;
+                const slice = std.fmt.bufPrint(&num_buf, "{d}", .{i}) catch unreachable;
+                try buffer.appendSlice(slice);
+            },
+            .float => |f| {
+                if (std.math.isPositiveInf(f)) {
+                    try buffer.appendSlice("null");
+                } else if (std.math.isNegativeInf(f)) {
+                    try buffer.appendSlice("null");
+                } else if (std.math.isNan(f)) {
+                    try buffer.appendSlice("null");
+                } else {
+                    var num_buf: [64]u8 = undefined;
+                    const slice = std.fmt.bufPrint(&num_buf, "{d}", .{f}) catch unreachable;
+                    try buffer.appendSlice(slice);
+                }
+            },
+        },
+        .string => |s| try stringifyString(buffer, s),
+        .identifier => |s| try stringifyString(buffer, s),
+        .object => |o| {
+            try buffer.append('{');
+            var it = o.entries.iterator();
+            var first = true;
+            while (it.next()) |entry| {
+                if (!first) try buffer.appendSlice(", ");
+                first = false;
+                try stringifyString(buffer, entry.key_ptr.*);
+                try buffer.append(':');
+                try stringifyValueJson(buffer, entry.value_ptr);
+            }
+            try buffer.append('}');
+        },
+        .array => |a| {
+            try buffer.append('[');
+            for (a.items.items, 0..) |*item, i| {
+                if (i > 0) try buffer.appendSlice(", ");
+                try stringifyValueJson(buffer, item);
+            }
+            try buffer.append(']');
+        },
+    }
 }
 
 fn stringifyArray(buffer: *Buffer, arr: *const Value.Array, indent: usize, indent_size: usize) StringifyError!void {

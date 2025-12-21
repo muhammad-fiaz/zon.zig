@@ -2,7 +2,7 @@ import { defineConfig } from 'vitepress'
 
 export default defineConfig({
   title: "zon.zig",
-  description: "A lightweight, zero-dependency Zig library for parsing, manipulating, and writing ZON configuration files — supports find & replace, merge & clone, arrays, and pretty-printing.",
+  description: "A document-based Zig library for reading, writing, and manipulating ZON configuration files — complementary to std.zon. Supports editing, find & replace, merge & clone, arrays, and pretty-printing.",
   base: '/zon.zig/',
   
   head: [
@@ -13,20 +13,20 @@ export default defineConfig({
     ['meta', { name: 'viewport', content: 'width=device-width, initial-scale=1' }],
     ['meta', { name: 'theme-color', content: '#f7a41d' }],
     ['meta', { name: 'author', content: 'Muhammad Fiaz' }],
-    ['meta', { name: 'keywords', content: 'Zig, ZON, zon.zig, configuration, parser, serializer, config file, pretty print, merge, clone, find, replace' }],
+    ['meta', { name: 'keywords', content: 'Zig, ZON, zon.zig, std.zon, configuration, parser, serializer, document, DOM, config file, pretty print, merge, clone, find, replace' }],
     ['meta', { name: 'robots', content: 'index,follow' }],
     ['meta', { property: 'og:type', content: 'website' }],
     ['meta', { property: 'og:site_name', content: 'zon.zig' }],
-    ['meta', { property: 'og:title', content: 'zon.zig — ZON file library for Zig' }],
-    ['meta', { property: 'og:description', content: 'A lightweight Zig library for parsing, manipulating, and writing ZON configuration files' }],
+    ['meta', { property: 'og:title', content: 'zon.zig — Document-based ZON library for Zig' }],
+    ['meta', { property: 'og:description', content: 'A document-based Zig library for reading, writing, and manipulating ZON configuration files — complementary to std.zon' }],
     ['meta', { property: 'og:url', content: 'https://muhammad-fiaz.github.io/zon.zig/' }],
     ['meta', { property: 'og:image', content: 'https://muhammad-fiaz.github.io/zon.zig/logo.svg' }],
     ['meta', { name: 'twitter:card', content: 'summary' }],
     ['meta', { name: 'twitter:site', content: '@muhammadfiaz' }],
-    ['meta', { name: 'twitter:title', content: 'zon.zig — ZON file library for Zig' }],
-    ['meta', { name: 'twitter:description', content: 'A lightweight Zig library for parsing, manipulating, and writing ZON configuration files' }],
+    ['meta', { name: 'twitter:title', content: 'zon.zig — Document-based ZON library for Zig' }],
+    ['meta', { name: 'twitter:description', content: 'A document-based Zig library for reading, writing, and manipulating ZON configuration files — complementary to std.zon' }],
     ['meta', { name: 'twitter:image', content: 'https://muhammad-fiaz.github.io/zon.zig/logo.svg' }],
-    ['script', { type: 'application/ld+json' }, '{"@context":"https://schema.org","@type":"SoftwareApplication","name":"zon.zig","url":"https://muhammad-fiaz.github.io/zon.zig/","description":"A lightweight Zig library for parsing, manipulating, and writing ZON configuration files","applicationCategory":"DeveloperTool","operatingSystem":"Cross-platform","softwareVersion":"0.0.2","author":{"@type":"Person","name":"Muhammad Fiaz"}}']
+    ['script', { type: 'application/ld+json' }, '{"@context":"https://schema.org","@type":"SoftwareApplication","name":"zon.zig","url":"https://muhammad-fiaz.github.io/zon.zig/","description":"A document-based Zig library for reading, writing, and manipulating ZON configuration files","applicationCategory":"DeveloperTool","operatingSystem":"Cross-platform","softwareVersion":"0.0.3","author":{"@type":"Person","name":"Muhammad Fiaz"}}']
   ],
 
   themeConfig: {
@@ -53,7 +53,8 @@ export default defineConfig({
           items: [
             { text: 'What is zon.zig?', link: '/guide/' },
             { text: 'Getting Started', link: '/guide/getting-started' },
-            { text: 'Installation', link: '/guide/installation' }
+            { text: 'Installation', link: '/guide/installation' },
+            { text: 'Allocators', link: '/guide/allocators' }
           ]
         },
         {

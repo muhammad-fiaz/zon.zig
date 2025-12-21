@@ -113,10 +113,9 @@ if (doc.getIdentifier("name")) |name| {
 // Check type
 std.debug.print("Type: {s}\n", .{doc.getType("name").?}); // "identifier"
 
-// Read fingerprint (large hex)
-if (doc.getInt("fingerprint")) |fp| {
-    const unsigned: u64 = @bitCast(fp);
-    std.debug.print("Fingerprint: 0x{x}\n", .{unsigned});
+// Read fingerprint (u64 / large hex)
+if (doc.getUint("fingerprint")) |fp| {
+    std.debug.print("Fingerprint: 0x{x}\n", .{fp});
 }
 
 // Read array
@@ -137,9 +136,9 @@ try doc.setIdentifier("name", "my_lib");
 try doc.setString("version", "0.1.0");
 try doc.setString("minimum_zig_version", "0.15.0");
 
-// Fingerprint
-const fp: u64 = 0xaabbccdd11223344;
-try doc.setInt("fingerprint", @bitCast(fp));
+// Fingerprint (handled transitionally as i128 to capture full 64-bit hex)
+const fp: u64 = 0xee480fa30d50cbf6;
+try doc.setInt("fingerprint", @intCast(fp));
 
 // Paths array
 try doc.setArray("paths");
@@ -164,7 +163,7 @@ Output:
             .url = "https://example.com/http",
         },
     },
-    .fingerprint = -6144092016769617084,
+    .fingerprint = 0xee480fa30d50cbf6,
     .minimum_zig_version = "0.15.0",
     .name = .my_lib,
     .paths = .{

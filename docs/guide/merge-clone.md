@@ -25,7 +25,7 @@ defer override.deinit();
 try override.setInt("port", 9000);
 try override.setBool("debug", true);
 
-// Merge override into base
+// Merge override into base (Shallow at the root level)
 try base.merge(&override);
 
 // base now has:
@@ -33,6 +33,33 @@ try base.merge(&override);
 // - version: "1.0.0" (unchanged)
 // - port: 9000 (overwritten)
 // - debug: true (added)
+```
+
+## Recursive Merge
+
+`mergeRecursive` combines nested structures (objects) instead of just overwriting the top-level keys. This is much more powerful for complex configurations.
+
+```zig
+var base = try zon.parse(allocator, ".{ .db = .{ .port = 5432, .host = \"localhost\" } }");
+defer base.deinit();
+
+var override = try zon.parse(allocator, ".{ .db = .{ .port = 6000 } }");
+defer override.deinit();
+
+try base.mergeRecursive(&override);
+
+// base now has:
+// .db = .{ .port = 6000, .host = "localhost" }
+```
+
+## Deep Equality
+
+Use `eql` to check if two documents or values are deeply equivalent.
+
+```zig
+if (base.eql(&override)) {
+    std.debug.print("Full documents are identical\n", .{});
+}
 ```
 
 ### Use Cases
