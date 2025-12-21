@@ -85,7 +85,7 @@ pub fn main() !void {
 ## Installation
 
 ```bash
-zig fetch --save https://github.com/muhammad-fiaz/zon.zig/archive/refs/tags/v0.0.2.tar.gz
+zig fetch --save https://github.com/muhammad-fiaz/zon.zig/archive/refs/tags/0.0.2.tar.gz
 ```
 
 Then in your `build.zig`:
