@@ -54,6 +54,23 @@ pub fn stringify(allocator: Allocator, value: *const Value, options: StringifyOp
     return buffer.toOwnedSlice();
 }
 
+/// Write a value to `path` atomically: stringify into a temp file then rename.
+pub fn writeToFileAtomic(allocator: Allocator, value: *const Value, path: []const u8, options: StringifyOptions) StringifyError!void {
+    const output = try stringify(allocator, value, options);
+    defer allocator.free(output);
+
+    const tmp_path = try std.fmt.allocPrint(allocator, "{s}.tmp", .{path});
+    defer allocator.free(tmp_path);
+
+    const file = try std.fs.cwd().createFile(tmp_path, .{});
+    defer file.close();
+
+    try file.writeAll(output);
+    try file.writeAll("\n");
+
+    try std.fs.cwd().rename(tmp_path, path);
+}
+
 fn stringifyValue(buffer: *Buffer, value: *const Value, indent: usize, indent_size: usize) StringifyError!void {
     switch (value.*) {
         .null_val => try buffer.appendSlice("null"),

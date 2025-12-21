@@ -1,3 +1,8 @@
+---
+title: "Array Operations"
+description: "Array operations in ZON documents: create arrays, append items, read elements, and manage array length."
+---
+
 # Array Operations
 
 zon.zig supports working with ZON arrays, including reading, creating, and appending to arrays.
@@ -123,7 +128,7 @@ pub fn main() !void {
     // Create new array
     try doc.setArray("tags");
     try doc.appendToArray("tags", "stable");
-    try doc.appendToArray("tags", "v0.0.1");
+    try doc.appendToArray("tags", "v0.0.2");
 
     const output = try doc.toString();
     defer allocator.free(output);

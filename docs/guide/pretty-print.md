@@ -1,3 +1,8 @@
+---
+title: "Pretty Print"
+description: "Formatting and output options: pretty, compact, and custom indentation for ZON serialization."
+---
+
 # Pretty Print
 
 zon.zig provides flexible output formatting with configurable indentation.

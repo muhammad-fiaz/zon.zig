@@ -1,3 +1,8 @@
+---
+title: "Identifier Values"
+description: "Working with ZON identifier values (e.g., `.name = .value`): how to set, detect, and read identifier values."
+---
+
 # Identifier Values
 
 ZON supports identifier values like `.name = .my_package`. This is common in `build.zig.zon` files.

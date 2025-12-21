@@ -1,3 +1,8 @@
+---
+title: "Merge & Clone"
+description: "Merge and clone document operations for combining configurations and creating deep copies safely."
+---
+
 # Merge & Clone
 
 zon.zig supports merging documents together and creating deep copies.

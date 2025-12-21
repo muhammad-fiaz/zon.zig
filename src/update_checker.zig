@@ -26,9 +26,16 @@ pub const UpdateConfig = struct {
     enabled: bool = true,
     timeout_ms: u64 = 3000,
     user_agent: []const u8 = "zon.zig-update-checker",
+    /// Releases endpoint (defaults to GitHub releases latest for the repo)
+    releases_endpoint: []const u8 = "https://api.github.com/repos/muhammad-fiaz/zon.zig/releases/latest",
 };
 
 pub var config: UpdateConfig = .{};
+
+/// Override the releases endpoint (accepts a static string slice)
+pub fn setReleasesEndpoint(url: []const u8) void {
+    config.releases_endpoint = url;
+}
 
 var check_thread: ?std.Thread = null;
 var check_result: ?UpdateInfo = null;
@@ -59,7 +66,7 @@ pub fn checkForUpdates(allocator: std.mem.Allocator) !UpdateInfo {
     var http_client = std.http.Client{ .allocator = allocator };
     defer http_client.deinit();
 
-    const uri = std.Uri.parse("https://api.github.com/repos/muhammad-fiaz/zon.zig/releases/latest") catch {
+    const uri = std.Uri.parse(config.releases_endpoint) catch {
         return UpdateInfo{
             .available = false,
             .current_version = version.version,
@@ -239,7 +246,7 @@ test "version comparison - local newer" {
 
 test "current version" {
     const ver = getCurrentVersion();
-    try std.testing.expectEqualStrings("0.0.1", ver);
+    try std.testing.expectEqualStrings("0.0.2", ver);
 }
 
 test "version tag parsing" {

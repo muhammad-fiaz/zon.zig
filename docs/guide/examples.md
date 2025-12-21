@@ -1,3 +1,8 @@
+---
+title: "Examples"
+description: "Usage examples demonstrating common zon.zig tasks: configuration files, nested paths, arrays, merging, and pretty printing."
+---
+
 # Examples
 
 This page provides complete, runnable examples for common use cases.
@@ -16,6 +21,7 @@ zig build run-config_management
 zig build run-error_handling
 zig build run-nested_creation
 zig build run-identifier_values
+zig build run-file_operations
 
 # Run all examples
 zig build run-all-examples
@@ -210,6 +216,45 @@ const name = doc.getString("name") orelse "default";
 const port = doc.getInt("port") orelse 8080;
 ```
 
+## File Operations
+
+zon.zig provides helpers for safe file I/O and common file workflows:
+
+```zig
+// Read file into allocator-owned buffer
+const contents = try zon.readFile(allocator, "config.zon");
+allocator.free(contents);
+
+// Atomic write (write to temp, then rename)
+try zon.writeFileAtomic(allocator, "config.zon", data);
+
+// Per-document helpers
+try doc.saveAsAtomic("config.zon"); // atomic save
+try doc.saveWithBackup(".bak");     // moves existing to config.zon.bak then saves
+const wrote = try doc.saveIfChanged(); // only writes if contents differ
+
+// Copy and move with overwrite control
+try zon.copyFile("a.zon", "b.zon", true);
+try zon.moveFile("b.zon", "c.zon", true);
+
+// Parse directly from a file
+var doc = try zon.parseFile(allocator, "config.zon");
+defer doc.deinit();
+```
+
+Sample console output from running the file operations example:
+
+```text
+Saving document atomically to example_a.zon
+Read 123 bytes from example_a.zon
+Copying example_a.zon -> example_b.zon
+Renaming example_b.zon -> example_c.zon
+saveIfChanged wrote file? yes
+Atomically writing parsed document to stringified.zon
+File operations demo completed successfully.
+```
+
+
 ## Configuration Management
 
 Create dev/prod configurations:
@@ -265,3 +310,4 @@ defer allocator.free(compact);
 | `error_handling`    | Error handling        | `zig build run-error_handling`    |
 | `nested_creation`   | Deep nesting          | `zig build run-nested_creation`   |
 | `identifier_values` | .name = .value syntax | `zig build run-identifier_values` |
+| `file_operations`   | Safe atomic writes, backups, read/write helpers | `zig build run-file_operations` |

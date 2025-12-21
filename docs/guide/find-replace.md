@@ -1,3 +1,8 @@
+---
+title: "Find & Replace"
+description: "How to search and replace values across documents using zon.zig helper functions and strategies for precise matching."
+---
+
 # Find & Replace
 
 zon.zig provides powerful find and replace capabilities to search and modify values throughout your document.

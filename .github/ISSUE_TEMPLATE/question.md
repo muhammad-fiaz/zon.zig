@@ -22,7 +22,7 @@ Describe what you've already tried.
 
 - **OS**: [e.g., Windows 11, Ubuntu 22.04, macOS 14]
 - **Zig Version**: [e.g., 0.15.0]
-- **zon.zig Version**: [e.g., 0.0.1]
+- **zon.zig Version**: [e.g., 0.0.2]
 
 ## Code Example
 

@@ -1,3 +1,8 @@
+---
+title: "What is zon.zig?"
+description: "Overview of zon.zig: a small, direct Zig library for reading and writing ZON (Zig Object Notation) files, designed for config files and manifests."
+---
+
 # What is zon.zig?
 
 A simple, direct Zig library for reading and writing ZON (Zig Object Notation) files.

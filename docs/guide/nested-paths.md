@@ -1,3 +1,8 @@
+---
+title: "Nested Paths"
+description: "Details on using dot-notation nested paths, accessing deep values, and auto-creating intermediate objects."
+---
+
 # Nested Paths
 
 zon.zig uses dot notation to access nested values in ZON documents.

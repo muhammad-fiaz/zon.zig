@@ -1,3 +1,8 @@
+---
+title: "Error Handling"
+description: "How zon.zig surfaces parse and runtime errors, including parse errors and allocation failures, and how to handle them."
+---
+
 # Error Handling
 
 zon.zig provides safe, predictable error handling that never panics.

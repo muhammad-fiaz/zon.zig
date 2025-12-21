@@ -1,9 +1,12 @@
 ---
 # https://vitepress.dev/reference/default-theme-home-page
 layout: home
+title: "zon.zig"
+description: "zon.zig is a small, zero-dependency Zig library for parsing, manipulating, and writing ZON configuration files. Supports reading, writing, find & replace, merge & clone, arrays, and pretty printing."
+keywords: ["Zig","ZON","zon","configuration","parser","serializer","pretty-print"]
 
 hero:
-  name: "zon.zig"
+  name: "ZON.zig"
   text: "ZON File Library"
   tagline: A simple, direct Zig library for reading and writing ZON files
   image:
@@ -82,7 +85,7 @@ pub fn main() !void {
 ## Installation
 
 ```bash
-zig fetch --save https://github.com/muhammad-fiaz/zon.zig/archive/refs/tags/v0.0.1.tar.gz
+zig fetch --save https://github.com/muhammad-fiaz/zon.zig/archive/refs/tags/v0.0.2.tar.gz
 ```
 
 Then in your `build.zig`:

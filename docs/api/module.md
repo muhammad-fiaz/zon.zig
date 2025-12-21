@@ -1,3 +1,8 @@
+---
+title: "Module Functions"
+description: "Top-level functions in the `zon` module: creation, parsing, file utilities, update checking, and version info."
+---
+
 # Module Functions
 
 Top-level functions in the `zon` module.
@@ -100,18 +105,61 @@ if (zon.fileExists("config.zon")) {
 }
 ```
 
-### copyFile
+### readFile
 
-Copy a file.
+Read a file into an allocator-owned buffer (caller must `allocator.free` the buffer).
 
 ```zig
-pub fn copyFile(source_path: []const u8, dest_path: []const u8) !void
+pub fn readFile(allocator: Allocator, path: []const u8) ![]u8
 ```
 
 **Example:**
 
 ```zig
-try zon.copyFile("config.zon", "config.zon.backup");
+const contents = try zon.readFile(allocator, "config.zon");
+allocator.free(contents);
+```
+
+### writeFileAtomic
+
+Write data to a file atomically. This writes to a temporary file and renames it into place to avoid partial writes.
+
+```zig
+pub fn writeFileAtomic(allocator: Allocator, path: []const u8, data: []const u8) !void
+```
+
+**Example:**
+
+```zig
+try zon.writeFileAtomic(allocator, "config.zon", data);
+```
+
+### copyFile
+
+Copy a file. Pass `overwrite=true` to replace an existing destination file.
+
+```zig
+pub fn copyFile(source_path: []const u8, dest_path: []const u8, overwrite: bool) !void
+```
+
+**Example:**
+
+```zig
+try zon.copyFile("config.zon", "config.zon.backup", true);
+```
+
+### moveFile
+
+Move (rename) a file. Pass `overwrite=true` to replace an existing destination.
+
+```zig
+pub fn moveFile(old_path: []const u8, new_path: []const u8, overwrite: bool) !void
+```
+
+**Example:**
+
+```zig
+try zon.moveFile("temp.zon", "config.zon", true);
 ```
 
 ### renameFile
@@ -210,7 +258,7 @@ zon.checkForUpdates(allocator);
 Library version string.
 
 ```zig
-pub const version: []const u8 = "0.0.1";
+pub const version: []const u8 = "0.0.2";
 ```
 
 **Example:**
@@ -222,7 +270,7 @@ std.debug.print("zon.zig v{s}\n", .{zon.version});
 **Output:**
 
 ```
-zon.zig v0.0.1
+zon.zig v0.0.2
 ```
 
 ## Complete Example
@@ -279,7 +327,7 @@ pub fn main() !void {
 **Output (first run):**
 
 ```
-zon.zig v0.0.1
+zon.zig v0.0.2
 Creating new config
 Parsed: true
 ```
@@ -287,7 +335,7 @@ Parsed: true
 **Output (second run):**
 
 ```
-zon.zig v0.0.1
+zon.zig v0.0.2
 Found existing config
 Parsed: true
 ```

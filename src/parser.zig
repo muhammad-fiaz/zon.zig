@@ -368,6 +368,17 @@ pub fn parse(allocator: Allocator, source: []const u8) ParseError!Value {
     return p.parse();
 }
 
+/// Parse ZON from a file on disk.
+pub fn parseFile(allocator: Allocator, path: []const u8) ParseError!Value {
+    const file = try std.fs.cwd().openFile(path, .{});
+    defer file.close();
+
+    const source = try file.readToEndAlloc(allocator, 1024 * 1024 * 64);
+    defer allocator.free(source);
+
+    return parse(allocator, source);
+}
+
 test "parse object" {
     const allocator = std.testing.allocator;
     const source = ".{ .name = \"test\" }";
@@ -420,7 +431,7 @@ test "parse build.zig.zon style" {
     const source =
         \\.{
         \\    .name = .zon,
-        \\    .version = "0.0.1",
+        \\    .version = "0.0.2",
         \\    .fingerprint = 0xee480fa30d50cbf6,
         \\    .minimum_zig_version = "0.15.0",
         \\    .paths = .{
@@ -440,7 +451,7 @@ test "parse build.zig.zon style" {
     try std.testing.expectEqualStrings("zon", name.asString().?);
 
     const version = obj.get("version").?;
-    try std.testing.expectEqualStrings("0.0.1", version.asString().?);
+    try std.testing.expectEqualStrings("0.0.2", version.asString().?);
 
     const fp = obj.get("fingerprint").?;
     try std.testing.expect(fp.asInt() != null);

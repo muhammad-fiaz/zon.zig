@@ -397,6 +397,69 @@ pub const Document = struct {
         try file.writeAll("\n");
     }
 
+    /// Atomically write the document to `path` by writing to a temporary file, then renaming.
+    pub fn saveAsAtomic(self: *const Document, path: []const u8) !void {
+        const output = try stringify.stringify(self.allocator, &self.root, .{});
+        defer self.allocator.free(output);
+
+        const tmp_path = try std.fmt.allocPrint(self.allocator, "{s}.tmp", .{path});
+        defer self.allocator.free(tmp_path);
+
+        const tmp_file = try std.fs.cwd().createFile(tmp_path, .{});
+        defer tmp_file.close();
+
+        try tmp_file.writeAll(output);
+        try tmp_file.writeAll("\n");
+
+        try std.fs.cwd().rename(tmp_path, path);
+    }
+
+    /// Save the document to the original file path, creating a backup of the previous file
+    /// using the supplied extension (for example, ".bak") if it exists.
+    pub fn saveWithBackup(self: *const Document, backup_ext: []const u8) !void {
+        const path = self.file_path orelse return error.NoFilePath;
+
+        const file_opt = std.fs.cwd().openFile(path, .{}) catch null;
+        if (file_opt != null) {
+            var file = file_opt.?;
+            defer file.close();
+
+            const backup = try std.fmt.allocPrint(self.allocator, "{s}{s}", .{ path, backup_ext });
+            defer self.allocator.free(backup);
+            try std.fs.cwd().rename(path, backup);
+        }
+
+        try self.saveAs(path);
+    }
+
+    /// Save only if document content differs from existing file. Returns `true` if a write occurred.
+    pub fn saveIfChanged(self: *const Document) !bool {
+        const path = self.file_path orelse return error.NoFilePath;
+
+        const new_output = try stringify.stringify(self.allocator, &self.root, .{});
+        defer self.allocator.free(new_output);
+
+        const file_opt = std.fs.cwd().openFile(path, .{}) catch null;
+        if (file_opt == null) {
+            try self.saveAs(path);
+            return true;
+        }
+        var file = file_opt.?;
+        defer file.close();
+
+        const existing = try file.readToEndAlloc(self.allocator, 1024 * 1024 * 16);
+        defer self.allocator.free(existing);
+
+        // Normalize trailing newline when comparing (we write a trailing newline on save)
+        const existing_trim = if (existing.len > 0 and existing[existing.len - 1] == '\n') existing[0 .. existing.len - 1] else existing;
+        if (existing_trim.len == new_output.len and std.mem.eql(u8, existing_trim, new_output)) {
+            return false;
+        }
+
+        try self.saveAsAtomic(path);
+        return true;
+    }
+
     /// Returns the ZON string with default formatting.
     pub fn toString(self: *const Document) ![]u8 {
         return stringify.stringify(self.allocator, &self.root, .{});
@@ -864,6 +927,38 @@ test "Document: clone" {
 
     try doc.setString("name", "modified");
     try std.testing.expectEqualStrings("original", cloned.getString("name").?);
+}
+
+test "Document: saveIfChanged writes file and avoids unnecessary writes" {
+    const allocator = std.testing.allocator;
+    const path = "test_save_if_changed.zon";
+
+    // Ensure no leftover file
+    _ = std.fs.cwd().deleteFile(path) catch null;
+
+    var doc = Document.initEmpty(allocator);
+    defer doc.deinit();
+
+    try doc.setString("a", "one");
+
+    // set file_path so saveIfChanged can use it
+    doc.file_path = try allocator.dupe(u8, path);
+
+    // First save should write the file
+    const changed1 = try doc.saveIfChanged();
+    try std.testing.expect(changed1);
+
+    // Second save without changes should not write
+    const changed2 = try doc.saveIfChanged();
+    try std.testing.expect(!changed2);
+
+    // Modify and save again
+    try doc.setString("b", "two");
+    const changed3 = try doc.saveIfChanged();
+    try std.testing.expect(changed3);
+
+    // Cleanup
+    _ = std.fs.cwd().deleteFile(path) catch null;
 }
 
 test "Document: type checking" {

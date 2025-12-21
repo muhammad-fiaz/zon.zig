@@ -1,3 +1,8 @@
+---
+title: "API Reference"
+description: "Complete API reference for zon.zig: document creation, file utilities, update checking, version info, document methods, arrays, and more."
+---
+
 # API Overview
 
 Complete API reference for zon.zig.
@@ -27,11 +32,18 @@ var doc = try zon.parse(allocator, source);
 // Check if file exists
 if (zon.fileExists("config.zon")) { ... }
 
-// Copy file
-try zon.copyFile("source.zon", "dest.zon");
+// Read file into allocator-owned buffer (caller frees)
+const contents = try zon.readFile(allocator, "config.zon");
+allocator.free(contents);
 
-// Rename file
-try zon.renameFile("old.zon", "new.zon");
+// Copy file (overwrite = true to replace destination)
+try zon.copyFile("source.zon", "dest.zon", true);
+
+// Move (rename) file (overwrite = true to replace destination)
+try zon.moveFile("old.zon", "new.zon", true);
+
+// Write atomically (writes to temp and renames)
+try zon.writeFileAtomic(allocator, "out.zon", sourceData);
 
 // Delete file
 try zon.deleteFile("temp.zon");

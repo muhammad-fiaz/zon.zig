@@ -5,6 +5,9 @@
 const std = @import("std");
 const Allocator = std.mem.Allocator;
 const document = @import("document.zig");
+
+// File related errors used by higher-level utilities
+pub const FileError = error{FileAlreadyExists};
 pub const version_info = @import("version.zig");
 pub const update_checker = @import("update_checker.zig");
 pub const Value = @import("value.zig").Value;
@@ -58,14 +61,53 @@ pub fn fileExists(file_path: []const u8) bool {
     return true;
 }
 
-/// Copies a file.
-pub fn copyFile(source_path: []const u8, dest_path: []const u8) !void {
+/// Copy a file, with optional overwrite behaviour.
+pub fn copyFile(source_path: []const u8, dest_path: []const u8, overwrite: bool) !void {
+    if (!overwrite) {
+        const dest_file_opt = std.fs.cwd().openFile(dest_path, .{}) catch null;
+        if (dest_file_opt != null) {
+            var dest_file = dest_file_opt.?;
+            defer dest_file.close();
+            return FileError.FileAlreadyExists;
+        }
+    }
     try std.fs.cwd().copyFile(source_path, std.fs.cwd(), dest_path, .{});
 }
 
-/// Renames a file.
-pub fn renameFile(old_path: []const u8, new_path: []const u8) !void {
+/// Move (rename) a file, with optional overwrite.
+pub fn moveFile(old_path: []const u8, new_path: []const u8, overwrite: bool) !void {
+    if (overwrite) {
+        _ = std.fs.cwd().deleteFile(new_path) catch null;
+    } else {
+        const existing_file_opt = std.fs.cwd().openFile(new_path, .{}) catch null;
+        if (existing_file_opt != null) {
+            var existing_file = existing_file_opt.?;
+            defer existing_file.close();
+            return FileError.FileAlreadyExists;
+        }
+    }
     try std.fs.cwd().rename(old_path, new_path);
+}
+
+/// Read a file into an allocator-owned buffer (caller must free).
+pub fn readFile(allocator: Allocator, path: []const u8) ![]u8 {
+    const f = try std.fs.cwd().openFile(path, .{});
+    defer f.close();
+    return try f.readToEndAlloc(allocator, 1024 * 1024 * 64);
+}
+
+/// Write data to `path` atomically: write to a temporary file and rename.
+pub fn writeFileAtomic(allocator: Allocator, path: []const u8, data: []const u8) !void {
+    const tmp = try std.fmt.allocPrint(allocator, "{s}.tmp", .{path});
+    defer allocator.free(tmp);
+
+    const f = try std.fs.cwd().createFile(tmp, .{});
+    defer f.close();
+
+    try f.writeAll(data);
+    try f.writeAll("\n");
+
+    try std.fs.cwd().rename(tmp, path);
 }
 
 test "create and set values" {
@@ -139,7 +181,7 @@ test "parse build.zig.zon format" {
     const source =
         \\.{
         \\    .name = .zon,
-        \\    .version = "0.0.1",
+        \\    .version = "0.0.2",
         \\    .fingerprint = 0xee480fa30d50cbf6,
         \\    .minimum_zig_version = "0.15.0",
         \\    .paths = .{
@@ -154,7 +196,7 @@ test "parse build.zig.zon format" {
     defer doc.deinit();
 
     try std.testing.expectEqualStrings("zon", doc.getString("name").?);
-    try std.testing.expectEqualStrings("0.0.1", doc.getString("version").?);
+    try std.testing.expectEqualStrings("0.0.2", doc.getString("version").?);
     try std.testing.expect(doc.getInt("fingerprint") != null);
     try std.testing.expectEqual(@as(usize, 3), doc.arrayLen("paths").?);
     try std.testing.expectEqualStrings("build.zig", doc.getArrayString("paths", 0).?);
@@ -203,7 +245,7 @@ test "stringify document" {
 }
 
 test "version info" {
-    try std.testing.expectEqualStrings("0.0.1", version);
+    try std.testing.expectEqualStrings("0.0.2", version);
 }
 
 test "find and replace" {
@@ -258,4 +300,43 @@ test "pretty print" {
     const output4 = try doc.toPrettyString(4);
     defer allocator.free(output4);
     try std.testing.expect(std.mem.indexOf(u8, output4, "    .name") != null);
+}
+
+test "file utilities: write/read atomic" {
+    const allocator = std.testing.allocator;
+    const path = "test_write_atomic.zon";
+
+    _ = std.fs.cwd().deleteFile(path) catch null;
+
+    const data = " .{ .name = \"atomic\" }\n";
+    try writeFileAtomic(allocator, path, data);
+
+    const read_back = try readFile(allocator, path);
+    defer allocator.free(read_back);
+
+    try std.testing.expect(std.mem.indexOf(u8, read_back, "atomic") != null);
+
+    // cleanup
+    _ = std.fs.cwd().deleteFile(path) catch null;
+}
+
+test "file utilities: copy & move with overwrite" {
+    const allocator = std.testing.allocator;
+    _ = std.fs.cwd().deleteFile("a.zon") catch null;
+    _ = std.fs.cwd().deleteFile("b.zon") catch null;
+
+    try writeFileAtomic(allocator, "a.zon", ".{ .x = 1 }\n");
+    try copyFile("a.zon", "b.zon", true);
+    const b_buf = try readFile(allocator, "b.zon");
+    defer allocator.free(b_buf);
+    try std.testing.expect(std.mem.indexOf(u8, b_buf, "x") != null);
+
+    try moveFile("b.zon", "c.zon", true);
+    const c_buf = try readFile(allocator, "c.zon");
+    defer allocator.free(c_buf);
+    try std.testing.expect(std.mem.indexOf(u8, c_buf, "x") != null);
+
+    // cleanup
+    _ = std.fs.cwd().deleteFile("a.zon") catch null;
+    _ = std.fs.cwd().deleteFile("c.zon") catch null;
 }

@@ -25,6 +25,7 @@ pub fn build(b: *std.Build) void {
         .{ .name = "merge_clone", .path = "examples/merge_clone.zig" },
         .{ .name = "config_management", .path = "examples/config_management.zig" },
         .{ .name = "error_handling", .path = "examples/error_handling.zig" },
+        .{ .name = "file_operations", .path = "examples/file_operations.zig", .skip_run_all = false },
         .{ .name = "nested_creation", .path = "examples/nested_creation.zig" },
         .{ .name = "identifier_values", .path = "examples/identifier_values.zig" },
     };

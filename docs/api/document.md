@@ -1,3 +1,8 @@
+---
+title: "Document"
+description: "Document struct API: methods for initialization, getters, setters, arrays, find & replace, merge & clone, and persistence."
+---
+
 # Document
 
 The `Document` struct represents a parsed ZON document and provides methods for reading, writing, searching, and saving.
@@ -104,13 +109,16 @@ All setters auto-create intermediate objects.
 
 ## Output
 
-| Method                   | Return  | Description                   |
-| ------------------------ | ------- | ----------------------------- |
-| `save()`                 | `!void` | Save to original path         |
-| `saveAs(path)`           | `!void` | Save to specified path        |
-| `toString()`             | `![]u8` | 4-space indent (caller frees) |
-| `toCompactString()`      | `![]u8` | No indentation                |
-| `toPrettyString(indent)` | `![]u8` | Custom indentation            |
+| Method                      | Return  | Description                                  |
+| --------------------------- | ------- | -------------------------------------------- |
+| `save()`                    | `!void` | Save to original path                        |
+| `saveAs(path)`              | `!void` | Save to specified path                       |
+| `saveAsAtomic(path)`        | `!void` | Atomically write file (write tmp + rename)   |
+| `saveWithBackup(ext)`       | `!void` | Save and move previous file to `<path><ext>` |
+| `saveIfChanged()`           | `!bool` | Save only if contents changed (returns true if written) |
+| `toString()`                | `![]u8` | 4-space indent (caller frees)               |
+| `toCompactString()`         | `![]u8` | No indentation                              |
+| `toPrettyString(indent)`    | `![]u8` | Custom indentation                           |
 
 ## Object & Array Access
 

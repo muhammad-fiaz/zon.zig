@@ -1,6 +1,6 @@
 .{
     .name = .zon,
-    .version = "0.0.1",
+    .version = "0.0.2",
     .fingerprint = 0xee480fa30d50cbf6,
     .minimum_zig_version = "0.15.0",
     .paths = .{

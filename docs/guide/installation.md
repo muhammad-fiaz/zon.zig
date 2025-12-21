@@ -1,3 +1,8 @@
+---
+title: "Installation"
+description: "Installation instructions for zon.zig: using `zig fetch` or adding as a dependency in your `build.zig.zon`."
+---
+
 # Installation
 
 ## Package Manager
@@ -12,7 +17,7 @@ Add to your `build.zig.zon`:
     .version = "0.1.0",
     .dependencies = .{
         .zon = .{
-            .url = "https://github.com/muhammad-fiaz/zon.zig/archive/refs/tags/v0.0.1.tar.gz",
+            .url = "https://github.com/muhammad-fiaz/zon.zig/archive/refs/tags/0.0.2.tar.gz",
             .hash = "...",
         },
     },
@@ -25,7 +30,7 @@ Add to your `build.zig.zon`:
 Run this command to get the hash:
 
 ```bash
-zig fetch --save https://github.com/muhammad-fiaz/zon.zig/archive/refs/tags/v0.0.1.tar.gz
+zig fetch --save https://github.com/muhammad-fiaz/zon.zig/archive/refs/tags/0.0.2.tar.gz
 ```
 
 or
@@ -175,7 +180,7 @@ zig build run
 **Output:**
 
 ```
-zon.zig version: 0.0.1
+zon.zig version: 0.0.2
 ```
 
 ## Requirements
@@ -191,7 +196,7 @@ zon.zig version: 0.0.1
 If you get a hash mismatch error:
 
 ```bash
-zig fetch --save https://github.com/muhammad-fiaz/zon.zig/archive/refs/tags/v0.0.1.tar.gz
+zig fetch --save https://github.com/muhammad-fiaz/zon.zig/archive/refs/tags/0.0.2.tar.gz
 ```
 
 ### Module Not Found

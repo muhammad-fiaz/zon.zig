@@ -90,7 +90,7 @@ A production-ready, developer-friendly ZON (Zig Object Notation) library for Zig
 ## Installation
 
 ```bash
-zig fetch --save https://github.com/muhammad-fiaz/zon.zig/archive/refs/tags/v0.0.1.tar.gz
+zig fetch --save https://github.com/muhammad-fiaz/zon.zig/archive/refs/tags/0.0.2.tar.gz
 ```
 or 
 
@@ -155,7 +155,7 @@ zon.zig fully supports the `build.zig.zon` format:
 ```zig
 .{
     .name = .zon,                        // Identifier as value
-    .version = "0.0.1",                  // String
+    .version = "0.0.2",                  // String
     .fingerprint = 0xee480fa30d50cbf6,   // Large hex numbers
     .minimum_zig_version = "0.15.0",
     .paths = .{                          // Array of strings

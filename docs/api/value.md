@@ -1,3 +1,8 @@
+---
+title: "Value Types"
+description: "Value union and helper methods for ZON values: null, bool, number, string, identifier, object, and array."
+---
+
 # Value Types
 
 The `Value` type represents all possible ZON data types.

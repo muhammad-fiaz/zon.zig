@@ -312,6 +312,14 @@ pub const Tokenizer = struct {
     }
 };
 
+/// Load file contents into an allocator-owned buffer suitable for tokenizing.
+/// Caller is responsible for freeing the returned buffer via the same allocator.
+pub fn loadSourceFromFile(allocator: std.mem.Allocator, path: []const u8) ![]u8 {
+    const file = try std.fs.cwd().openFile(path, .{});
+    defer file.close();
+    return try file.readToEndAlloc(allocator, 1024 * 1024 * 64);
+}
+
 // Character Classification Helpers
 
 fn isDigit(c: u8) bool {

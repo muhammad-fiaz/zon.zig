@@ -1,3 +1,8 @@
+---
+title: "Reading Files"
+description: "Reading ZON files from disk and parsing from strings; tips for handling large files and errors."
+---
+
 # Reading Files
 
 Comprehensive guide to reading ZON files and data.
