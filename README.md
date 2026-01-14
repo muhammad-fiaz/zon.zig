@@ -39,7 +39,7 @@ A **document-based** ZON (Zig Object Notation) library for Zig, designed for con
 ---
 
 <details>
-<summary><strong>🔄 zon.zig vs std.zon</strong> (click to expand)</summary>
+<summary><strong> zon.zig vs std.zon</strong> (click to expand)</summary>
 
 | Feature            | zon.zig                           | std.zon                          |
 | ------------------ | --------------------------------- | -------------------------------- |
@@ -487,6 +487,62 @@ zig fmt src/ examples/
 ## Documentation
 
 Full documentation: **https://muhammad-fiaz.github.io/zon.zig/**
+
+
+---
+
+## Benchmarks
+
+> [!NOTE]
+> Benchmarks vary by OS, platform, hardware, and system load. Benchmark results for each release can be found at [Releases](https://github.com/muhammad-fiaz/zon.zig/releases).
+
+**Environment Details:**
+- **Platform:** windows
+- **Architecture:** x86_64
+- **Warmup Iterations:** 100
+- **Benchmark Iterations:** 10000
+
+<details>
+<summary><strong>Parsing</strong></summary>
+
+| Benchmark | Ops/sec (higher is better) | Avg Latency (ns) (lower is better) |
+| :--- | :--- | :--- |
+| Parse Standard ZON | 10521 | 95051 |
+</details>
+
+<details>
+<summary><strong>Stringify</strong></summary>
+
+| Benchmark | Ops/sec (higher is better) | Avg Latency (ns) (lower is better) |
+| :--- | :--- | :--- |
+| Stringify to ZON | 8302 | 120449 |
+</details>
+
+<details>
+<summary><strong>Manipulation</strong></summary>
+
+| Benchmark | Ops/sec (higher is better) | Avg Latency (ns) (lower is better) |
+| :--- | :--- | :--- |
+| Read Access (100 ops) | 47340 | 21124 |
+| Modification (100 ops) | 820 | 1219489 |
+</details>
+
+<details>
+<summary><strong>Struct Conversion</strong></summary>
+
+| Benchmark | Ops/sec (higher is better) | Avg Latency (ns) (lower is better) |
+| :--- | :--- | :--- |
+| Document to Struct | 18409 | 54320 |
+| Struct to Document | 34262 | 29187 |
+</details>
+
+### Benchmark Summary
+
+- **Total benchmarks run:** 6
+- **Average throughput:** 19942 ops/sec
+- **Maximum throughput:** 47340 ops/sec (Read Access (100 ops))
+- **Minimum throughput:** 820 ops/sec (Modification (100 ops))
+- **Average latency:** 50144 ns
 
 ---
 
