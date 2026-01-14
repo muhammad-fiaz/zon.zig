@@ -13,6 +13,31 @@ Top-level functions in the `zon` module.
 const zon = @import("zon");
 ```
 
+## Struct Conversion
+
+### fromStruct
+
+Create a Document from a Zig struct or value.
+
+```zig
+pub fn fromStruct(allocator: Allocator, value: anytype) !Document
+```
+
+**Example:**
+
+```zig
+const Config = struct { name: []const u8 };
+var doc = try zon.fromStruct(allocator, Config{ .name = "app" });
+```
+
+### initFromStruct
+
+Alias for `fromStruct`.
+
+```zig
+pub fn initFromStruct(allocator: Allocator, value: anytype) !Document
+```
+
 ## Document Creation
 
 ### create
@@ -300,7 +325,7 @@ zon.checkForUpdates(allocator);
 Library version string.
 
 ```zig
-pub const version: []const u8 = "0.0.3";
+pub const version: []const u8 = "0.0.4";
 ```
 
 **Example:**
@@ -312,7 +337,7 @@ std.debug.print("zon.zig {s}\n", .{zon.version});
 **Output:**
 
 ```
-zon.zig 0.0.3
+zon.zig 0.0.4
 ```
 
 ## Complete Example
@@ -369,7 +394,7 @@ pub fn main() !void {
 **Output (first run):**
 
 ```
-zon.zig 0.0.3
+zon.zig 0.0.4
 Creating new config
 Parsed: true
 ```
@@ -377,7 +402,7 @@ Parsed: true
 **Output (second run):**
 
 ```
-zon.zig 0.0.3
+zon.zig 0.0.4
 Found existing config
 Parsed: true
 ```

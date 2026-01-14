@@ -311,3 +311,4 @@ defer allocator.free(compact);
 | `nested_creation`   | Deep nesting          | `zig build run-nested_creation`   |
 | `identifier_values` | .name = .value syntax | `zig build run-identifier_values` |
 | `file_operations`   | Safe atomic writes, backups, read/write helpers | `zig build run-file_operations` |
+| `struct_conversion` | struct <-> zon conversion | `zig build run-struct_conversion` |

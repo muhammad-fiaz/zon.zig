@@ -34,7 +34,7 @@
 
 A **document-based** ZON (Zig Object Notation) library for Zig, designed for configuration file editing, dynamic access, and data manipulation. Unlike [`std.zon`](https://codeberg.org/ziglang/zig/src/branch/master/lib/std/zon) which parses ZON into typed structures, zon.zig maintains an in-memory document tree that you can query, modify, and serialize.
 
-**⭐️ If you find `zon.zig` useful, please give it a star! ⭐️**
+**If you find `zon.zig` useful, please give it a star!**
 
 ---
 
@@ -68,45 +68,46 @@ A **document-based** ZON (Zig Object Notation) library for Zig, designed for con
 ---
 
 <details>
-<summary><strong>✨ Features of zon.zig</strong> (click to expand)</summary>
+<summary><strong>Features of zon.zig</strong> (click to expand)</summary>
 
-| Feature                           | Description                                                |
-| --------------------------------- | ---------------------------------------------------------- |
-| 📖 **Simple API**                 | Clean `open`, `get`, `set`, `delete`, `save` interface     |
-| 🔗 **Path-Based Access**          | Use dot notation like `"dependencies.foo.path"`            |
-| 🏗️ **Auto-Create Nested Objects** | Missing intermediate paths are created automatically       |
-| 🔒 **Type-Safe Getters**          | `getString`, `getBool`, `getInt`, `getFloat`, `getNumber`  |
-| 🛡️ **No Panics**                  | Missing paths return `null`, type mismatches return `null` |
-| 🔧 **Custom Parser**              | Does NOT depend on `std.zig.Ast` or compiler internals     |
-| 📝 **Pretty Print**               | Formatted output with configurable indentation             |
-| 🔍 **Find & Replace**             | Search and replace values throughout the document          |
-| 📋 **Array Operations**           | Get length, elements, append to arrays                     |
-| 🔄 **Merge & Clone**              | **Shallow & Deep Merge**, Combine documents, Deep copy     |
-| 📏 **Multi-line Strings**         | Full support for multi-line backslash syntax (`\\`)        |
-| ♾️ **Special Floats**             | Support for `inf`, `-inf`, and `nan` values                |
-| ⚖️ **Deep Equality**              | Deeply compare two ZON documents or values                 |
-| 🖥️ **Cross-Platform**             | Windows, Linux, macOS (32-bit and 64-bit)                  |
-| 📦 **Zero Dependencies**          | Built entirely on the Zig standard library                 |
-| ⚡ **High Performance**           | Efficient parsing and serialization                        |
-| 🔄 **Update Checker**             | Optional automatic update checking (can be disabled)       |
-| 📁 **File Operations**            | Delete, copy, rename, check existence                      |
-| 🧠 **Memory Flexibility**         | Full support for GPA, Arena, and custom allocators         |
-| 🌐 **JSON Interop**               | **Import from and Export to standard JSON**                |
-| 📏 **Object Iterators**           | Programmatic iteration over key-value pairs and arrays     |
-| 🏗️ **Flatten & Expand**           | Convert nested ZON to flat dot-notation maps               |
-| 🛡️ **Integrity Suite**            | **Stable Hashing (Order-independent)** & **Checksums**     |
-| 📏 **Size Metrics**               | Calculate byte size and compact size of documents          |
-| 🔍 **Recursive Search**           | Find keys anywhere (`find`, `findAll`)                     |
-| 🔁 **Aliases**                    | Use preferred naming (e.g., `init`/`new`, `len`/`size`)    |
-| 📂 **File Key Utils**             | Move/Copy keys directly in files without full parsing      |
-| 📊 **Diagnostic Errors**          | High-quality syntax error reporting with line/column       |
+| Feature | Description |
+| :--- | :--- |
+| [Simple API](guide/basic-usage) | Clean `open`, `get`, `set`, `delete`, `save` interface |
+| [Path-Based Access](guide/nested-paths) | Use dot notation like `"dependencies.foo.path"` |
+| [Auto-Create Objects](guide/nested-paths) | Missing intermediate paths are created automatically |
+| [Type-Safe Getters](api/document) | `getString`, `getBool`, `getInt`, `getFloat`, `getNumber` |
+| [No Panics](guide/error-handling) | Missing paths return `null`, type mismatches return `null` |
+| [Custom Parser](api/module) | Does NOT depend on `std.zig.Ast` or compiler internals |
+| [Pretty Print](guide/pretty-print) | Formatted output with configurable indentation |
+| [Find & Replace](guide/find-replace) | Search and replace values throughout the document |
+| [Array Operations](guide/arrays) | Get length, elements, append to arrays |
+| [Merge & Clone](guide/merge-clone) | Shallow & Deep Merge, Combine documents, Deep copy |
+| [Deep Equality](guide/merge-clone) | Deeply compare two ZON documents or values |
+| [Multi-line Strings](guide/writing) | Full support for multi-line backslash syntax (`\\`) |
+| [Special Floats](guide/reading) | Support for `inf`, `-inf`, and `nan` values |
+| [Cross-Platform](guide/installation) | Windows, Linux, macOS (32-bit and 64-bit) |
+| [Zero Dependencies](guide/installation) | Built entirely on the Zig standard library |
+| [High Performance](guide/basic-usage) | Efficient parsing and serialization |
+| [File Operations](guide/file-operations) | Delete, copy, rename, check existence |
+| [Update Checker](api/module) | Optional automatic update checking |
+| [Memory Flexibility](guide/allocators) | Full support for GPA, Arena, and custom allocators |
+| [JSON Interop](api/module) | Import from and Export to standard JSON |
+| [Object Iterators](guide/reading) | Programmatic iteration over key-value pairs |
+| [Flatten & Expand](guide/nested-paths) | Convert nested ZON to flat dot-notation maps |
+| [Integrity Suite](guide/file-operations) | Stable Hashing (Order-independent) & Checksums |
+| [Recursive Search](guide/find-replace) | Find keys anywhere (`find`, `findAll`) |
+| [File Key Utils](guide/file-operations) | Move/Copy keys directly in files without full parsing |
+| [Runtime Structs](guide/runtime-structs) | Convert ZON documents to Zig structs (`toStruct`) |
+| [Struct to ZON](guide/runtime-structs) | Create/Update Documents from Zig Structs (`initFromStruct`) |
+| [Smart Stringify](guide/writing) | Intelligent key quoting (ZON-compliant unquoted keys) |
+| [Diagnostic Errors](guide/error-handling) | High-quality syntax error reporting with line/column |
 
 </details>
 
 ---
 
 <details>
-<summary><strong>📌 Prerequisites & Supported Platforms</strong> (click to expand)</summary>
+<summary><strong>Prerequisites & Supported Platforms</strong> (click to expand)</summary>
 
 <br>
 
@@ -135,7 +136,7 @@ A **document-based** ZON (Zig Object Notation) library for Zig, designed for con
 ## Installation
 
 ```bash
-zig fetch --save https://github.com/muhammad-fiaz/zon.zig/archive/refs/tags/0.0.3.tar.gz
+zig fetch --save https://github.com/muhammad-fiaz/zon.zig/archive/refs/tags/0.0.4.tar.gz
 ```
 
 or
@@ -201,13 +202,16 @@ zon.zig fully supports the `build.zig.zon` format:
 ```zig
 .{
     .name = .zon,                        // Identifier as value
-    .version = "0.0.3",                  // String
+    .version = "0.0.4",                  // String
     .fingerprint = 0xee480fa30d50cbf6,   // Multi-bit hex handled as i128
     .minimum_zig_version = "0.15.0",
     .paths = .{                          // Array of strings
         "build.zig",
         "build.zig.zon",
         "src",
+        "examples",
+        "README.md",
+        "LICENSE",
     },
     .dependencies = .{                    // Nested objects
         .http = .{
@@ -360,6 +364,8 @@ defer copy.deinit();
 | `exists(path)`      | Check if path exists        |
 | `getType(path)`     | Get base type name          |
 | `getTypeName(path)` | Get precise type name       |
+| `toStruct(T)`       | **Convert to Zig struct T** |
+| `initFromStruct(T)` | **Create Document from Struct** |
 
 ### Document Methods - Setters
 
@@ -372,6 +378,7 @@ defer copy.deinit();
 | `setNull(path)`          | Set value to null |
 | `setObject(path)`        | Set empty object  |
 | `setArray(path)`         | Set empty array   |
+| `setFromStruct(path,v)`  | Set object from Zig struct |
 
 ### Document Methods - Array Operations
 
@@ -386,6 +393,9 @@ defer copy.deinit();
 | `insertStringIntoArray(path, index, value)` | Insert string          |
 | `insertIntIntoArray(path, index, value)`    | Insert integer         |
 | `removeFromArray(path, index)`              | Remove from array      |
+| `popFromArray(path)`                        | Remove last element    |
+| `shiftArray(path)`                          | Remove first element   |
+| `unshiftArray(path, value)`                 | Prepend to array       |
 | `indexOf(path, value)`                      | Find string index      |
 | `countAt(path)`                             | Count items/keys       |
 
@@ -417,6 +427,10 @@ defer copy.deinit();
 | `toString()`                 | Get formatted ZON string                                                    |
 | `toCompactString()`          | Get compact ZON string                                                      |
 | `toPrettyString(indent)`     | Get ZON with custom indent                                                  |
+| `reload()`                   | Reload from disk (discarding changes)                       |
+| `hasChangedOnDisk()`         | Check if file changed on disk                               |
+| `deleteFileOnDisk()`         | Delete the associated file                                  |
+| `renameFileOnDisk(new)`      | Rename the associated file                                  |
 | `deinit()`                   | Free all resources                                                          |
 | `close()`                    | Alias for `deinit()`                                                        |
 

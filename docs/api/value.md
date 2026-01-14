@@ -61,6 +61,8 @@ pub const Number = union(enum) {
 | `asFloat()`      | `?f64`        | Get as float (converts int to float)      |
 | `asObject()`     | `?*Object`    | Get as object                             |
 | `asArray()`      | `?*Array`     | Get as array                              |
+| `to(alloc, T)`   | `!T`          | **Convert to Zig type**                   |
+| `from(alloc, v)` | `!Value`      | **Create Value from Zig** (Static)        |
 
 ### Memory Management
 
@@ -137,6 +139,9 @@ pub const Array = struct {
 | `reset()`         | `void`     | Alias for clear    |
 | `empty()`         | `void`     | Alias for clear    |
 | `iterator()`      | `Iterator` | Get array iterator |
+| `pop()`           | `?Value`   | **Remove last**    |
+| `shift()`         | `?Value`   | **Remove first**   |
+| `unshift(val)`    | `!void`    | **Ins start**      |
 
 ## Examples
 

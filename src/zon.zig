@@ -17,6 +17,7 @@ pub const FileError = error{FileAlreadyExists};
 pub const version_info = @import("version.zig");
 pub const update_checker = @import("update_checker.zig");
 pub const Value = @import("value.zig").Value;
+pub const utils = @import("utils.zig");
 
 pub const Document = document.Document;
 pub const Parser = @import("parser.zig").Parser;
@@ -96,6 +97,16 @@ pub fn fromMap(allocator: Allocator, map: anytype) !Document {
 /// Alias for fromMap().
 pub fn initFromMap(allocator: Allocator, map: anytype) !Document {
     return fromMap(allocator, map);
+}
+
+/// Creates a Document from a Zig struct or value.
+pub fn fromStruct(allocator: Allocator, value: anytype) !Document {
+    return Document.initFromStruct(allocator, value);
+}
+
+/// Alias for fromStruct.
+pub fn initFromStruct(allocator: Allocator, value: anytype) !Document {
+    return fromStruct(allocator, value);
 }
 
 /// Opens and parses a ZON file.
@@ -294,6 +305,16 @@ pub fn hasFile(path: []const u8) bool {
     return fileExists(path);
 }
 
+/// Converts a Document to a Zig struct.
+pub fn toStruct(doc: *const Document, comptime T: type) !T {
+    return doc.toStruct(T);
+}
+
+/// Alias for toStruct (deserialization).
+pub fn unmarshal(doc: *const Document, comptime T: type) !T {
+    return doc.toStruct(T);
+}
+
 test "create and set values" {
     const allocator = std.testing.allocator;
 
@@ -429,7 +450,7 @@ test "stringify document" {
 }
 
 test "version info" {
-    try std.testing.expectEqualStrings("0.0.3", version);
+    try std.testing.expectEqualStrings("0.0.4", version);
 }
 
 test "find and replace" {
@@ -793,6 +814,110 @@ test "advanced: initFromMap" {
     try std.testing.expectEqual(true, doc.getBool("active").?);
 }
 
+test "runtime struct conversion: fromStruct" {
+    const allocator = std.testing.allocator;
+    const Config = struct {
+        name: []const u8,
+        port: u16,
+        tags: []const []const u8,
+    };
+
+    const config = Config{
+        .name = "server",
+        .port = 8080,
+        .tags = &.{ "prod", "api" },
+    };
+
+    var doc = try fromStruct(allocator, config);
+    defer doc.deinit();
+
+    try std.testing.expectEqualStrings("server", doc.getString("name").?);
+    try std.testing.expectEqual(@as(i64, 8080), doc.getInt("port").?);
+    try std.testing.expectEqual(@as(usize, 2), doc.arrayLen("tags").?);
+    try std.testing.expectEqualStrings("prod", doc.getArrayString("tags", 0).?);
+
+    // Round trip
+    const parsed = try doc.toStruct(Config);
+    defer {
+        allocator.free(parsed.name);
+        for (parsed.tags) |t| allocator.free(t);
+        allocator.free(parsed.tags);
+    }
+    try std.testing.expectEqualStrings("server", parsed.name);
+}
+
+test "array extensions: pop, shift, unshift" {
+    const allocator = std.testing.allocator;
+    var doc = create(allocator);
+    defer doc.deinit();
+
+    try doc.setArray("list");
+    try doc.appendToArray("list", "b");
+    try doc.appendToArray("list", "c");
+
+    // Unshift "a" -> ["a", "b", "c"]
+    try doc.unshiftArray("list", .{ .string = try allocator.dupe(u8, "a") });
+    try std.testing.expectEqualStrings("a", doc.getArrayString("list", 0).?);
+    try std.testing.expectEqualStrings("b", doc.getArrayString("list", 1).?);
+
+    // Pop "c" -> ["a", "b"]
+    var popped = doc.popFromArray("list").?;
+    defer popped.deinit(allocator);
+    try std.testing.expectEqualStrings("c", popped.asString().?);
+    try std.testing.expectEqual(@as(usize, 2), doc.arrayLen("list").?);
+
+    // Shift "a" -> ["b"]
+    var shifted = doc.shiftArray("list").?;
+    defer shifted.deinit(allocator);
+    try std.testing.expectEqualStrings("a", shifted.asString().?);
+    try std.testing.expectEqual(@as(usize, 1), doc.arrayLen("list").?);
+    try std.testing.expectEqualStrings("b", doc.getArrayString("list", 0).?);
+}
+
+test "document file management" {
+    const allocator = std.testing.allocator;
+    const path = "test_doc_file.zon";
+    _ = std.fs.cwd().deleteFile(path) catch {};
+    defer _ = std.fs.cwd().deleteFile(path) catch {};
+
+    var doc = create(allocator);
+    // Verify modification time tracking and external change detection.
+    try doc.saveAsAtomic(path);
+
+    // Re-initialize document from file to establish file path association and timestamps.
+    doc.deinit();
+    doc = try load(allocator, path);
+    defer doc.deinit();
+
+    // Verify no external changes detected initially.
+    try std.testing.expect(!doc.hasChangedOnDisk());
+
+    // Simulate external modification.
+    // Ensure sufficient delay for filesystem modification time resolution.
+    std.Thread.sleep(20 * std.time.ns_per_ms);
+
+    try writeFileAtomic(allocator, path, ".{ .status = \"changed\" }");
+    try std.testing.expect(doc.hasChangedOnDisk());
+
+    // Verify reload invalidates current state and reads from disk.
+    try doc.reload();
+    try std.testing.expectEqualStrings("changed", doc.getString("status").?);
+
+    // Verify renaming the backing file and updating internal path state.
+    const new_path = "test_doc_renamed.zon";
+    _ = std.fs.cwd().deleteFile(new_path) catch {};
+    defer _ = std.fs.cwd().deleteFile(new_path) catch {};
+
+    try doc.renameFileOnDisk(new_path);
+    try std.testing.expectEqualStrings(new_path, doc.file_path.?);
+    try std.testing.expect(fileExists(new_path));
+    try std.testing.expect(!fileExists(path));
+
+    // Test deleteFileOnDisk
+    try doc.deleteFileOnDisk();
+    try std.testing.expect(!fileExists(new_path));
+}
+
 test "advanced: file path utilities" {
     const allocator = std.testing.allocator;
     const path = "test_path_utils.zon";
@@ -811,4 +936,27 @@ test "advanced: file path utilities" {
     defer doc2.deinit();
     try std.testing.expectEqual(@as(i64, 123), doc2.getInt("new").?);
     try std.testing.expectEqual(@as(i64, 123), doc2.getInt("dupe").?);
+}
+
+test "struct conversion from top-level" {
+    const allocator = std.testing.allocator;
+    var doc = create(allocator);
+    defer doc.deinit();
+
+    try doc.setString("name", "my-lib");
+    try doc.setInt("version", 1);
+    try doc.setBool("public", true);
+
+    const Config = struct {
+        name: []const u8,
+        version: i32,
+        public: bool,
+    };
+
+    const config = try toStruct(&doc, Config);
+    defer allocator.free(config.name);
+
+    try std.testing.expectEqualStrings("my-lib", config.name);
+    try std.testing.expectEqual(@as(i32, 1), config.version);
+    try std.testing.expect(config.public);
 }

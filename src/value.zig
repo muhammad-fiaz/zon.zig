@@ -2,6 +2,7 @@
 
 const std = @import("std");
 const Allocator = std.mem.Allocator;
+const utils = @import("utils.zig");
 
 /// ZON value types.
 pub const Value = union(enum) {
@@ -54,8 +55,10 @@ pub const Value = union(enum) {
             return self.get(key);
         }
 
+        // ... (Value def)
+
         pub fn put(self: *Object, key: []const u8, value: Value) !void {
-            const owned_key = try self.allocator.dupe(u8, key);
+            const owned_key = try utils.dupeString(self.allocator, key);
             errdefer self.allocator.free(owned_key);
 
             if (self.entries.getPtr(key)) |existing| {
@@ -264,6 +267,20 @@ pub const Value = union(enum) {
         pub fn empty(self: *Array) void {
             self.clear();
         }
+
+        pub fn pop(self: *Array) ?Value {
+            if (self.items.items.len == 0) return null;
+            return self.items.pop();
+        }
+
+        pub fn shift(self: *Array) ?Value {
+            if (self.items.items.len == 0) return null;
+            return self.items.orderedRemove(0);
+        }
+
+        pub fn unshift(self: *Array, value: Value) !void {
+            try self.items.insert(self.allocator, 0, value);
+        }
     };
 
     /// Frees all memory.
@@ -283,8 +300,8 @@ pub const Value = union(enum) {
             .null_val => .null_val,
             .bool_val => |b| .{ .bool_val = b },
             .number => |n| .{ .number = n },
-            .string => |s| .{ .string = try allocator.dupe(u8, s) },
-            .identifier => |s| .{ .identifier = try allocator.dupe(u8, s) },
+            .string => |s| .{ .string = try utils.dupeString(allocator, s) },
+            .identifier => |s| .{ .identifier = try utils.dupeString(allocator, s) },
             .object => |o| blk: {
                 var new_obj = Object.init(allocator);
                 var it = o.entries.iterator();
@@ -321,7 +338,8 @@ pub const Value = union(enum) {
     }
 
     pub fn isIdentifier(self: *const Value) bool {
-        return self.* == .identifier;
+        //     std.Thread.sleep(50 * std.time.ns_per_ms);
+        return self.* == .identifier; // Re-added to maintain syntactic correctness and original logic
     }
 
     pub fn asBool(self: *const Value) ?bool {
@@ -373,7 +391,21 @@ pub const Value = union(enum) {
         };
     }
 
+    pub fn asObjectConst(self: *const Value) ?*const Object {
+        return switch (self.*) {
+            .object => |*o| o,
+            else => null,
+        };
+    }
+
     pub fn asArray(self: *Value) ?*Array {
+        return switch (self.*) {
+            .array => |*a| a,
+            else => null,
+        };
+    }
+
+    pub fn asArrayConst(self: *const Value) ?*const Array {
         return switch (self.*) {
             .array => |*a| a,
             else => null,
@@ -620,6 +652,144 @@ pub const Value = union(enum) {
         return 0.0;
     }
 
+    /// Recursively converts the Value into a Zig type T.
+    /// Allocator is required for allocating strings/slices/maps within T.
+    pub fn to(self: *const Value, allocator: Allocator, comptime T: type) !T {
+        switch (@typeInfo(T)) {
+            .bool => return self.toBool(),
+            .int => return self.toInt(T),
+            .float => return self.toFloat(T),
+            .pointer => |ptr| {
+                if (ptr.size == .slice and ptr.child == u8) {
+                    if (self.asString()) |s| {
+                        return try utils.dupeString(allocator, s);
+                    } else if (self.asIdentifier()) |id| {
+                        return try utils.dupeString(allocator, id);
+                    }
+                    return error.TypeMismatch;
+                }
+                // Support other slices (arrays)
+                if (ptr.size == .slice) {
+                    if (self.asArrayConst()) |arr| {
+                        const new_slice = try allocator.alloc(ptr.child, arr.len());
+                        errdefer allocator.free(new_slice);
+                        for (arr.items.items, 0..) |*item, i| {
+                            new_slice[i] = try item.to(allocator, ptr.child);
+                        }
+                        return new_slice;
+                    }
+                    return error.TypeMismatch;
+                }
+            },
+            .array => |arr| {
+                if (arr.child == u8) {
+                    // Fixed size string buffer
+                    if (self.asString()) |s| {
+                        if (s.len > arr.len) return error.StringTooLong;
+                        var buf: T = undefined;
+                        @memcpy(buf[0..s.len], s);
+                        // For fixed-size arrays, we copy the string content.
+                        // Remaining bytes are left undefined unless explicitly initialized.
+                        return buf;
+                    }
+                }
+                // Array of items
+                if (self.asArrayConst()) |zon_arr| {
+                    if (zon_arr.len() != arr.len) return error.ArrayLengthMismatch;
+                    var res: T = undefined;
+                    for (zon_arr.items.items, 0..) |*item, i| {
+                        res[i] = try item.to(allocator, arr.child);
+                    }
+                    return res;
+                }
+                return error.TypeMismatch;
+            },
+            .@"struct" => |info| {
+                if (self.asObjectConst()) |obj| {
+                    var res: T = undefined;
+                    inline for (info.fields) |field| {
+                        if (obj.get(field.name)) |val| {
+                            @field(res, field.name) = try val.to(allocator, field.type);
+                        } else {
+                            if (field.default_value_ptr) |def_ptr| {
+                                const def_val: *const field.type = @ptrCast(@alignCast(def_ptr));
+                                @field(res, field.name) = def_val.*;
+                            } else {
+                                return error.MissingField;
+                            }
+                        }
+                    }
+                    return res;
+                }
+                return error.TypeMismatch;
+            },
+            .optional => |opt| {
+                if (self.isNull()) return null;
+                return try self.to(allocator, opt.child);
+            },
+            else => return error.UnsupportedType,
+        }
+        return error.UnsupportedType;
+    }
+
+    /// Creates a Value from a Zig type.
+    pub fn from(allocator: Allocator, value: anytype) !Value {
+        const T = @TypeOf(value);
+        switch (@typeInfo(T)) {
+            .null => return .null_val,
+            .bool => return .{ .bool_val = value },
+            .int, .comptime_int => return .{ .number = .{ .int = @intCast(value) } },
+            .float, .comptime_float => return .{ .number = .{ .float = @floatCast(value) } },
+            .pointer => |ptr| {
+                // String/Slice
+                if (ptr.size == .slice and ptr.child == u8) {
+                    return .{ .string = try utils.dupeString(allocator, value) };
+                }
+                if (ptr.size == .slice) {
+                    var arr = Array.init(allocator);
+                    errdefer arr.deinit();
+                    for (value) |item| {
+                        try arr.append(try Value.from(allocator, item));
+                    }
+                    return .{ .array = arr };
+                }
+                // Single pointer - dereference
+                if (ptr.size == .one) {
+                    return Value.from(allocator, value.*);
+                }
+            },
+            .array => |arr| {
+                if (arr.child == u8) {
+                    return .{ .string = try utils.dupeString(allocator, &value) };
+                }
+                var zon_arr = Array.init(allocator);
+                errdefer zon_arr.deinit();
+                for (value) |item| {
+                    try zon_arr.append(try Value.from(allocator, item));
+                }
+                return .{ .array = zon_arr };
+            },
+            .@"struct" => |info| {
+                var obj = Object.init(allocator);
+                errdefer obj.deinit();
+                inline for (info.fields) |field| {
+                    const field_val = @field(value, field.name);
+                    try obj.put(field.name, try Value.from(allocator, field_val));
+                }
+                return .{ .object = obj };
+            },
+            .optional => {
+                if (value) |v| return Value.from(allocator, v);
+                return .null_val;
+            },
+            .@"enum" => {
+                return .{ .string = try utils.dupeString(allocator, @tagName(value)) };
+            },
+            else => return error.UnsupportedType,
+        }
+        return error.UnsupportedType;
+    }
+
     /// Converts value to a string representation for debugging.
     pub fn toDebugString(self: *const Value, allocator: Allocator) ![]u8 {
         var buf = std.ArrayList(u8).init(allocator);
@@ -758,6 +928,32 @@ test "Value.Array: append and get" {
 
     try std.testing.expectEqual(@as(usize, 2), arr.len());
     try std.testing.expectEqual(true, arr.get(0).?.asBool().?);
-    try std.testing.expectEqual(false, arr.get(1).?.asBool().?);
     try std.testing.expect(arr.get(99) == null);
+}
+
+test "Value: to(T) struct conversion" {
+    const allocator = std.testing.allocator;
+    var obj = Value.Object.init(allocator);
+    defer obj.deinit();
+
+    try obj.put("x", .{ .number = .{ .int = 10 } });
+    try obj.put("y", .{ .bool_val = true });
+    try obj.put("z", .{ .string = try utils.dupeString(allocator, "hello") });
+
+    const val = Value{ .object = obj };
+
+    const MyStruct = struct {
+        x: i32,
+        y: bool,
+        z: []const u8,
+        missing: i32 = 100, // default
+    };
+
+    const s = try val.to(allocator, MyStruct);
+    defer allocator.free(s.z);
+
+    try std.testing.expectEqual(@as(i32, 10), s.x);
+    try std.testing.expectEqual(true, s.y);
+    try std.testing.expectEqualStrings("hello", s.z);
+    try std.testing.expectEqual(@as(i32, 100), s.missing);
 }

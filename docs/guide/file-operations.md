@@ -44,6 +44,15 @@ const written = try doc.saveIfChanged(); // returns true when a write occurred
 - `zon.movePathInFile(allocator, path, oldKey, newKey)` moves a value inside a file.
 - `zon.copyPathInFile(allocator, path, srcKey, dstKey)` copies a value inside a file.
 
+### Document-Associated Operations
+
+These methods operate on the file associated with the document (the path used during `open` or `load`):
+
+- `doc.reload()`: Discards current in-memory changes and re-reads the file from disk.
+- `doc.hasChangedOnDisk()`: Returns `true` if the file's modification time is newer than when it was last loaded/saved.
+- `doc.deleteFileOnDisk()`: Deletes the file associated with the document from the filesystem.
+- `doc.renameFileOnDisk(new_path)`: Renames the file on the filesystem and updates the document's internal path reference.
+
 ### Parsing from files
 
 - `zon.load(allocator, path)` (aliases: `open`, `parseFile`, `loadFile`) parses a ZON file directly.

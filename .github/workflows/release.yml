@@ -17,9 +17,35 @@ jobs:
       - uses: actions/checkout@v5
       - uses: mlugg/setup-zig@v2
         with:
-          version: 0.15.0
+          version: 0.15.2
       - name: Run Tests
         run: zig build test
+
+  bench:
+    name: Run Benchmarks
+    needs: test
+    runs-on: ubuntu-latest
+    outputs:
+      bench_output: ${{ steps.run_bench.outputs.bench_output }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: mlugg/setup-zig@v2
+        with:
+          version: 0.15.2
+      - name: Run Benchmarks
+        id: run_bench
+        run: |
+          # Run benchmarks (generates benchmark-results.md)
+          zig build bench || true
+          
+          # Prepare output for release body from the generated markdown file
+          echo "bench_output<<EOF" >> $GITHUB_OUTPUT
+          if [ -f benchmark-results.md ]; then
+            cat benchmark-results.md >> $GITHUB_OUTPUT
+          else
+            echo "No benchmark table found." >> $GITHUB_OUTPUT
+          fi
+          echo "EOF" >> $GITHUB_OUTPUT
 
   build-library:
     name: Build Library (${{ matrix.target }})
@@ -41,10 +67,10 @@ jobs:
           - riscv64-freestanding
           - arm-freestanding
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v4
       - uses: mlugg/setup-zig@v2
         with:
-          version: 0.15.0
+          version: 0.15.2
       
       - name: Build Library
         run: zig build -Doptimize=ReleaseSafe -Dtarget=${{ matrix.target }}
@@ -53,23 +79,27 @@ jobs:
         run: |
           mkdir -p release
           if [[ "${{ matrix.target }}" == *"windows"* ]]; then
+            # Copy windows static lib
             cp zig-out/lib/zon.lib release/zon-${{ matrix.target }}.lib || true
           else
+            # Copy unix static lib
             cp zig-out/lib/libzon.a release/libzon-${{ matrix.target }}.a || true
           fi
+          # Only library artifacts are prepared for upload
 
       - name: Upload Release Artifacts
         run: |
+          # Upload all prepared artifacts to the GitHub Release
           gh release upload "${{ github.event.release.tag_name }}" release/* --clobber || true
         env:
           GH_TOKEN: ${{ secrets.GH_TOKEN }}
 
   update-release:
     name: Update Release Description
-    needs: [test]
+    needs: [test, bench]
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v4
       
       - name: Get Release URL
         id: get_url
@@ -77,12 +107,13 @@ jobs:
 
       - uses: mlugg/setup-zig@v2
         with:
-          version: 0.15.0
+          version: 0.15.2
 
       - name: Calculate Hash
         id: calc_hash
         run: |
           zig fetch --save ${{ steps.get_url.outputs.url }}
+          # Extract hash from build.zig.zon (it's updated by zig fetch)
           HASH=$(grep '.hash =' build.zig.zon | cut -d '"' -f 2)
           echo "hash=$HASH" >> $GITHUB_OUTPUT
 
@@ -91,6 +122,10 @@ jobs:
         with:
           body: |
             ${{ github.event.release.body }}
+
+            ## 📃 Documentation
+
+            Full Documentation can be found at https://muhammad-fiaz.github.io/zon.zig/
 
             ## 📦 Installation
 
@@ -102,7 +137,10 @@ jobs:
             zig fetch --save https://github.com/${{ github.repository }}/archive/refs/tags/${{ github.event.release.tag_name }}.tar.gz
             ```
 
-            After running, Zig updates your `build.zig.zon` with something like:
+            > [!NOTE]
+            > After running, Zig updates your `build.zig.zon` with the correct hash automatically.
+
+            The entry will look like:
 
             ```zig
             .dependencies = .{
@@ -113,66 +151,43 @@ jobs:
             },
             ```
 
-            Then in your `build.zig`:
-
-            ```zig
-            const zon_dep = b.dependency("zon", .{
-                .target = target,
-                .optimize = optimize,
-            });
-            exe.root_module.addImport("zon", zon_dep.module("zon"));
-            ```
-
             ### Option B — Manual
 
             ```bash
             zig fetch --hash https://github.com/${{ github.repository }}/archive/refs/tags/${{ github.event.release.tag_name }}.tar.gz
             ```
 
-            Copy that hash into:
+            Copy that hash into your `build.zig.zon`:
 
             ```zig
-            .hash = "<your_hash_here>" // which is ${{ steps.calc_hash.outputs.hash }}
+            .hash = "${{ steps.calc_hash.outputs.hash }}"
             ```
 
-            ## ✨ Quick Start
+            ## 📊 Benchmarks
 
-            ```zig
-            const std = @import("std");
-            const zon = @import("zon");
+            The following benchmark results were captured during the release workflow:
 
-            pub fn main() !void {
-                var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-                defer _ = gpa.deinit();
-                const allocator = gpa.allocator();
+            > [!NOTE]
+            > Benchmarks are automatically generated by GitHub Actions using [bench/benchmark.zig](https://github.com/muhammad-fiaz/zon.zig/blob/main/bench/benchmark.zig). Results may vary based on the CI runner environment.
 
-                var doc = zon.create(allocator);
-                defer doc.deinit();
-
-                try doc.setString("name", "myapp");
-                try doc.setString("version", "1.0.0");
-                try doc.setInt("port", 8080);
-
-                try doc.saveAs("config.zon");
-            }
-            ```
+            ${{ needs.bench.outputs.bench_output }}
 
             ## ⬇️ Downloads (Prebuilt Library)
 
             | Platform | Architecture | File |
             |----------|--------------|------|
-            | Windows | x86_64 | [zon-x86_64-windows.lib](https://github.com/${{ github.repository }}/releases/download/${{ github.event.release.tag_name }}/zon-x86_64-windows.lib) |
-            | Windows | x86 | [zon-x86-windows.lib](https://github.com/${{ github.repository }}/releases/download/${{ github.event.release.tag_name }}/zon-x86-windows.lib) |
-            | Linux | x86_64 | [libzon-x86_64-linux.a](https://github.com/${{ github.repository }}/releases/download/${{ github.event.release.tag_name }}/libzon-x86_64-linux.a) |
-            | Linux | x86 | [libzon-x86-linux.a](https://github.com/${{ github.repository }}/releases/download/${{ github.event.release.tag_name }}/libzon-x86-linux.a) |
-            | Linux | aarch64 (ARM64) | [libzon-aarch64-linux.a](https://github.com/${{ github.repository }}/releases/download/${{ github.event.release.tag_name }}/libzon-aarch64-linux.a) |
-            | macOS | x86_64 (Intel) | [libzon-x86_64-macos.a](https://github.com/${{ github.repository }}/releases/download/${{ github.event.release.tag_name }}/libzon-x86_64-macos.a) |
-            | macOS | aarch64 (Apple Silicon) | [libzon-aarch64-macos.a](https://github.com/${{ github.repository }}/releases/download/${{ github.event.release.tag_name }}/libzon-aarch64-macos.a) |
-            | Bare Metal | x86_64 | [libzon-x86_64-freestanding.a](https://github.com/${{ github.repository }}/releases/download/${{ github.event.release.tag_name }}/libzon-x86_64-freestanding.a) |
-            | Bare Metal | x86 | [libzon-x86-freestanding.a](https://github.com/${{ github.repository }}/releases/download/${{ github.event.release.tag_name }}/libzon-x86-freestanding.a) |
-            | Bare Metal | aarch64 | [libzon-aarch64-freestanding.a](https://github.com/${{ github.repository }}/releases/download/${{ github.event.release.tag_name }}/libzon-aarch64-freestanding.a) |
-            | Bare Metal | RISC-V 64 | [libzon-riscv64-freestanding.a](https://github.com/${{ github.repository }}/releases/download/${{ github.event.release.tag_name }}/libzon-riscv64-freestanding.a) |
-            | Bare Metal | ARM | [libzon-arm-freestanding.a](https://github.com/${{ github.repository }}/releases/download/${{ github.event.release.tag_name }}/libzon-arm-freestanding.a) |
+            | Windows | x86_64 | [zon-x86_64-windows.lib](https://github.com/muhammad-fiaz/zon.zig/releases/download/${{ github.event.release.tag_name }}/zon-x86_64-windows.lib) |
+            | Windows | x86 | [zon-x86-windows.lib](https://github.com/muhammad-fiaz/zon.zig/releases/download/${{ github.event.release.tag_name }}/zon-x86-windows.lib) |
+            | Linux | x86_64 | [libzon-x86_64-linux.a](https://github.com/muhammad-fiaz/zon.zig/releases/download/${{ github.event.release.tag_name }}/libzon-x86_64-linux.a) |
+            | Linux | x86 | [libzon-x86-linux.a](https://github.com/muhammad-fiaz/zon.zig/releases/download/${{ github.event.release.tag_name }}/libzon-x86-linux.a) |
+            | Linux | aarch64 (ARM64) | [libzon-aarch64-linux.a](https://github.com/muhammad-fiaz/zon.zig/releases/download/${{ github.event.release.tag_name }}/libzon-aarch64-linux.a) |
+            | macOS | x86_64 (Intel) | [libzon-x86_64-macos.a](https://github.com/muhammad-fiaz/zon.zig/releases/download/${{ github.event.release.tag_name }}/libzon-x86_64-macos.a) |
+            | macOS | aarch64 (Apple Silicon) | [libzon-aarch64-macos.a](https://github.com/muhammad-fiaz/zon.zig/releases/download/${{ github.event.release.tag_name }}/libzon-aarch64-macos.a) |
+            | Bare Metal | x86_64 | [libzon-x86_64-freestanding.a](https://github.com/muhammad-fiaz/zon.zig/releases/download/${{ github.event.release.tag_name }}/libzon-x86_64-freestanding.a) |
+            | Bare Metal | x86 | [libzon-x86-freestanding.a](https://github.com/muhammad-fiaz/zon.zig/releases/download/${{ github.event.release.tag_name }}/libzon-x86-freestanding.a) |
+            | Bare Metal | aarch64 | [libzon-aarch64-freestanding.a](https://github.com/muhammad-fiaz/zon.zig/releases/download/${{ github.event.release.tag_name }}/libzon-aarch64-freestanding.a) |
+            | Bare Metal | RISC-V 64 | [libzon-riscv64-freestanding.a](https://github.com/muhammad-fiaz/zon.zig/releases/download/${{ github.event.release.tag_name }}/libzon-riscv64-freestanding.a) |
+            | Bare Metal | ARM | [libzon-arm-freestanding.a](https://github.com/muhammad-fiaz/zon.zig/releases/download/${{ github.event.release.tag_name }}/libzon-arm-freestanding.a) |
 
             ### 🛠️ Using Prebuilt Libraries
 
@@ -181,10 +196,7 @@ jobs:
             3. Update your `build.zig`:
 
             ```zig
+            // Assuming you placed the library in `libs/`
             exe.addLibraryPath(b.path("libs"));
             exe.linkSystemLibrary("zon");
             ```
-
-            ## 📖 Documentation
-
-            Full documentation: **https://muhammad-fiaz.github.io/zon.zig/**

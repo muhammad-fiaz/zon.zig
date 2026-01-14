@@ -62,6 +62,21 @@ pub fn main() !void {
 
     std.debug.print("Created numbers array with {d} elements\n", .{doc.arrayLen("numbers").?});
 
+    std.debug.print("\n=== Pop, Shift, Unshift ===\n", .{});
+
+    // Pop (remove from end)
+    _ = doc.popFromArray("numbers"); // Removes 3
+    std.debug.print("Popped from numbers (len: {d})\n", .{doc.arrayLen("numbers").?});
+
+    // Shift (remove from start)
+    _ = doc.shiftArray("numbers"); // Removes 1
+    std.debug.print("Shifted from numbers (len: {d})\n", .{doc.arrayLen("numbers").?});
+
+    // Unshift (add to start)
+    try doc.unshiftArray("numbers", .{ .number = .{ .int = 0 } });
+    std.debug.print("Unshifted 0 to numbers (len: {d})\n", .{doc.arrayLen("numbers").?});
+    std.debug.print("New first element: {d}\n", .{doc.getArrayInt("numbers", 0).?});
+
     std.debug.print("\n=== Final document ===\n", .{});
 
     const output = try doc.toString();

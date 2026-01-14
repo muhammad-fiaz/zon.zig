@@ -26,7 +26,7 @@ export default defineConfig({
     ['meta', { name: 'twitter:title', content: 'zon.zig — Document-based ZON library for Zig' }],
     ['meta', { name: 'twitter:description', content: 'A document-based Zig library for reading, writing, and manipulating ZON configuration files — complementary to std.zon' }],
     ['meta', { name: 'twitter:image', content: 'https://muhammad-fiaz.github.io/zon.zig/logo.svg' }],
-    ['script', { type: 'application/ld+json' }, '{"@context":"https://schema.org","@type":"SoftwareApplication","name":"zon.zig","url":"https://muhammad-fiaz.github.io/zon.zig/","description":"A document-based Zig library for reading, writing, and manipulating ZON configuration files","applicationCategory":"DeveloperTool","operatingSystem":"Cross-platform","softwareVersion":"0.0.3","author":{"@type":"Person","name":"Muhammad Fiaz"}}']
+    ['script', { type: 'application/ld+json' }, '{"@context":"https://schema.org","@type":"SoftwareApplication","name":"zon.zig","url":"https://muhammad-fiaz.github.io/zon.zig/","description":"A document-based Zig library for reading, writing, and manipulating ZON configuration files","applicationCategory":"DeveloperTool","operatingSystem":"Cross-platform","softwareVersion":"0.0.4","author":{"@type":"Person","name":"Muhammad Fiaz"}}']
   ],
 
   themeConfig: {
@@ -38,7 +38,7 @@ export default defineConfig({
       { text: 'API', link: '/api/' },
       { text: 'Examples', link: '/guide/examples' },
       {
-        text: 'v0.0.2',
+        text: 'v0.0.4',
         items: [
           { text: 'Changelog', link: 'https://github.com/muhammad-fiaz/zon.zig/releases' },
           { text: 'Contributing', link: 'https://github.com/muhammad-fiaz/zon.zig/blob/main/CONTRIBUTING.md' }
@@ -52,6 +52,7 @@ export default defineConfig({
           text: 'Introduction',
           items: [
             { text: 'What is zon.zig?', link: '/guide/' },
+            { text: 'Introduction', link: '/guide/introduction' },
             { text: 'Getting Started', link: '/guide/getting-started' },
             { text: 'Installation', link: '/guide/installation' },
             { text: 'Allocators', link: '/guide/allocators' }
@@ -71,6 +72,7 @@ export default defineConfig({
         {
           text: 'Advanced',
           items: [
+            { text: 'Runtime Structs', link: '/guide/runtime-structs' },
             { text: 'Find & Replace', link: '/guide/find-replace' },
             { text: 'Array Operations', link: '/guide/arrays' },
             { text: 'Merge & Clone', link: '/guide/merge-clone' },
