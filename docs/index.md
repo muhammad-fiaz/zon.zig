@@ -103,9 +103,23 @@ pub fn main() !void {
 
 ## Installation
 
+### Release Installation (Recommended)
+
+Install the latest stable release (v0.0.4):
+
 ```bash
-zig fetch --save https://github.com/muhammad-fiaz/zon.zig/archive/refs/tags/0.0.3.tar.gz
+zig fetch --save https://github.com/muhammad-fiaz/zon.zig/archive/refs/tags/0.0.4.tar.gz
 ```
+
+### Nightly Installation
+
+Install the latest development version:
+
+```bash
+zig fetch --save git+https://github.com/muhammad-fiaz/zon.zig
+```
+
+### Configure build.zig
 
 Then in your `build.zig`:
 

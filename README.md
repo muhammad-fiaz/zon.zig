@@ -22,7 +22,7 @@
 
 <p><em>A simple, direct Zig library for reading and writing ZON (Zig Object Notation) files.</em></p>
 
-<b>📚 <a href="https://muhammad-fiaz.github.io/zon.zig/">Documentation</a> |
+<b><a href="https://muhammad-fiaz.github.io/zon.zig/">Documentation</a> |
 <a href="https://muhammad-fiaz.github.io/zon.zig/api/document">API Reference</a> |
 <a href="https://muhammad-fiaz.github.io/zon.zig/guide/getting-started">Quick Start</a> |
 <a href="https://muhammad-fiaz.github.io/zon.zig/guide/allocators">Allocators</a> |
