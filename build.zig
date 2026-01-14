@@ -29,6 +29,7 @@ pub fn build(b: *std.Build) void {
         .{ .name = "nested_creation", .path = "examples/nested_creation.zig" },
         .{ .name = "identifier_values", .path = "examples/identifier_values.zig" },
         .{ .name = "allocators", .path = "examples/allocators.zig" },
+        .{ .name = "struct_conversion", .path = "examples/struct_conversion.zig" },
     };
 
     inline for (examples) |example| {
@@ -123,6 +124,21 @@ pub fn build(b: *std.Build) void {
 
     // Then run all examples
     test_all_step.dependOn(run_all_examples);
+
+    // Benchmark step
+    const bench_exe = b.addExecutable(.{
+        .name = "benchmark",
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("bench/benchmark.zig"),
+            .target = target,
+            .optimize = .ReleaseFast, // Benchmarks should run fast
+        }),
+    });
+    bench_exe.root_module.addImport("zon", zon_module);
+
+    const run_bench = b.addRunArtifact(bench_exe);
+    const bench_step = b.step("bench", "Run benchmarks");
+    bench_step.dependOn(&run_bench.step);
 
     // Install step for library
     const lib = b.addLibrary(.{

@@ -9,11 +9,13 @@
 const std = @import("std");
 const Allocator = std.mem.Allocator;
 const Value = @import("value.zig").Value;
+const utils = @import("utils.zig");
 
 /// Stringification options.
 pub const StringifyOptions = struct {
     indent: usize = 4,
     initial_indent: usize = 0,
+    quote_keys: bool = false,
 };
 
 pub const StringifyError = Allocator.Error;
@@ -54,7 +56,7 @@ pub fn stringify(allocator: Allocator, value: *const Value, options: StringifyOp
     var buffer = Buffer.init(allocator);
     errdefer buffer.deinit();
 
-    try stringifyValue(&buffer, value, options.initial_indent, options.indent);
+    try stringifyValue(&buffer, value, options.initial_indent, options.indent, options.quote_keys);
 
     return buffer.toOwnedSlice();
 }
@@ -86,7 +88,7 @@ pub fn writeToFileAtomic(allocator: Allocator, value: *const Value, path: []cons
     try std.fs.cwd().rename(tmp_path, path);
 }
 
-fn stringifyValue(buffer: *Buffer, value: *const Value, indent: usize, indent_size: usize) StringifyError!void {
+fn stringifyValue(buffer: *Buffer, value: *const Value, indent: usize, indent_size: usize, quote_keys: bool) StringifyError!void {
     switch (value.*) {
         .null_val => try buffer.appendSlice("null"),
         .bool_val => |b| try buffer.appendSlice(if (b) "true" else "false"),
@@ -112,8 +114,8 @@ fn stringifyValue(buffer: *Buffer, value: *const Value, indent: usize, indent_si
         },
         .string => |s| try stringifyString(buffer, s),
         .identifier => |s| try stringifyIdentifier(buffer, s),
-        .object => |o| try stringifyObject(buffer, &o, indent, indent_size),
-        .array => |a| try stringifyArray(buffer, &a, indent, indent_size),
+        .object => |o| try stringifyObject(buffer, &o, indent, indent_size, quote_keys),
+        .array => |a| try stringifyArray(buffer, &a, indent, indent_size, quote_keys),
     }
 }
 
@@ -137,7 +139,7 @@ fn stringifyString(buffer: *Buffer, s: []const u8) StringifyError!void {
     try buffer.append('"');
 }
 
-fn stringifyObject(buffer: *Buffer, obj: *const Value.Object, indent: usize, indent_size: usize) StringifyError!void {
+fn stringifyObject(buffer: *Buffer, obj: *const Value.Object, indent: usize, indent_size: usize, quote_keys: bool) StringifyError!void {
     if (obj.count() == 0) {
         try buffer.appendSlice(".{}");
         return;
@@ -159,9 +161,13 @@ fn stringifyObject(buffer: *Buffer, obj: *const Value.Object, indent: usize, ind
 
         try appendIndent(buffer, indent + indent_size);
         try buffer.append('.');
-        try buffer.appendSlice(key);
+        if (quote_keys or !utils.isValidIdentifier(key)) {
+            try stringifyString(buffer, key); // Writes "key"
+        } else {
+            try buffer.appendSlice(key);
+        }
         try buffer.appendSlice(" = ");
-        try stringifyValue(buffer, val_ptr, indent + indent_size, indent_size);
+        try stringifyValue(buffer, val_ptr, indent + indent_size, indent_size, quote_keys);
         try buffer.appendSlice(",\n");
     }
 
@@ -219,7 +225,7 @@ fn stringifyValueJson(buffer: *Buffer, value: *const Value) StringifyError!void 
     }
 }
 
-fn stringifyArray(buffer: *Buffer, arr: *const Value.Array, indent: usize, indent_size: usize) StringifyError!void {
+fn stringifyArray(buffer: *Buffer, arr: *const Value.Array, indent: usize, indent_size: usize, quote_keys: bool) StringifyError!void {
     if (arr.len() == 0) {
         try buffer.appendSlice(".{}");
         return;
@@ -229,7 +235,7 @@ fn stringifyArray(buffer: *Buffer, arr: *const Value.Array, indent: usize, inden
 
     for (arr.items.items) |*item| {
         try appendIndent(buffer, indent + indent_size);
-        try stringifyValue(buffer, item, indent + indent_size, indent_size);
+        try stringifyValue(buffer, item, indent + indent_size, indent_size, quote_keys);
         try buffer.appendSlice(",\n");
     }
 

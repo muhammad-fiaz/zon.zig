@@ -37,6 +37,13 @@ var doc = try zon.parse(allocator, source);
 defer doc.deinit();
 ```
 
+### Init From Struct
+
+```zig
+const Config = struct { name: []const u8, port: u16 };
+var doc = try zon.initFromStruct(allocator, Config{ .name = "app", .port = 80 });
+```
+
 ## Getters
 
 All getters return `null` for missing paths or type mismatches.
@@ -64,8 +71,10 @@ All getters return `null` for missing paths or type mismatches.
 | `isNan(path)`         | `bool`          | Check if value is NaN        |
 | `isInf(path)`         | `bool`          | Check if value is Inf        |
 | `getUint(path)`       | `?u64`          | Get unsigned integer (u64)   |
+| `getUint(path)`       | `?u64`          | Get unsigned integer (u64)   |
 | `toBool(path)`        | `bool`          | Coerce value to boolean      |
-
+| `toStruct(T)`         | `!T`            | **Convert to Zig struct**    |
+    
 ## Setters
 
 All setters auto-create intermediate objects.
@@ -89,6 +98,10 @@ All setters auto-create intermediate objects.
 | `setArray(path)`       | Create empty array        |
 | `setValue(path, v)`    | Set raw Value             |
 | `put(path, v)`         | Alias for setValue        |
+| `getOrPutString(p, d)` | Get or put string         |
+| `getOrPutInt(p, d)`    | Get or put integer        |
+| `getOrPutBool(p, d)`   | Get or put boolean        |
+| `setFromStruct(p, v)`  | **Set path from struct**  |
 
 ## Modification
 
@@ -98,8 +111,12 @@ All setters auto-create intermediate objects.
 | `remove(path)` | `bool`          | Alias for delete                    |
 | `rename(o, n)` | `!bool`         | Rename key/path                     |
 | `move(o, n)`   | `!bool`         | Alias for rename                    |
-| `copy(s, d)`   | `!bool`         | Duplicate path                      |
-| `clear()`      | `void`          | Clear all data                      |
+| `copy(s, d)`            | `!bool`         | Duplicate path                      |
+| `reload()`              | `!void`         | **Reload from disk**                |
+| `hasChangedOnDisk()`    | `bool`          | **Check if file modified**          |
+| `deleteFileOnDisk()`    | `!void`         | **Delete associated file**          |
+| `renameFileOnDisk(new)` | `!void`         | **Rename associated file**          |
+| `clear()`               | `void`          | Clear all data                      |
 | `count()`      | `usize`         | Number of root keys                 |
 | `size()`       | `usize`         | Alias for count                     |
 | `len()`        | `usize`         | Alias for count                     |
@@ -124,6 +141,9 @@ All setters auto-create intermediate objects.
 | `insertIntIntoArray(path, idx, val)`    | `!void`         | Insert integer       |
 | `indexOf(path, value)`                  | `?usize`        | Find string index    |
 | `countAt(path)`                         | `usize`         | Count items at path  |
+| `popFromArray(path)`                    | `?Value`        | **Pop last element** |
+| `shiftArray(path)`                      | `?Value`        | **Remove first**     |
+| `unshiftArray(path, val)`               | `!void`         | **Ins at start**     |
 
 ## Find & Replace
 

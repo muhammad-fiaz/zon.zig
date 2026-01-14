@@ -6,10 +6,10 @@
 const std = @import("std");
 
 /// Current library version.
-pub const version = "0.0.3";
+pub const version = "0.0.4";
 pub const major: u32 = 0;
 pub const minor: u32 = 0;
-pub const patch: u32 = 3;
+pub const patch: u32 = 4;
 
 /// Pre-release identifier (empty for stable releases).
 pub const pre_release: []const u8 = "";
@@ -81,15 +81,15 @@ pub fn isCompatible(required: []const u8) bool {
 test "version constants" {
     try std.testing.expect(major == 0);
     try std.testing.expect(minor == 0);
-    try std.testing.expect(patch == 3);
-    try std.testing.expect(std.mem.eql(u8, version, "0.0.3"));
+    try std.testing.expect(patch == 4);
+    try std.testing.expect(std.mem.eql(u8, version, "0.0.4"));
 }
 
 test "semantic version" {
     const sv = semanticVersion();
     try std.testing.expect(sv.major == 0);
     try std.testing.expect(sv.minor == 0);
-    try std.testing.expect(sv.patch == 3);
+    try std.testing.expect(sv.patch == 4);
 }
 
 test "version comparison" {

@@ -105,7 +105,28 @@ if (doc.indexOf("items", "second")) |index| {
 
 ```zig
 const count = doc.countAt("items");
+const count = doc.countAt("items");
 std.debug.print("Array has {d} items\n", .{count});
+```
+
+### Pop, Shift, Unshift
+
+New in v0.0.4, you can use stack/queue operations:
+
+```zig
+// Remove last element
+if (doc.popFromArray("items")) |val| {
+    defer val.deinit(allocator); // Don't forget to free!
+    // use val...
+}
+
+// Remove first element
+if (doc.shiftArray("items")) |val| {
+    defer val.deinit(allocator);
+}
+
+// Add to beginning
+try doc.unshiftArray("items", .{ .string = try allocator.dupe(u8, "start") });
 ```
 
 ## Practical Example
