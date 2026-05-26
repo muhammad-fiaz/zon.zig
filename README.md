@@ -34,6 +34,16 @@
 
 A **document-based** ZON (Zig Object Notation) library for Zig, designed for configuration file editing, dynamic access, and data manipulation. Unlike [`std.zon`](https://codeberg.org/ziglang/zig/src/branch/master/lib/std/zon) which parses ZON into typed structures, zon.zig maintains an in-memory document tree that you can query, modify, and serialize.
 
+**Related Zig projects:**
+
+- For **API framework** support, check out **[api.zig](https://github.com/muhammad-fiaz/api.zig)**.
+- For **web framework** support, check out **[zix](https://github.com/muhammad-fiaz/zix)**.
+- For **logging** support, check out **[logly.zig](https://github.com/muhammad-fiaz/logly.zig)**.
+- For **data validation and serialization** support, check out **[zigantic](https://github.com/muhammad-fiaz/zigantic)**.
+- For **HTTP Server/Client** support, check out **[httpx.zig](https://github.com/muhammad-fiaz/httpx.zig)**.
+- For **ZON file format** support, check out **[zon.zig](https://github.com/muhammad-fiaz/zon.zig)** 
+- For **Args Parsing** support, check out **[args.zig](https://github.com/muhammad-fiaz/args.zig)**.
+
 **If you find `zon.zig` useful, please give it a star!**
 
 ---

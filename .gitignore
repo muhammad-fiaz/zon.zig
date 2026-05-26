@@ -54,3 +54,6 @@ coverage/
 *.gcda
 *.gcno
 benchmark-results.md
+
+*.zon
+!build.zig.zon

@@ -16,13 +16,19 @@ const Value = @import("value.zig").Value;
 const parser = @import("parser.zig");
 const stringify = @import("stringify.zig");
 const utils = @import("utils.zig");
+const has_io = @hasDecl(std, "Io") and @hasDecl(std.Io, "Dir");
+const Mtime = if (has_io) std.Io.Timestamp else i128;
+
+fn zeroMtime() Mtime {
+    return if (comptime has_io) .zero else 0;
+}
 
 /// A parsed ZON document.
 pub const Document = struct {
     allocator: Allocator,
     root: Value,
     file_path: ?[]const u8,
-    last_mtime: std.Io.Timestamp = .zero,
+    last_mtime: Mtime = zeroMtime(),
 
     /// Creates an empty document.
     pub fn initEmpty(allocator: Allocator) Document {
@@ -30,7 +36,7 @@ pub const Document = struct {
             .allocator = allocator,
             .root = .{ .object = Value.Object.init(allocator) },
             .file_path = null,
-            .last_mtime = .zero,
+            .last_mtime = zeroMtime(),
         };
     }
 
@@ -41,7 +47,7 @@ pub const Document = struct {
             .allocator = allocator,
             .root = root,
             .file_path = null,
-            .last_mtime = .zero,
+            .last_mtime = zeroMtime(),
         };
     }
 
@@ -97,23 +103,41 @@ pub const Document = struct {
 
     /// Opens and parses a ZON file.
     pub fn initFromFile(allocator: Allocator, path: []const u8) !Document {
-        var threaded: std.Io.Threaded = .init_single_threaded;
-        const io = threaded.io();
-        const cwd = std.Io.Dir.cwd();
+        if (comptime has_io) {
+            var threaded: std.Io.Threaded = .init_single_threaded;
+            const io = threaded.io();
+            const cwd = std.Io.Dir.cwd();
 
-        var file = try cwd.openFile(io, path, .{});
-        defer file.close(io);
+            var file = try cwd.openFile(io, path, .{});
+            defer file.close(io);
 
-        const stat = try file.stat(io);
-        const mtime = stat.mtime;
+            const stat = try file.stat(io);
+            const mtime = stat.mtime;
 
-        const source = try cwd.readFileAlloc(io, path, allocator, std.Io.Limit.limited(1024 * 1024 * 16));
-        defer allocator.free(source);
+            const source = try cwd.readFileAlloc(io, path, allocator, std.Io.Limit.limited(1024 * 1024 * 16));
+            defer allocator.free(source);
 
-        var doc = try initFromSource(allocator, source);
-        doc.file_path = try utils.dupeString(allocator, path);
-        doc.last_mtime = mtime;
-        return doc;
+            var doc = try initFromSource(allocator, source);
+            doc.file_path = try utils.dupeString(allocator, path);
+            doc.last_mtime = mtime;
+            return doc;
+        } else {
+            const cwd = std.fs.cwd();
+
+            var file = try cwd.openFile(path, .{});
+            defer file.close();
+
+            const stat = try file.stat();
+            const mtime = stat.mtime;
+
+            const source = try cwd.readFileAlloc(allocator, path, 1024 * 1024 * 16);
+            defer allocator.free(source);
+
+            var doc = try initFromSource(allocator, source);
+            doc.file_path = try utils.dupeString(allocator, path);
+            doc.last_mtime = mtime;
+            return doc;
+        }
     }
 
     /// Frees all resources.
@@ -860,15 +884,25 @@ pub const Document = struct {
         const output = stringify.stringify(self.allocator, &self.root, .{}) catch |err| return err;
         defer self.allocator.free(output);
 
-        var threaded: std.Io.Threaded = .init_single_threaded;
-        const io = threaded.io();
-        const cwd = std.Io.Dir.cwd();
+        if (comptime has_io) {
+            var threaded: std.Io.Threaded = .init_single_threaded;
+            const io = threaded.io();
+            const cwd = std.Io.Dir.cwd();
 
-        var file = try cwd.createFile(io, path, .{});
-        defer file.close(io);
+            var file = try cwd.createFile(io, path, .{});
+            defer file.close(io);
 
-        try file.writeStreamingAll(io, output);
-        try file.writeStreamingAll(io, "\n");
+            try file.writeStreamingAll(io, output);
+            try file.writeStreamingAll(io, "\n");
+        } else {
+            const cwd = std.fs.cwd();
+
+            var file = try cwd.createFile(path, .{});
+            defer file.close();
+
+            try file.writeAll(output);
+            try file.writeAll("\n");
+        }
     }
 
     /// Atomically write the document to `path` by writing to a temporary file, then renaming.
@@ -879,31 +913,56 @@ pub const Document = struct {
         const tmp_path = std.fmt.allocPrint(self.allocator, "{s}.tmp", .{path}) catch |err| return err;
         defer self.allocator.free(tmp_path);
 
-        var threaded: std.Io.Threaded = .init_single_threaded;
-        const io = threaded.io();
-        const cwd = std.Io.Dir.cwd();
+        if (comptime has_io) {
+            var threaded: std.Io.Threaded = .init_single_threaded;
+            const io = threaded.io();
+            const cwd = std.Io.Dir.cwd();
 
-        var tmp_file = try cwd.createFile(io, tmp_path, .{});
-        defer tmp_file.close(io);
+            var tmp_file = try cwd.createFile(io, tmp_path, .{});
+            defer tmp_file.close(io);
 
-        try tmp_file.writeStreamingAll(io, output);
-        try tmp_file.writeStreamingAll(io, "\n");
+            try tmp_file.writeStreamingAll(io, output);
+            try tmp_file.writeStreamingAll(io, "\n");
 
-        try cwd.rename(tmp_path, cwd, path, io);
+            try cwd.rename(tmp_path, cwd, path, io);
 
-        // Update mtime if this document is associated with this path
-        if (self.file_path) |fp| {
-            if (std.mem.eql(u8, fp, path)) {
-                // Best effort update mtime
-                if (cwd.openFile(io, path, .{})) |mut_f| {
-                    var f = mut_f;
-                    defer f.close(io);
-                    if (f.stat(io)) |stat| {
-                        // Cast away const to update mtime (mutable operation on logically const object if saving)
-                        const self_mut = @constCast(self);
-                        self_mut.last_mtime = stat.mtime;
+            // Update mtime if this document is associated with this path
+            if (self.file_path) |fp| {
+                if (std.mem.eql(u8, fp, path)) {
+                    // Best effort update mtime
+                    if (cwd.openFile(io, path, .{})) |mut_f| {
+                        var f = mut_f;
+                        defer f.close(io);
+                        if (f.stat(io)) |stat| {
+                            const self_mut = @constCast(self);
+                            self_mut.last_mtime = stat.mtime;
+                        } else |_| {}
                     } else |_| {}
-                } else |_| {}
+                }
+            }
+        } else {
+            const cwd = std.fs.cwd();
+
+            var tmp_file = try cwd.createFile(tmp_path, .{});
+            defer tmp_file.close();
+
+            try tmp_file.writeAll(output);
+            try tmp_file.writeAll("\n");
+
+            try cwd.rename(tmp_path, path);
+
+            // Update mtime if this document is associated with this path
+            if (self.file_path) |fp| {
+                if (std.mem.eql(u8, fp, path)) {
+                    if (cwd.openFile(path, .{})) |mut_f| {
+                        var f = mut_f;
+                        defer f.close();
+                        if (f.stat()) |stat| {
+                            const self_mut = @constCast(self);
+                            self_mut.last_mtime = stat.mtime;
+                        } else |_| {}
+                    } else |_| {}
+                }
             }
         }
     }
@@ -913,18 +972,32 @@ pub const Document = struct {
     pub fn saveWithBackup(self: *const Document, backup_ext: []const u8) !void {
         const path = self.file_path orelse return error.NoFilePath;
 
-        var threaded: std.Io.Threaded = .init_single_threaded;
-        const io = threaded.io();
-        const cwd = std.Io.Dir.cwd();
+        if (comptime has_io) {
+            var threaded: std.Io.Threaded = .init_single_threaded;
+            const io = threaded.io();
+            const cwd = std.Io.Dir.cwd();
 
-        const file_opt = cwd.openFile(io, path, .{}) catch null;
-        if (file_opt) |mut_f| {
-            var file = mut_f;
-            defer file.close(io);
+            const file_opt = cwd.openFile(io, path, .{}) catch null;
+            if (file_opt) |mut_f| {
+                var file = mut_f;
+                defer file.close(io);
 
-            const backup = std.fmt.allocPrint(self.allocator, "{s}{s}", .{ path, backup_ext }) catch |err| return err;
-            defer self.allocator.free(backup);
-            cwd.rename(path, cwd, backup, io) catch |err| return err;
+                const backup = std.fmt.allocPrint(self.allocator, "{s}{s}", .{ path, backup_ext }) catch |err| return err;
+                defer self.allocator.free(backup);
+                cwd.rename(path, cwd, backup, io) catch |err| return err;
+            }
+        } else {
+            const cwd = std.fs.cwd();
+
+            const file_opt = cwd.openFile(path, .{}) catch null;
+            if (file_opt) |mut_f| {
+                var file = mut_f;
+                defer file.close();
+
+                const backup = std.fmt.allocPrint(self.allocator, "{s}{s}", .{ path, backup_ext }) catch |err| return err;
+                defer self.allocator.free(backup);
+                cwd.rename(path, backup) catch |err| return err;
+            }
         }
 
         self.saveAs(path) catch |err| return err;
@@ -937,38 +1010,67 @@ pub const Document = struct {
         const new_output = stringify.stringify(self.allocator, &self.root, .{}) catch |err| return err;
         defer self.allocator.free(new_output);
 
-        var threaded: std.Io.Threaded = .init_single_threaded;
-        const io = threaded.io();
-        const cwd = std.Io.Dir.cwd();
+        if (comptime has_io) {
+            var threaded: std.Io.Threaded = .init_single_threaded;
+            const io = threaded.io();
+            const cwd = std.Io.Dir.cwd();
 
-        const file_opt = cwd.openFile(io, path, .{}) catch null;
-        if (file_opt == null) {
-            self.saveAs(path) catch |err| return err;
+            const file_opt = cwd.openFile(io, path, .{}) catch null;
+            if (file_opt == null) {
+                self.saveAs(path) catch |err| return err;
+                return true;
+            }
+            var file = file_opt.?;
+            defer file.close(io);
+
+            const existing = cwd.readFileAlloc(io, path, self.allocator, std.Io.Limit.limited(1024 * 1024 * 16)) catch |err| return err;
+            defer self.allocator.free(existing);
+
+            // Normalize trailing newline when comparing (we write a trailing newline on save)
+            const existing_trim = if (existing.len > 0 and existing[existing.len - 1] == '\n') existing[0 .. existing.len - 1] else existing;
+            if (existing_trim.len == new_output.len and std.mem.eql(u8, existing_trim, new_output)) {
+                return false;
+            }
+
+            self.saveAsAtomic(path) catch |err| return err;
+            return true;
+        } else {
+            const cwd = std.fs.cwd();
+
+            const file_opt = cwd.openFile(path, .{}) catch null;
+            if (file_opt == null) {
+                self.saveAs(path) catch |err| return err;
+                return true;
+            }
+            var file = file_opt.?;
+            defer file.close();
+
+            const existing = cwd.readFileAlloc(self.allocator, path, 1024 * 1024 * 16) catch |err| return err;
+            defer self.allocator.free(existing);
+
+            // Normalize trailing newline when comparing (we write a trailing newline on save)
+            const existing_trim = if (existing.len > 0 and existing[existing.len - 1] == '\n') existing[0 .. existing.len - 1] else existing;
+            if (existing_trim.len == new_output.len and std.mem.eql(u8, existing_trim, new_output)) {
+                return false;
+            }
+
+            self.saveAsAtomic(path) catch |err| return err;
             return true;
         }
-        var file = file_opt.?;
-        defer file.close(io);
-
-        const existing = cwd.readFileAlloc(io, path, self.allocator, std.Io.Limit.limited(1024 * 1024 * 16)) catch |err| return err;
-        defer self.allocator.free(existing);
-
-        // Normalize trailing newline when comparing (we write a trailing newline on save)
-        const existing_trim = if (existing.len > 0 and existing[existing.len - 1] == '\n') existing[0 .. existing.len - 1] else existing;
-        if (existing_trim.len == new_output.len and std.mem.eql(u8, existing_trim, new_output)) {
-            return false;
-        }
-
-        self.saveAsAtomic(path) catch |err| return err;
-        return true;
     }
 
     /// Deletes the backing file from disk.
     pub fn deleteFileOnDisk(self: *Document) !void {
         const path = self.file_path orelse return error.NoFilePath;
-        var threaded: std.Io.Threaded = .init_single_threaded;
-        const io = threaded.io();
-        const cwd = std.Io.Dir.cwd();
-        cwd.deleteFile(io, path) catch |err| return err;
+        if (comptime has_io) {
+            var threaded: std.Io.Threaded = .init_single_threaded;
+            const io = threaded.io();
+            const cwd = std.Io.Dir.cwd();
+            cwd.deleteFile(io, path) catch |err| return err;
+        } else {
+            const cwd = std.fs.cwd();
+            cwd.deleteFile(path) catch |err| return err;
+        }
         // We don't clear file_path, as the document might be saved again effectively "restoring" it or creating new.
         // But maybe we should? Generally if I delete the file, the doc is now "unsaved" / "new".
         // Let's keep file_path so save() re-creates it.
@@ -977,10 +1079,15 @@ pub const Document = struct {
     /// Renames the backing file on disk and updates file_path.
     pub fn renameFileOnDisk(self: *Document, new_path: []const u8) !void {
         const old_path = self.file_path orelse return error.NoFilePath;
-        var threaded: std.Io.Threaded = .init_single_threaded;
-        const io = threaded.io();
-        const cwd = std.Io.Dir.cwd();
-        cwd.rename(old_path, cwd, new_path, io) catch |err| return err;
+        if (comptime has_io) {
+            var threaded: std.Io.Threaded = .init_single_threaded;
+            const io = threaded.io();
+            const cwd = std.Io.Dir.cwd();
+            cwd.rename(old_path, cwd, new_path, io) catch |err| return err;
+        } else {
+            const cwd = std.fs.cwd();
+            cwd.rename(old_path, new_path) catch |err| return err;
+        }
 
         self.allocator.free(old_path);
         self.file_path = utils.dupeString(self.allocator, new_path) catch |err| return err;
@@ -990,39 +1097,69 @@ pub const Document = struct {
     pub fn reload(self: *Document) !void {
         const path = self.file_path orelse return error.NoFilePath;
 
-        var threaded: std.Io.Threaded = .init_single_threaded;
-        const io = threaded.io();
-        const cwd = std.Io.Dir.cwd();
+        if (comptime has_io) {
+            var threaded: std.Io.Threaded = .init_single_threaded;
+            const io = threaded.io();
+            const cwd = std.Io.Dir.cwd();
 
-        var file = try cwd.openFile(io, path, .{});
-        defer file.close(io);
+            var file = try cwd.openFile(io, path, .{});
+            defer file.close(io);
 
-        const stat = file.stat(io) catch |err| return err;
-        self.last_mtime = stat.mtime;
+            const stat = file.stat(io) catch |err| return err;
+            self.last_mtime = stat.mtime;
 
-        const source = cwd.readFileAlloc(io, path, self.allocator, std.Io.Limit.limited(1024 * 1024 * 16)) catch |err| return err;
-        defer self.allocator.free(source);
+            const source = cwd.readFileAlloc(io, path, self.allocator, std.Io.Limit.limited(1024 * 1024 * 16)) catch |err| return err;
+            defer self.allocator.free(source);
 
-        // Parse new root
-        const new_root = parser.parse(self.allocator, source) catch |err| return err;
+            // Parse new root
+            const new_root = parser.parse(self.allocator, source) catch |err| return err;
 
-        // Replace old root
-        self.root.deinit(self.allocator);
-        self.root = new_root;
+            // Replace old root
+            self.root.deinit(self.allocator);
+            self.root = new_root;
+        } else {
+            const cwd = std.fs.cwd();
+
+            var file = try cwd.openFile(path, .{});
+            defer file.close();
+
+            const stat = file.stat() catch |err| return err;
+            self.last_mtime = stat.mtime;
+
+            const source = cwd.readFileAlloc(self.allocator, path, 1024 * 1024 * 16) catch |err| return err;
+            defer self.allocator.free(source);
+
+            // Parse new root
+            const new_root = parser.parse(self.allocator, source) catch |err| return err;
+
+            // Replace old root
+            self.root.deinit(self.allocator);
+            self.root = new_root;
+        }
     }
 
     /// Checks if the file on disk has changed since load/save.
     pub fn hasChangedOnDisk(self: *const Document) bool {
         const path = self.file_path orelse return false;
-        var threaded: std.Io.Threaded = .init_single_threaded;
-        const io = threaded.io();
-        const cwd = std.Io.Dir.cwd();
+        if (comptime has_io) {
+            var threaded: std.Io.Threaded = .init_single_threaded;
+            const io = threaded.io();
+            const cwd = std.Io.Dir.cwd();
 
-        var file = cwd.openFile(io, path, .{}) catch return false;
-        defer file.close(io);
+            var file = cwd.openFile(io, path, .{}) catch return false;
+            defer file.close(io);
 
-        const stat = file.stat(io) catch return false;
-        return stat.mtime.nanoseconds > self.last_mtime.nanoseconds;
+            const stat = file.stat(io) catch return false;
+            return stat.mtime.nanoseconds > self.last_mtime.nanoseconds;
+        } else {
+            const cwd = std.fs.cwd();
+
+            var file = cwd.openFile(path, .{}) catch return false;
+            defer file.close();
+
+            const stat = file.stat() catch return false;
+            return stat.mtime > self.last_mtime;
+        }
     }
 
     /// Returns the ZON string with default formatting.

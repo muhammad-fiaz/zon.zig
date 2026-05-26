@@ -2,6 +2,7 @@
 
 const std = @import("std");
 const version = @import("version.zig");
+const has_http_io = @hasField(std.http.Client, "io");
 
 pub const VersionRelation = enum {
     local_newer,
@@ -68,12 +69,23 @@ pub fn checkForUpdates(allocator: std.mem.Allocator) !UpdateInfo {
         };
     }
 
-    var threaded: std.Io.Threaded = .init_single_threaded;
-    const io = threaded.io();
+    if (comptime has_http_io) {
+        var threaded: std.Io.Threaded = .init_single_threaded;
+        const io = threaded.io();
 
-    var http_client = std.http.Client{ .allocator = allocator, .io = io };
-    defer http_client.deinit();
+        var http_client = std.http.Client{ .allocator = allocator, .io = io };
+        defer http_client.deinit();
 
+        return try checkWithClient(&http_client, allocator);
+    } else {
+        var http_client = std.http.Client{ .allocator = allocator };
+        defer http_client.deinit();
+
+        return try checkWithClient(&http_client, allocator);
+    }
+}
+
+fn checkWithClient(http_client: *std.http.Client, allocator: std.mem.Allocator) !UpdateInfo {
     const uri = std.Uri.parse(config.releases_endpoint) catch {
         return UpdateInfo{
             .available = false,

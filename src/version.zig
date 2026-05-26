@@ -7,30 +7,26 @@ const std = @import("std");
 
 /// Current library version.
 pub const version = "0.0.5";
-pub const major: u32 = 0;
-pub const minor: u32 = 0;
-pub const patch: u32 = 5;
 
-/// Pre-release identifier (empty for stable releases).
-pub const pre_release: []const u8 = "";
+const version_semver = parsedVersion();
 
-/// Build metadata (empty if not applicable).
-pub const build_metadata: []const u8 = "";
+/// Semantic version components derived from `version`.
+pub const major: u32 = @intCast(version_semver.major);
+pub const minor: u32 = @intCast(version_semver.minor);
+pub const patch: u32 = @intCast(version_semver.patch);
+
+fn parsedVersion() std.SemanticVersion {
+    return std.SemanticVersion.parse(version) catch unreachable;
+}
 
 /// Get the semantic version struct.
 pub fn semanticVersion() std.SemanticVersion {
-    return .{
-        .major = major,
-        .minor = minor,
-        .patch = patch,
-        .pre = if (pre_release.len > 0) pre_release else null,
-        .build = if (build_metadata.len > 0) build_metadata else null,
-    };
+    return version_semver;
 }
 
 /// Get the full version string.
 pub fn fullVersion() []const u8 {
-    return version;
+    return getVersion();
 }
 
 /// Get the version string (alias).
@@ -64,7 +60,7 @@ pub fn compareVersions(a: []const u8, b: []const u8) i8 {
 /// Uses semver compatibility rules (0.x.x is breaking at any change).
 pub fn isCompatible(required: []const u8) bool {
     const req = std.SemanticVersion.parse(required) catch return false;
-    const current = semanticVersion();
+    const current = version_semver;
 
     if (current.major == 0) {
         return current.major == req.major and current.minor == req.minor and current.patch >= req.patch;
@@ -73,10 +69,10 @@ pub fn isCompatible(required: []const u8) bool {
 }
 
 test "version constants" {
+    try std.testing.expect(std.mem.eql(u8, version, "0.0.5"));
     try std.testing.expect(major == 0);
     try std.testing.expect(minor == 0);
     try std.testing.expect(patch == 5);
-    try std.testing.expect(std.mem.eql(u8, version, "0.0.5"));
 }
 
 test "semantic version" {
