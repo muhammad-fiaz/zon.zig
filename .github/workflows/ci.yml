@@ -23,7 +23,7 @@ jobs:
       - name: Setup Zig
         uses: mlugg/setup-zig@v2
         with:
-          version: 0.15.0
+          version: 0.16.0
 
       - name: Run Zig tests
         run: zig build test --summary all
@@ -56,7 +56,7 @@ jobs:
       - name: Setup Zig
         uses: mlugg/setup-zig@v2
         with:
-          version: 0.15.0
+          version: 0.16.0
 
       - name: Run Tests
         run: zig build test --summary all
@@ -97,7 +97,7 @@ jobs:
       - name: Setup Zig
         uses: mlugg/setup-zig@v2
         with:
-          version: 0.15.0
+          version: 0.16.0
 
       - name: Build for ${{ matrix.target }}
         run: zig build -Dtarget=${{ matrix.target }} -Doptimize=ReleaseSafe
@@ -114,7 +114,7 @@ jobs:
       - name: Setup Zig
         uses: mlugg/setup-zig@v2
         with:
-          version: 0.15.0
+          version: 0.16.0
 
       - name: Check formatting
         run: zig fmt --check src/ examples/
