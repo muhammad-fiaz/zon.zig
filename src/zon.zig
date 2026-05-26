@@ -960,8 +960,12 @@ test "document file management" {
     // Verify no external changes detected initially.
     try std.testing.expect(!doc.hasChangedOnDisk());
 
-    // Simulate external modification.
-    try writeFileAtomic(allocator, path, ".{ .status = \"changed\" }");
+    // Simulate external modification — write directly (not atomic) to ensure new mtime.
+    {
+        const f = try utils.fs.createFile(path, .{});
+        defer utils.fs.closeFile(f);
+        try utils.fs.writeFile(f, ".{ .status = \"changed\" }\n");
+    }
     try std.testing.expect(doc.hasChangedOnDisk());
 
     // Verify reload invalidates current state and reads from disk.
@@ -1001,6 +1005,84 @@ test "advanced: file path utilities" {
     defer doc2.deinit();
     try std.testing.expectEqual(@as(i64, 123), doc2.getInt("new").?);
     try std.testing.expectEqual(@as(i64, 123), doc2.getInt("dupe").?);
+}
+
+test "comprehensive: identifiers, types, and zon file round-trip" {
+    const allocator = std.testing.allocator;
+    const source =
+        \\.{
+        \\    .dependencies = .{
+        \\        .http = .{
+        \\            .path = "../http",
+        \\            .version = "0.1.0",
+        \\        },
+        \\        .json = .{
+        \\            .path = "../json",
+        \\        },
+        \\    },
+        \\    .name = "myapp",
+        \\    .port = 8080,
+        \\    .timeout = 30.5,
+        \\    .version = "2.0.0",
+        \\}
+    ;
+
+    var doc = try Document.initFromSource(allocator, source);
+    defer doc.deinit();
+
+    try std.testing.expect(doc.exists("dependencies"));
+    try std.testing.expect(doc.isObject("dependencies"));
+    try std.testing.expect(doc.exists("name"));
+    try std.testing.expect(doc.exists("port"));
+    try std.testing.expect(doc.exists("timeout"));
+    try std.testing.expect(doc.exists("version"));
+
+    try std.testing.expect(doc.isString("name"));
+    try std.testing.expectEqualStrings("myapp", doc.getString("name").?);
+
+    try std.testing.expect(doc.isInt("port"));
+    try std.testing.expectEqual(@as(i64, 8080), doc.getInt("port").?);
+
+    try std.testing.expect(doc.isFloat("timeout"));
+    try std.testing.expectEqual(@as(f64, 30.5), doc.getFloat("timeout").?);
+
+    try std.testing.expect(doc.isString("version"));
+    try std.testing.expectEqualStrings("2.0.0", doc.getString("version").?);
+
+    try std.testing.expect(doc.isString("dependencies.http.path"));
+    try std.testing.expectEqualStrings("../http", doc.getString("dependencies.http.path").?);
+
+    try std.testing.expect(doc.isString("dependencies.http.version"));
+    try std.testing.expectEqualStrings("0.1.0", doc.getString("dependencies.http.version").?);
+
+    try std.testing.expect(doc.isString("dependencies.json.path"));
+    try std.testing.expectEqualStrings("../json", doc.getString("dependencies.json.path").?);
+
+    const path = "test_identifiers_roundtrip.zon";
+    _ = utils.fs.deleteFile(path) catch {};
+    defer _ = utils.fs.deleteFile(path) catch {};
+
+    doc.file_path = try allocator.dupe(u8, path);
+    try doc.save();
+
+    var doc2 = try load(allocator, path);
+    defer doc2.deinit();
+
+    try std.testing.expect(doc2.isString("name"));
+    try std.testing.expectEqualStrings("myapp", doc2.getString("name").?);
+
+    try std.testing.expect(doc2.isInt("port"));
+    try std.testing.expectEqual(@as(i64, 8080), doc2.getInt("port").?);
+
+    try std.testing.expect(doc2.isFloat("timeout"));
+    try std.testing.expectEqual(@as(f64, 30.5), doc2.getFloat("timeout").?);
+
+    try std.testing.expect(doc2.isString("version"));
+    try std.testing.expectEqualStrings("2.0.0", doc2.getString("version").?);
+
+    try std.testing.expectEqualStrings("../http", doc2.getString("dependencies.http.path").?);
+    try std.testing.expectEqualStrings("0.1.0", doc2.getString("dependencies.http.version").?);
+    try std.testing.expectEqualStrings("../json", doc2.getString("dependencies.json.path").?);
 }
 
 test "struct conversion from top-level" {
