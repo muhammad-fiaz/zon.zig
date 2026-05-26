@@ -105,7 +105,13 @@ pub fn main() !void {
 
 ### Release Installation (Recommended)
 
-Install the latest stable release (v0.0.4):
+Install the latest stable release (v0.0.5):
+
+```bash
+zig fetch --save https://github.com/muhammad-fiaz/zon.zig/archive/refs/tags/v0.0.5.tar.gz
+```
+
+For **Zig 0.15.0**, use `v0.0.4`:
 
 ```bash
 zig fetch --save https://github.com/muhammad-fiaz/zon.zig/archive/refs/tags/0.0.4.tar.gz

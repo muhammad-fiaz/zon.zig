@@ -3,7 +3,7 @@ const zon = @import("zon");
 
 /// Example: Parsing and modifying a build.zig.zon file
 pub fn main() !void {
-    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    var gpa = std.heap.DebugAllocator(.{}){};
     defer _ = gpa.deinit();
     const allocator = gpa.allocator();
 
@@ -16,7 +16,7 @@ pub fn main() !void {
         \\    .name = .my_package,
         \\    .version = "0.1.0",
         \\    .fingerprint = 0xee480fa30d50cbf6,
-        \\    .minimum_zig_version = "0.15.0",
+        \\    .minimum_zig_version = "0.16.0",
         \\    .paths = .{
         \\        "build.zig",
         \\        "build.zig.zon",

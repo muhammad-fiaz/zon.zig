@@ -5,7 +5,7 @@
 # zon.zig
 
 <a href="https://muhammad-fiaz.github.io/zon.zig/"><img src="https://img.shields.io/badge/docs-muhammad--fiaz.github.io-blue" alt="Documentation"></a>
-<a href="https://ziglang.org/"><img src="https://img.shields.io/badge/Zig-0.15.0+-orange.svg?logo=zig" alt="Zig Version"></a>
+<a href="https://ziglang.org/"><img src="https://img.shields.io/badge/Zig-0.16.0+-orange.svg?logo=zig" alt="Zig Version"></a>
 <a href="https://github.com/muhammad-fiaz/zon.zig"><img src="https://img.shields.io/github/stars/muhammad-fiaz/zon.zig" alt="GitHub stars"></a>
 <a href="https://github.com/muhammad-fiaz/zon.zig/issues"><img src="https://img.shields.io/github/issues/muhammad-fiaz/zon.zig" alt="GitHub issues"></a>
 <a href="https://github.com/muhammad-fiaz/zon.zig/pulls"><img src="https://img.shields.io/github/issues-pr/muhammad-fiaz/zon.zig" alt="GitHub pull requests"></a>
@@ -115,7 +115,7 @@ A **document-based** ZON (Zig Object Notation) library for Zig, designed for con
 
 | Requirement          | Version                   | Notes                                                      |
 | -------------------- | ------------------------- | ---------------------------------------------------------- |
-| **Zig**              | 0.15.0+                   | Download from [ziglang.org](https://ziglang.org/download/) |
+| **Zig**              | 0.16.0+                   | Download from [ziglang.org](https://ziglang.org/download/) |
 | **Operating System** | Windows 10+, Linux, macOS | Cross-platform support                                     |
 
 ---
@@ -134,6 +134,14 @@ A **document-based** ZON (Zig Object Notation) library for Zig, designed for con
 ---
 
 ## Installation
+
+For **Zig 0.16.0** support (recommended), use `v0.0.5`:
+
+```bash
+zig fetch --save https://github.com/muhammad-fiaz/zon.zig/archive/refs/tags/v0.0.5.tar.gz
+```
+
+For **Zig 0.15.0**, use `v0.0.4`:
 
 ```bash
 zig fetch --save https://github.com/muhammad-fiaz/zon.zig/archive/refs/tags/0.0.4.tar.gz
@@ -202,9 +210,9 @@ zon.zig fully supports the `build.zig.zon` format:
 ```zig
 .{
     .name = .zon,                        // Identifier as value
-    .version = "0.0.4",                  // String
+    .version = "0.0.5",                  // String
     .fingerprint = 0xee480fa30d50cbf6,   // Multi-bit hex handled as i128
-    .minimum_zig_version = "0.15.0",
+    .minimum_zig_version = "0.16.0",
     .paths = .{                          // Array of strings
         "build.zig",
         "build.zig.zon",

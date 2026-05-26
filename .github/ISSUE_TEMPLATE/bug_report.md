@@ -27,8 +27,8 @@ What actually happened.
 ## Environment
 
 - **OS**: [e.g., Windows 11, Ubuntu 22.04, macOS 14]
-- **Zig Version**: [e.g., 0.15.0]
-- **zon.zig Version**: [e.g., 0.0.2]
+- **Zig Version**: [e.g., 0.16.0]
+- **zon.zig Version**: [e.g., 0.0.5]
 
 ## Minimal Reproduction
 

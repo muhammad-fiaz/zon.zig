@@ -78,11 +78,13 @@ fn runBenchmark(
     }
 
     // Benchmark
-    var timer = try std.time.Timer.start();
+    var threaded: std.Io.Threaded = .init_single_threaded;
+    const io = threaded.io();
+    const start_time = std.Io.Clock.awake.now(io);
     for (0..ITERATIONS) |_| {
         try benchFn(allocator);
     }
-    const total_time_ns = timer.read();
+    const total_time_ns = @as(u64, @intCast(start_time.untilNow(io, .awake).toNanoseconds()));
 
     const ops_per_sec = @as(f64, @floatFromInt(ITERATIONS)) / (@as(f64, @floatFromInt(total_time_ns)) / 1_000_000_000.0);
     const avg_latency_ns = @as(f64, @floatFromInt(total_time_ns)) / @as(f64, @floatFromInt(ITERATIONS));
@@ -208,7 +210,7 @@ fn benchFromStruct(allocator: std.mem.Allocator) !void {
 }
 
 pub fn main() !void {
-    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    var gpa = std.heap.DebugAllocator(.{}){};
     defer _ = gpa.deinit();
     const allocator = gpa.allocator();
 
@@ -259,11 +261,8 @@ pub fn main() !void {
     const avg_latency = if (avg_ops > 0) 1_000_000_000.0 / avg_ops else 0;
 
     // Write final Markdown report
-    const md_file = std.fs.cwd().createFile("benchmark-results.md", .{}) catch |err| {
-        std.debug.print("Warning: Could not create benchmark-results.md: {}\n", .{err});
-        return;
-    };
-    defer md_file.close();
+    var report: std.ArrayList(u8) = .empty;
+    defer report.deinit(allocator);
 
     const md_header =
         \\#### 📊 ZON.ZIG BENCHMARK RESULTS
@@ -284,7 +283,7 @@ pub fn main() !void {
         WARMUP,
         ITERATIONS,
     }) catch "";
-    try md_file.writeAll(header);
+    try report.appendSlice(allocator, header);
 
     // Write categorized tables
     for (BenchmarkResult.categories) |cat| {
@@ -307,7 +306,7 @@ pub fn main() !void {
             \\
         , .{cat}) catch continue;
         defer allocator.free(cat_md);
-        try md_file.writeAll(cat_md);
+        try report.appendSlice(allocator, cat_md);
 
         for (results.items) |r| {
             if (std.mem.eql(u8, r.category, cat)) {
@@ -317,14 +316,14 @@ pub fn main() !void {
                     r.ops_per_sec,
                     r.avg_latency_ns,
                 }) catch continue;
-                try md_file.writeAll(line);
+                try report.appendSlice(allocator, line);
             }
         }
-        try md_file.writeAll("</details>\n");
+        try report.appendSlice(allocator, "</details>\n");
     }
 
     if (count > 0) {
-        try md_file.writeAll("\n### 📈 Benchmark Summary\n\n");
+        try report.appendSlice(allocator, "\n### 📈 Benchmark Summary\n\n");
         var summary_buf: [1024]u8 = undefined;
         const summary = std.fmt.bufPrint(&summary_buf,
             \\- **Total benchmarks run:** {d}
@@ -334,8 +333,12 @@ pub fn main() !void {
             \\- **Average latency:** {d:.0} ns
             \\
         , .{ count, avg_ops, max_ops, max_name, min_ops, min_name, avg_latency }) catch "";
-        try md_file.writeAll(summary);
+        try report.appendSlice(allocator, summary);
     }
+
+    zon.writeFileAtomic(allocator, "benchmark-results.md", report.items) catch |err| {
+        std.debug.print("Warning: Could not create benchmark-results.md: {}\n", .{err});
+    };
 
     std.debug.print("[OK] Benchmarks completed successfully!\n", .{});
 }

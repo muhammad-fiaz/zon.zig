@@ -325,7 +325,7 @@ zon.checkForUpdates(allocator);
 Library version string.
 
 ```zig
-pub const version: []const u8 = "0.0.4";
+pub const version: []const u8 = "0.0.5";
 ```
 
 **Example:**
@@ -337,7 +337,7 @@ std.debug.print("zon.zig {s}\n", .{zon.version});
 **Output:**
 
 ```
-zon.zig 0.0.4
+zon.zig 0.0.5
 ```
 
 ## Complete Example
@@ -347,7 +347,7 @@ const std = @import("std");
 const zon = @import("zon");
 
 pub fn main() !void {
-    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    var gpa = std.heap.DebugAllocator(.{}){};
     defer _ = gpa.deinit();
     const allocator = gpa.allocator();
 
@@ -394,7 +394,7 @@ pub fn main() !void {
 **Output (first run):**
 
 ```
-zon.zig 0.0.4
+zon.zig 0.0.5
 Creating new config
 Parsed: true
 ```
@@ -402,7 +402,7 @@ Parsed: true
 **Output (second run):**
 
 ```
-zon.zig 0.0.4
+zon.zig 0.0.5
 Found existing config
 Parsed: true
 ```

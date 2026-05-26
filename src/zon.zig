@@ -141,48 +141,58 @@ pub fn parseFile(allocator: Allocator, path: []const u8) !Document {
 
 /// Deletes a file.
 pub fn deleteFile(file_path: []const u8) !void {
-    try std.fs.cwd().deleteFile(file_path);
+    var threaded: std.Io.Threaded = .init_single_threaded;
+    const io = threaded.io();
+    try std.Io.Dir.cwd().deleteFile(io, file_path);
 }
 
 /// Returns true if the file exists.
 pub fn fileExists(file_path: []const u8) bool {
-    std.fs.cwd().access(file_path, .{}) catch return false;
+    var threaded: std.Io.Threaded = .init_single_threaded;
+    const io = threaded.io();
+    std.Io.Dir.cwd().access(io, file_path, .{}) catch return false;
     return true;
 }
 
 /// Copy a file, with optional overwrite behaviour.
 pub fn copyFile(source_path: []const u8, dest_path: []const u8, overwrite: bool) !void {
+    var threaded: std.Io.Threaded = .init_single_threaded;
+    const io = threaded.io();
+    const cwd = std.Io.Dir.cwd();
     if (!overwrite) {
-        const dest_file_opt = std.fs.cwd().openFile(dest_path, .{}) catch null;
-        if (dest_file_opt != null) {
-            var dest_file = dest_file_opt.?;
-            defer dest_file.close();
+        const dest_file_opt = cwd.openFile(io, dest_path, .{}) catch null;
+        if (dest_file_opt) |mut_f| {
+            var dest_file = mut_f;
+            dest_file.close(io);
             return FileError.FileAlreadyExists;
         }
     }
-    try std.fs.cwd().copyFile(source_path, std.fs.cwd(), dest_path, .{});
+    try cwd.copyFile(source_path, cwd, dest_path, io, .{});
 }
 
 /// Move (rename) a file, with optional overwrite.
 pub fn moveFile(old_path: []const u8, new_path: []const u8, overwrite: bool) !void {
+    var threaded: std.Io.Threaded = .init_single_threaded;
+    const io = threaded.io();
+    const cwd = std.Io.Dir.cwd();
     if (overwrite) {
-        _ = std.fs.cwd().deleteFile(new_path) catch null;
+        _ = cwd.deleteFile(io, new_path) catch null;
     } else {
-        const existing_file_opt = std.fs.cwd().openFile(new_path, .{}) catch null;
-        if (existing_file_opt != null) {
-            var existing_file = existing_file_opt.?;
-            defer existing_file.close();
+        const existing_file_opt = cwd.openFile(io, new_path, .{}) catch null;
+        if (existing_file_opt) |mut_f| {
+            var existing_file = mut_f;
+            existing_file.close(io);
             return FileError.FileAlreadyExists;
         }
     }
-    try std.fs.cwd().rename(old_path, new_path);
+    try cwd.rename(old_path, cwd, new_path, io);
 }
 
 /// Read a file into an allocator-owned buffer (caller must free).
 pub fn readFile(allocator: Allocator, path: []const u8) ![]u8 {
-    const f = try std.fs.cwd().openFile(path, .{});
-    defer f.close();
-    return try f.readToEndAlloc(allocator, 1024 * 1024 * 64);
+    var threaded: std.Io.Threaded = .init_single_threaded;
+    const io = threaded.io();
+    return try std.Io.Dir.cwd().readFileAlloc(io, path, allocator, std.Io.Limit.limited(1024 * 1024 * 64));
 }
 
 /// Alias for readFile().
@@ -195,13 +205,17 @@ pub fn writeFileAtomic(allocator: Allocator, path: []const u8, data: []const u8)
     const tmp = try std.fmt.allocPrint(allocator, "{s}.tmp", .{path});
     defer allocator.free(tmp);
 
-    const f = try std.fs.cwd().createFile(tmp, .{});
-    defer f.close();
+    var threaded: std.Io.Threaded = .init_single_threaded;
+    const io = threaded.io();
+    const cwd = std.Io.Dir.cwd();
 
-    try f.writeAll(data);
-    try f.writeAll("\n");
+    var f = try cwd.createFile(io, tmp, .{});
+    defer f.close(io);
 
-    try std.fs.cwd().rename(tmp, path);
+    try f.writeStreamingAll(io, data);
+    try f.writeStreamingAll(io, "\n");
+
+    try cwd.rename(tmp, cwd, path, io);
 }
 
 /// Alias for writeFileAtomic().
@@ -388,7 +402,7 @@ test "parse build.zig.zon format" {
         \\    .name = .zon,
         \\    .version = "0.0.3",
         \\    .fingerprint = 0xee480fa30d50cbf6,
-        \\    .minimum_zig_version = "0.15.0",
+        \\    .minimum_zig_version = "0.16.0",
         \\    .paths = .{
         \\        "build.zig",
         \\        "build.zig.zon",
@@ -450,7 +464,7 @@ test "stringify document" {
 }
 
 test "version info" {
-    try std.testing.expectEqualStrings("0.0.4", version);
+    try std.testing.expectEqualStrings("0.0.5", version);
 }
 
 test "find and replace" {
@@ -511,7 +525,7 @@ test "file utilities: write/read atomic" {
     const allocator = std.testing.allocator;
     const path = "test_write_atomic.zon";
 
-    _ = std.fs.cwd().deleteFile(path) catch null;
+    _ = std.Io.Dir.cwd().deleteFile(std.testing.io, path) catch null;
 
     const data = " .{ .name = \"atomic\" }\n";
     try writeFileAtomic(allocator, path, data);
@@ -522,13 +536,13 @@ test "file utilities: write/read atomic" {
     try std.testing.expect(std.mem.indexOf(u8, read_back, "atomic") != null);
 
     // cleanup
-    _ = std.fs.cwd().deleteFile(path) catch null;
+    _ = std.Io.Dir.cwd().deleteFile(std.testing.io, path) catch null;
 }
 
 test "file utilities: copy & move with overwrite" {
     const allocator = std.testing.allocator;
-    _ = std.fs.cwd().deleteFile("a.zon") catch null;
-    _ = std.fs.cwd().deleteFile("b.zon") catch null;
+    _ = std.Io.Dir.cwd().deleteFile(std.testing.io, "a.zon") catch null;
+    _ = std.Io.Dir.cwd().deleteFile(std.testing.io, "b.zon") catch null;
 
     try writeFileAtomic(allocator, "a.zon", ".{ .x = 1 }\n");
     try copyFile("a.zon", "b.zon", true);
@@ -542,8 +556,8 @@ test "file utilities: copy & move with overwrite" {
     try std.testing.expect(std.mem.indexOf(u8, c_buf, "x") != null);
 
     // cleanup
-    _ = std.fs.cwd().deleteFile("a.zon") catch null;
-    _ = std.fs.cwd().deleteFile("c.zon") catch null;
+    _ = std.Io.Dir.cwd().deleteFile(std.testing.io, "a.zon") catch null;
+    _ = std.Io.Dir.cwd().deleteFile(std.testing.io, "c.zon") catch null;
 }
 
 test "advanced: special floats" {
@@ -877,8 +891,8 @@ test "array extensions: pop, shift, unshift" {
 test "document file management" {
     const allocator = std.testing.allocator;
     const path = "test_doc_file.zon";
-    _ = std.fs.cwd().deleteFile(path) catch {};
-    defer _ = std.fs.cwd().deleteFile(path) catch {};
+    _ = std.Io.Dir.cwd().deleteFile(std.testing.io, path) catch {};
+    defer _ = std.Io.Dir.cwd().deleteFile(std.testing.io, path) catch {};
 
     var doc = create(allocator);
     // Verify modification time tracking and external change detection.
@@ -894,7 +908,7 @@ test "document file management" {
 
     // Simulate external modification.
     // Ensure sufficient delay for filesystem modification time resolution.
-    std.Thread.sleep(20 * std.time.ns_per_ms);
+    try std.Io.sleep(std.testing.io, std.Io.Duration.fromMilliseconds(20), .awake);
 
     try writeFileAtomic(allocator, path, ".{ .status = \"changed\" }");
     try std.testing.expect(doc.hasChangedOnDisk());
@@ -905,8 +919,8 @@ test "document file management" {
 
     // Verify renaming the backing file and updating internal path state.
     const new_path = "test_doc_renamed.zon";
-    _ = std.fs.cwd().deleteFile(new_path) catch {};
-    defer _ = std.fs.cwd().deleteFile(new_path) catch {};
+    _ = std.Io.Dir.cwd().deleteFile(std.testing.io, new_path) catch {};
+    defer _ = std.Io.Dir.cwd().deleteFile(std.testing.io, new_path) catch {};
 
     try doc.renameFileOnDisk(new_path);
     try std.testing.expectEqualStrings(new_path, doc.file_path.?);
@@ -921,7 +935,7 @@ test "document file management" {
 test "advanced: file path utilities" {
     const allocator = std.testing.allocator;
     const path = "test_path_utils.zon";
-    defer _ = std.fs.cwd().deleteFile(path) catch null;
+    defer _ = std.Io.Dir.cwd().deleteFile(std.testing.io, path) catch null;
 
     try writeFileAtomic(allocator, path, ".{ .old = 123 }");
 

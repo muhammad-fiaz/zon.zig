@@ -111,7 +111,7 @@ std.debug.print("Array has {d} items\n", .{count});
 
 ### Pop, Shift, Unshift
 
-New in v0.0.4, you can use stack/queue operations:
+New in v0.0.5, you can use stack/queue operations:
 
 ```zig
 // Remove last element
@@ -176,7 +176,7 @@ pub fn main() !void {
     // Create new array
     try doc.setArray("tags");
     try doc.appendToArray("tags", "stable");
-    try doc.appendToArray("tags", "0.0.3");
+    try doc.appendToArray("tags", "0.0.5");
 
     const output = try doc.toString();
     defer allocator.free(output);

@@ -5,7 +5,7 @@ description: "How to convert dynamic ZON documents into static Zig structs at ru
 
 # Runtime Struct Conversion
 
-While `zon.zig` is primarily a dynamic document-based library, version 0.0.4 introduces the ability to convert these dynamic documents (or parts of them) into static Zig structs at runtime.
+While `zon.zig` is primarily a dynamic document-based library, version 0.0.5 introduces the ability to convert these dynamic documents (or parts of them) into static Zig structs at runtime.
 
 This bridges the gap between dynamic editing and type-safe usage, allowing you to "unmarshal" ZON data after loading or modifying it.
 

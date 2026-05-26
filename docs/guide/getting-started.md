@@ -9,7 +9,7 @@ Learn how to install and use zon.zig in your Zig project.
 
 ## Requirements
 
-- **Zig 0.15.0** or later
+- **Zig 0.16.0** or later
 
 ## Installation
 
@@ -20,7 +20,7 @@ Add zon.zig as a dependency in your `build.zig.zon`:
 ```zig
 .dependencies = .{
     .zon = .{
-        .url = "https://github.com/muhammad-fiaz/zon.zig/archive/refs/tags/0.0.3.tar.gz",
+        .url = "https://github.com/muhammad-fiaz/zon.zig/archive/refs/tags/v0.0.5.tar.gz",
         .hash = "...", // Will be provided by `zig fetch`
     },
 },
@@ -29,7 +29,7 @@ Add zon.zig as a dependency in your `build.zig.zon`:
 Or use the `zig fetch` command:
 
 ```bash
-zig fetch --save https://github.com/muhammad-fiaz/zon.zig/archive/refs/tags/0.0.3.tar.gz
+zig fetch --save https://github.com/muhammad-fiaz/zon.zig/archive/refs/tags/v0.0.5.tar.gz
 ```
 
 Then update your `build.zig`:

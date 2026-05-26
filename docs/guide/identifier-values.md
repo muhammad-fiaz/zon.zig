@@ -93,7 +93,7 @@ const source =
     \\    .name = .downloader,
     \\    .version = "0.1.0",
     \\    .fingerprint = 0xee480fa30d50cbf6,
-    \\    .minimum_zig_version = "0.15.0",
+    \\    .minimum_zig_version = "0.16.0",
     \\    .paths = .{
     \\        "build.zig",
     \\        "build.zig.zon",
@@ -134,7 +134,7 @@ defer doc.deinit();
 // Package name as identifier
 try doc.setIdentifier("name", "my_lib");
 try doc.setString("version", "0.1.0");
-try doc.setString("minimum_zig_version", "0.15.0");
+try doc.setString("minimum_zig_version", "0.16.0");
 
 // Fingerprint (handled transitionally as i128 to capture full 64-bit hex)
 const fp: u64 = 0xee480fa30d50cbf6;
@@ -164,7 +164,7 @@ Output:
         },
     },
     .fingerprint = 0xee480fa30d50cbf6,
-    .minimum_zig_version = "0.15.0",
+    .minimum_zig_version = "0.16.0",
     .name = .my_lib,
     .paths = .{
         "build.zig",

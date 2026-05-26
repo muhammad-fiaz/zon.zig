@@ -2,7 +2,7 @@ const std = @import("std");
 const zon = @import("zon");
 
 pub fn main() !void {
-    // Demo 1: Using GeneralPurposeAllocator (GPA)
+    // Demo 1: Using DebugAllocator (GPA)
     // Best for: Long-running applications where you modify documents over time
     // and want to detect memory leaks.
     try demoGPA();
@@ -14,9 +14,9 @@ pub fn main() !void {
 }
 
 fn demoGPA() !void {
-    std.debug.print("--- Demo: GeneralPurposeAllocator (GPA) ---\n", .{});
+    std.debug.print("--- Demo: DebugAllocator (GPA) ---\n", .{});
 
-    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    var gpa = std.heap.DebugAllocator(.{}){};
     defer _ = gpa.deinit();
     const allocator = gpa.allocator();
 
@@ -26,7 +26,9 @@ fn demoGPA() !void {
     defer doc.close();
 
     try doc.setString("project", "GPA Demo");
-    try doc.setInt("timestamp", std.time.timestamp());
+    var threaded: std.Io.Threaded = .init_single_threaded;
+    const io = threaded.io();
+    try doc.setInt("timestamp", std.Io.Clock.now(.awake, io).toSeconds());
 
     const output = try doc.toString();
     defer allocator.free(output);
@@ -70,9 +72,8 @@ fn demoArena() !void {
     // Demo 3: Opening an existing file with Arena
     std.debug.print("\n--- Demo: Open Existing File with Arena ---\n", .{});
 
-    // Write a temporary file for the demo
-    try std.fs.cwd().writeFile(.{ .sub_path = "existing.zon", .data = ".{ .os = \"Zig\", .version = \"0.15.0\" }" });
-    defer std.fs.cwd().deleteFile("existing.zon") catch {};
+    try zon.writeFileAtomic(allocator, "existing.zon", ".{ .os = \"Zig\", .version = \"0.16.0\" }");
+    defer zon.deleteFile("existing.zon") catch {};
 
     var file_doc = try zon.open(allocator, "existing.zon");
     // Result

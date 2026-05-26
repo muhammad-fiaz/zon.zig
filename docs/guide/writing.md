@@ -366,7 +366,7 @@ pub fn main() !void {
     // Package info
     try doc.setIdentifier("name", "my_package");
     try doc.setString("version", "0.1.0");
-    try doc.setString("minimum_zig_version", "0.15.0");
+    try doc.setString("minimum_zig_version", "0.16.0");
 
     // Fingerprint (u64 / large hex)
     const fp: u64 = 0xee480fa30d50cbf6;
@@ -403,7 +403,7 @@ pub fn main() !void {
         },
     },
     .fingerprint = 0xee480fa30d50cbf6,
-    .minimum_zig_version = "0.15.0",
+    .minimum_zig_version = "0.16.0",
     .name = .my_package,
     .paths = .{
         "build.zig",

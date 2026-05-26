@@ -334,7 +334,7 @@ pub const Parser = struct {
     }
 
     fn parseMultilineString(self: *Parser) ParseError!Value {
-        var result = std.ArrayListUnmanaged(u8){};
+        var result: std.ArrayListUnmanaged(u8) = .empty;
         errdefer result.deinit(self.allocator);
 
         while (self.current.tag == .multiline_string_literal) {
@@ -560,7 +560,7 @@ test "parse build.zig.zon style" {
         \\    .name = .zon,
         \\    .version = "0.0.3",
         \\    .fingerprint = 0xee480fa30d50cbf6,
-        \\    .minimum_zig_version = "0.15.0",
+        \\    .minimum_zig_version = "0.16.0",
         \\    .paths = .{
         \\        "build.zig",
         \\        "build.zig.zon",

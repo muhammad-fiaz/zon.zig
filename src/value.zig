@@ -172,7 +172,7 @@ pub const Value = union(enum) {
         pub fn init(allocator: Allocator) Array {
             return .{
                 .allocator = allocator,
-                .items = .{},
+                .items = .empty,
             };
         }
 

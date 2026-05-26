@@ -68,7 +68,10 @@ pub fn checkForUpdates(allocator: std.mem.Allocator) !UpdateInfo {
         };
     }
 
-    var http_client = std.http.Client{ .allocator = allocator };
+    var threaded: std.Io.Threaded = .init_single_threaded;
+    const io = threaded.io();
+
+    var http_client = std.http.Client{ .allocator = allocator, .io = io };
     defer http_client.deinit();
 
     const uri = std.Uri.parse(config.releases_endpoint) catch {
@@ -80,13 +83,11 @@ pub fn checkForUpdates(allocator: std.mem.Allocator) !UpdateInfo {
         };
     };
 
-    var server_header_buffer: [16 * 1024]u8 = undefined;
-    var req = http_client.open(.GET, uri, .{
+    var req = http_client.request(.GET, uri, .{
         .extra_headers = &.{
             .{ .name = "User-Agent", .value = config.user_agent },
             .{ .name = "Accept", .value = "application/vnd.github.v3+json" },
         },
-        .server_header_buffer = &server_header_buffer,
     }) catch {
         return UpdateInfo{
             .available = false,
@@ -97,7 +98,7 @@ pub fn checkForUpdates(allocator: std.mem.Allocator) !UpdateInfo {
     };
     defer req.deinit();
 
-    req.send() catch {
+    req.sendBodiless() catch {
         return UpdateInfo{
             .available = false,
             .current_version = version.version,
@@ -106,7 +107,8 @@ pub fn checkForUpdates(allocator: std.mem.Allocator) !UpdateInfo {
         };
     };
 
-    req.wait() catch {
+    var redirect_buffer: [2048]u8 = undefined;
+    var response = req.receiveHead(&redirect_buffer) catch {
         return UpdateInfo{
             .available = false,
             .current_version = version.version,
@@ -115,7 +117,7 @@ pub fn checkForUpdates(allocator: std.mem.Allocator) !UpdateInfo {
         };
     };
 
-    if (req.status != .ok) {
+    if (response.head.status != .ok) {
         return UpdateInfo{
             .available = false,
             .current_version = version.version,
@@ -127,9 +129,12 @@ pub fn checkForUpdates(allocator: std.mem.Allocator) !UpdateInfo {
     var body_buffer: std.ArrayListUnmanaged(u8) = .empty;
     defer body_buffer.deinit(allocator);
 
+    var transfer_buf: [1024]u8 = undefined;
+    const body_reader = response.reader(&transfer_buf);
+
     var buf: [4096]u8 = undefined;
     while (true) {
-        const n = req.reader().read(&buf) catch break;
+        const n = body_reader.readSliceShort(&buf) catch break;
         if (n == 0) break;
         body_buffer.appendSlice(allocator, buf[0..n]) catch break;
         if (body_buffer.items.len > 512 * 1024) break;
@@ -251,7 +256,7 @@ test "version comparison - local newer" {
 
 test "current version" {
     const ver = getCurrentVersion();
-    try std.testing.expectEqualStrings("0.0.3", ver);
+    try std.testing.expectEqualStrings("0.0.5", ver);
 }
 
 test "version tag parsing" {

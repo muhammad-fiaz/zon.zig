@@ -17,7 +17,7 @@ const ServerConfig = struct {
 };
 
 pub fn main() !void {
-    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    var gpa = std.heap.DebugAllocator(.{}){};
     defer _ = gpa.deinit();
 
     // Use an ArenaAllocator for easy cleanup of all allocations (document and structs)
