@@ -960,11 +960,17 @@ test "document file management" {
     // Verify no external changes detected initially.
     try std.testing.expect(!doc.hasChangedOnDisk());
 
-    // Simulate external modification — write directly (not atomic) to ensure new mtime.
+    // Simulate external modification.
     {
-        const f = try utils.fs.createFile(path, .{});
-        defer utils.fs.closeFile(f);
-        try utils.fs.writeFile(f, ".{ .status = \"changed\" }\n");
+        // On some CI filesystems, mtime resolution is coarse (100ns-1ms).
+        // Write repeatedly until mtime advances past the document's recorded time.
+        var i: usize = 0;
+        while (i < 100) : (i += 1) {
+            const f = try utils.fs.createFile(path, .{});
+            try utils.fs.writeFile(f, ".{ .status = \"changed\" }\n");
+            utils.fs.closeFile(f);
+            if (doc.hasChangedOnDisk()) break;
+        }
     }
     try std.testing.expect(doc.hasChangedOnDisk());
 
