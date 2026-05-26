@@ -202,17 +202,13 @@ pub fn checkAndNotify(allocator: std.mem.Allocator) void {
 }
 
 pub fn compareVersions(remote_version: []const u8) VersionRelation {
-    const local = version.semanticVersion();
-    const remote = std.SemanticVersion.parse(remote_version) catch return .unknown;
-
-    if (local.major > remote.major) return .local_newer;
-    if (local.major < remote.major) return .remote_newer;
-    if (local.minor > remote.minor) return .local_newer;
-    if (local.minor < remote.minor) return .remote_newer;
-    if (local.patch > remote.patch) return .local_newer;
-    if (local.patch < remote.patch) return .remote_newer;
-
-    return .equal;
+    const cmp = version.compareVersions(version.version, remote_version);
+    return switch (cmp) {
+        -1 => .remote_newer,
+        0 => .equal,
+        1 => .local_newer,
+        else => .unknown,
+    };
 }
 
 pub fn getCurrentVersion() []const u8 {

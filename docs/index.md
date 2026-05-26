@@ -58,6 +58,9 @@ features:
   - icon: 🛡️
     title: Integrity Suite
     details: Stable order-independent hashing and cryptographic checksums for document validation.
+  - icon: ✅
+    title: Type Checking & Validation
+    details: Built-in type checkers (isString, isBool, isInt, isFloat, isNumber, isObject, isArray), semver validation, base64 encoding, and case utilities for string manipulation.
   - icon: 🏗️
     title: Flatten & Expand
     details: Convert nested configurations to flat maps for environment overrides and simplified summaries.

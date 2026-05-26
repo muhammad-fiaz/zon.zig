@@ -46,3 +46,37 @@ pub fn isValidIdentifier(s: []const u8) bool {
     }
     return true;
 }
+
+/// String less-than comparator for sorting.
+pub fn stringLessThan(_: void, a: []const u8, b: []const u8) bool {
+    return std.mem.order(u8, a, b) == .lt;
+}
+
+/// Minimal growable byte buffer for building strings.
+pub const Buffer = struct {
+    data: std.ArrayListUnmanaged(u8) = .{},
+
+    pub fn init() Buffer {
+        return .{};
+    }
+
+    pub fn deinit(self: *Buffer, allocator: std.mem.Allocator) void {
+        self.data.deinit(allocator);
+    }
+
+    pub fn append(self: *Buffer, allocator: std.mem.Allocator, byte: u8) !void {
+        try self.data.append(allocator, byte);
+    }
+
+    pub fn appendSlice(self: *Buffer, allocator: std.mem.Allocator, bytes: []const u8) !void {
+        try self.data.appendSlice(allocator, bytes);
+    }
+
+    pub fn appendNTimes(self: *Buffer, allocator: std.mem.Allocator, byte: u8, count: usize) !void {
+        try self.data.appendNTimes(allocator, byte, count);
+    }
+
+    pub fn toOwnedSlice(self: *Buffer, allocator: std.mem.Allocator) ![]u8 {
+        return self.data.toOwnedSlice(allocator);
+    }
+};

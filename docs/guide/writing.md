@@ -301,6 +301,49 @@ defer allocator.free(compact);
 }
 ```
 
+### Key Sorting (sort_keys)
+
+The `sort_keys` option controls whether object keys are output in alphabetical order. Default is `true` (sorted).
+
+```zig
+const std = @import("std");
+const zon = @import("zon");
+
+// Stringify with sort_keys=false (insertion order)
+const unsorted = try zon.stringify(allocator, &doc.root, .{ .sort_keys = false });
+defer allocator.free(unsorted);
+
+// Stringify with sort_keys=true (alphabetical) — default behavior
+const sorted = try zon.stringify(allocator, &doc.root, .{ .sort_keys = true });
+defer allocator.free(sorted);
+```
+
+**Unsorted (insertion order):**
+
+```zig
+.{
+    .z = "last",
+    .a = "first",
+    .m = 42,
+}
+```
+
+**Sorted (alphabetical):**
+
+```zig
+.{
+    .a = "first",
+    .m = 42,
+    .z = "last",
+}
+```
+
+You can also sort keys in-place on the document tree using `sortKeys()`:
+
+```zig
+doc.sortKeys();
+```
+
 ## Saving Files
 
 ### Save to New Path

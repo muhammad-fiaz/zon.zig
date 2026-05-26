@@ -53,17 +53,11 @@ pub fn getVersionInfo() struct { major: u32, minor: u32, patch: u32, string: []c
 pub fn compareVersions(a: []const u8, b: []const u8) i8 {
     const ver_a = std.SemanticVersion.parse(a) catch return 0;
     const ver_b = std.SemanticVersion.parse(b) catch return 0;
-
-    if (ver_a.major != ver_b.major) {
-        return if (ver_a.major > ver_b.major) 1 else -1;
-    }
-    if (ver_a.minor != ver_b.minor) {
-        return if (ver_a.minor > ver_b.minor) 1 else -1;
-    }
-    if (ver_a.patch != ver_b.patch) {
-        return if (ver_a.patch > ver_b.patch) 1 else -1;
-    }
-    return 0;
+    return switch (ver_a.order(ver_b)) {
+        .lt => -1,
+        .eq => 0,
+        .gt => 1,
+    };
 }
 
 /// Returns true if this library version is compatible with the required version.

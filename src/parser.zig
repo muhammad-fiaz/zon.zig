@@ -28,6 +28,7 @@ const ArrayList = std.ArrayList;
 const Tokenizer = @import("tokenizer.zig").Tokenizer;
 const Token = @import("tokenizer.zig").Token;
 const Value = @import("value.zig").Value;
+const utils = @import("utils.zig");
 
 /// Errors that can occur during parsing.
 pub const ParseError = error{
@@ -78,7 +79,7 @@ pub const Parser = struct {
             .bool => |b| return .{ .bool_val = b },
             .integer => |i| return .{ .number = .{ .int = @intCast(i) } },
             .float => |f| return .{ .number = .{ .float = f } },
-            .string => |s| return .{ .string = try allocator.dupe(u8, s) },
+            .string => |s| return .{ .string = try utils.dupeString(allocator, s) },
             .array => |a| {
                 var arr = Value.Array.init(allocator);
                 errdefer arr.deinit();
@@ -297,7 +298,7 @@ pub const Parser = struct {
 
     fn parseKey(self: *Parser) ParseError![]const u8 {
         if (self.current.tag == .identifier) {
-            const key = try self.allocator.dupe(u8, self.tokenizer.slice(self.current));
+            const key = try utils.dupeString(self.allocator, self.tokenizer.slice(self.current));
             self.advance();
             return key;
         } else if (self.current.tag == .at_sign) {

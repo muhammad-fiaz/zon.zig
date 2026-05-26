@@ -1,10 +1,11 @@
 //! Comprehensive benchmarks for zon.zig covering all features.
+//! Tests parsing, stringify, manipulation, type checking, case utilities,
+//! sorting, array operations, vectorized ops, and struct conversion.
 
 const std = @import("std");
 const zon = @import("zon");
 const builtin = @import("builtin");
 
-/// Benchmark results structure
 const BenchmarkResult = struct {
     name: []const u8,
     iterations: u64,
@@ -13,11 +14,15 @@ const BenchmarkResult = struct {
     avg_latency_ns: f64,
     category: []const u8,
 
-    // Static categories for grouping
     const categories = [_][]const u8{
         "Parsing",
         "Stringify",
         "Manipulation",
+        "Type Checking",
+        "Case Utilities",
+        "Sorting",
+        "Array Operations",
+        "Vectorized Ops",
         "Struct Conversion",
     };
 };
@@ -72,12 +77,10 @@ fn runBenchmark(
     comptime benchFn: anytype,
     category: []const u8,
 ) !BenchmarkResult {
-    // Warmup
     for (0..WARMUP) |_| {
         try benchFn(allocator);
     }
 
-    // Benchmark
     var threaded: std.Io.Threaded = .init_single_threaded;
     const io = threaded.io();
     const start_time = std.Io.Clock.awake.now(io);
@@ -98,8 +101,6 @@ fn runBenchmark(
         .category = category,
     };
 }
-
-// -- Benchmark Functions --
 
 const PARSE_SOURCE =
     \\.{
@@ -127,28 +128,68 @@ const PARSE_SOURCE =
     \\}
 ;
 
+const IDENTIFIER_SOURCE =
+    \\.{
+    \\    .name = .benchmark_pkg,
+    \\    .version = "0.1.0",
+    \\    .minimum_zig_version = "0.16.0",
+    \\}
+;
+
+const NESTED_SOURCE =
+    \\.{
+    \\    .server = .{
+    \\        .host = "localhost",
+    \\        .port = 8080,
+    \\        .ssl = .{
+    \\            .enabled = true,
+    \\            .cert_path = "/etc/ssl/cert.pem",
+    \\        },
+    \\        .tags = .{"web", "api", "v1"},
+    \\    },
+    \\    .database = .{
+    \\        .host = "db.local",
+    \\        .port = 5432,
+    \\        .pool = .{
+    \\            .min = 5,
+    \\            .max = 20,
+    \\        },
+    \\    },
+    \\}
+;
+
 fn benchParse(allocator: std.mem.Allocator) !void {
     var doc = try zon.parse(allocator, PARSE_SOURCE);
+    doc.deinit();
+}
+
+fn benchParseIdentifier(allocator: std.mem.Allocator) !void {
+    var doc = try zon.parse(allocator, IDENTIFIER_SOURCE);
+    doc.deinit();
+}
+
+fn benchParseNested(allocator: std.mem.Allocator) !void {
+    var doc = try zon.parse(allocator, NESTED_SOURCE);
     doc.deinit();
 }
 
 fn benchStringify(allocator: std.mem.Allocator) !void {
     var doc = try zon.parse(allocator, PARSE_SOURCE);
     defer doc.deinit();
-
-    // We strictly benchmark stringify here, so we include the alloc/free of string
     const s = try doc.toString();
     allocator.free(s);
 }
 
+fn benchStringifyCompact(allocator: std.mem.Allocator) !void {
+    var doc = try zon.parse(allocator, PARSE_SOURCE);
+    defer doc.deinit();
+    const s = try doc.toCompactString();
+    allocator.free(s);
+}
+
 fn benchAccess(allocator: std.mem.Allocator) !void {
-    // Note: Creating/destroying doc every iteration might dominate the access time.
-    // Ideally we'd reuse the doc, but runBenchmark interface requires self-contained runs.
-    // We will parse a smaller doc to minimize overhead.
     var doc = try zon.parse(allocator, ".{ .a = 1, .b = 2, .c = .{ .d = 3 } }");
     defer doc.deinit();
-
-    // Perform multiple accesses to average out parse time
     var sum: i64 = 0;
     for (0..100) |_| {
         sum += doc.getInt("a").?;
@@ -161,12 +202,168 @@ fn benchAccess(allocator: std.mem.Allocator) !void {
 fn benchModification(allocator: std.mem.Allocator) !void {
     var doc = zon.create(allocator);
     defer doc.deinit();
-
-    // Perform multiple modifications
     for (0..100) |i| {
         try doc.setInt("count", @intCast(i));
         try doc.setBool("active", i % 2 == 0);
     }
+}
+
+fn benchTypeChecking(allocator: std.mem.Allocator) !void {
+    var doc = try zon.parse(allocator, ".{ .s = \"hi\", .i = 42, .b = true, .f = 1.5 }");
+    defer doc.deinit();
+    var check: bool = true;
+    check = check and doc.isString("s");
+    check = check and doc.isInt("i");
+    check = check and doc.isBool("b");
+    check = check and doc.isFloat("f");
+    check = check and doc.isNumber("i");
+    check = check and !doc.isString("i");
+    std.mem.doNotOptimizeAway(check);
+}
+
+fn benchNestedTypeChecking(allocator: std.mem.Allocator) !void {
+    var doc = try zon.parse(allocator, NESTED_SOURCE);
+    defer doc.deinit();
+    var check: bool = true;
+    check = check and doc.isString("server.host");
+    check = check and doc.isInt("server.port");
+    check = check and doc.isObject("server.ssl");
+    check = check and doc.isBool("server.ssl.enabled");
+    check = check and doc.isArray("server.tags");
+    std.mem.doNotOptimizeAway(check);
+}
+
+fn benchCaseUpper(allocator: std.mem.Allocator) !void {
+    var doc = try zon.parse(allocator, ".{ .name = \"hello\" }");
+    defer doc.deinit();
+    doc.toUpper("name") catch {};
+}
+
+fn benchCaseLower(allocator: std.mem.Allocator) !void {
+    var doc = try zon.parse(allocator, ".{ .name = \"HELLO\" }");
+    defer doc.deinit();
+    doc.toLower("name") catch {};
+}
+
+fn benchCaseCheck(allocator: std.mem.Allocator) !void {
+    var doc = try zon.parse(allocator, ".{ .name = \"HELLO\" }");
+    defer doc.deinit();
+    var check: bool = true;
+    check = check and doc.isUpperCase("name");
+    std.mem.doNotOptimizeAway(check);
+}
+
+fn benchSortKeys(allocator: std.mem.Allocator) !void {
+    var doc = try zon.parse(allocator,
+        \\.{ .z = 1, .m = 2, .a = 3, .nested = .{ .y = 4, .b = 5 } }
+    );
+    defer doc.deinit();
+    doc.sortKeys();
+}
+
+fn benchSortKeysDesc(allocator: std.mem.Allocator) !void {
+    var doc = try zon.parse(allocator,
+        \\.{ .a = 1, .m = 2, .z = 3 }
+    );
+    defer doc.deinit();
+    doc.sortKeysDesc();
+}
+
+fn benchSortArray(allocator: std.mem.Allocator) !void {
+    var doc = try zon.parse(allocator,
+        \\.{ .arr = .{"z", "m", "a", "y", "b", "x"} }
+    );
+    defer doc.deinit();
+    doc.sortArray("arr") catch {};
+}
+
+fn benchReverseArray(allocator: std.mem.Allocator) !void {
+    var doc = try zon.parse(allocator,
+        \\.{ .arr = .{1, 2, 3, 4, 5} }
+    );
+    defer doc.deinit();
+    doc.reverseArray("arr") catch {};
+}
+
+fn benchTruncate(allocator: std.mem.Allocator) !void {
+    var doc = try zon.parse(allocator,
+        \\.{ .arr = .{"a", "b", "c", "d", "e"} }
+    );
+    defer doc.deinit();
+    doc.truncate("arr", 2) catch {};
+}
+
+fn benchDropFirst(allocator: std.mem.Allocator) !void {
+    var doc = try zon.parse(allocator,
+        \\.{ .arr = .{"a", "b", "c", "d", "e"} }
+    );
+    defer doc.deinit();
+    doc.dropFirst("arr", 2) catch {};
+}
+
+fn benchDropLast(allocator: std.mem.Allocator) !void {
+    var doc = try zon.parse(allocator,
+        \\.{ .arr = .{"a", "b", "c", "d", "e"} }
+    );
+    defer doc.deinit();
+    doc.dropLast("arr", 2) catch {};
+}
+
+fn benchCompact(allocator: std.mem.Allocator) !void {
+    var doc = try zon.parse(allocator,
+        \\.{ .arr = .{"a", null, "b", null, "c"} }
+    );
+    defer doc.deinit();
+    doc.compact("arr") catch {};
+}
+
+fn benchUnique(allocator: std.mem.Allocator) !void {
+    var doc = try zon.parse(allocator,
+        \\.{ .arr = .{"a", "b", "a", "c", "b", "a"} }
+    );
+    defer doc.deinit();
+    doc.unique("arr") catch {};
+}
+
+fn benchEvery(allocator: std.mem.Allocator) !void {
+    var doc = try zon.parse(allocator,
+        \\.{ .arr = .{2, 4, 6, 8, 10} }
+    );
+    defer doc.deinit();
+    const Pred = struct {
+        fn isEven(v: *const zon.Value) bool {
+            const i = v.asInt() orelse return false;
+            return @rem(i, 2) == 0;
+        }
+    };
+    const all = doc.every("arr", Pred.isEven);
+    std.mem.doNotOptimizeAway(all);
+}
+
+fn benchSome(allocator: std.mem.Allocator) !void {
+    var doc = try zon.parse(allocator,
+        \\.{ .arr = .{1, 3, 5, 7, 8} }
+    );
+    defer doc.deinit();
+    const Pred = struct {
+        fn isEven(v: *const zon.Value) bool {
+            const i = v.asInt() orelse return false;
+            return @rem(i, 2) == 0;
+        }
+    };
+    const any = doc.some("arr", Pred.isEven);
+    std.mem.doNotOptimizeAway(any);
+}
+
+fn benchFirstLast(allocator: std.mem.Allocator) !void {
+    var doc = try zon.parse(allocator,
+        \\.{ .arr = .{"first", "middle", "last"} }
+    );
+    defer doc.deinit();
+    const f = doc.first("arr");
+    const l = doc.last("arr");
+    std.mem.doNotOptimizeAway(f);
+    std.mem.doNotOptimizeAway(l);
 }
 
 const BenchStruct = struct {
@@ -188,9 +385,7 @@ fn benchToStruct(allocator: std.mem.Allocator) !void {
         \\}
     );
     defer doc.deinit();
-
     const s = try doc.toStruct(BenchStruct);
-    // Cleanup allocated fields
     allocator.free(s.name);
     allocator.free(s.version);
     allocator.free(s.tags);
@@ -204,7 +399,6 @@ fn benchFromStruct(allocator: std.mem.Allocator) !void {
         .active = true,
         .tags = &.{ "a", "b", "c" },
     };
-
     var doc = try zon.fromStruct(allocator, s);
     doc.deinit();
 }
@@ -221,13 +415,43 @@ pub fn main() !void {
 
     // Parsing
     try results.append(allocator, try runBenchmark("Parse Standard ZON", allocator, benchParse, "Parsing"));
+    try results.append(allocator, try runBenchmark("Parse Identifiers", allocator, benchParseIdentifier, "Parsing"));
+    try results.append(allocator, try runBenchmark("Parse Nested ZON", allocator, benchParseNested, "Parsing"));
 
     // Stringify
     try results.append(allocator, try runBenchmark("Stringify to ZON", allocator, benchStringify, "Stringify"));
+    try results.append(allocator, try runBenchmark("Stringify Compact", allocator, benchStringifyCompact, "Stringify"));
 
     // Manipulation
     try results.append(allocator, try runBenchmark("Read Access (100 ops)", allocator, benchAccess, "Manipulation"));
     try results.append(allocator, try runBenchmark("Modification (100 ops)", allocator, benchModification, "Manipulation"));
+
+    // Type Checking
+    try results.append(allocator, try runBenchmark("Type Check Flat", allocator, benchTypeChecking, "Type Checking"));
+    try results.append(allocator, try runBenchmark("Type Check Nested", allocator, benchNestedTypeChecking, "Type Checking"));
+
+    // Case Utilities
+    try results.append(allocator, try runBenchmark("toUpper String", allocator, benchCaseUpper, "Case Utilities"));
+    try results.append(allocator, try runBenchmark("toLower String", allocator, benchCaseLower, "Case Utilities"));
+    try results.append(allocator, try runBenchmark("isUpperCase Check", allocator, benchCaseCheck, "Case Utilities"));
+
+    // Sorting
+    try results.append(allocator, try runBenchmark("sortKeys Asc", allocator, benchSortKeys, "Sorting"));
+    try results.append(allocator, try runBenchmark("sortKeys Desc", allocator, benchSortKeysDesc, "Sorting"));
+    try results.append(allocator, try runBenchmark("sortArray", allocator, benchSortArray, "Sorting"));
+    try results.append(allocator, try runBenchmark("reverseArray", allocator, benchReverseArray, "Sorting"));
+
+    // Array Operations
+    try results.append(allocator, try runBenchmark("truncate Array", allocator, benchTruncate, "Array Operations"));
+    try results.append(allocator, try runBenchmark("dropFirst Array", allocator, benchDropFirst, "Array Operations"));
+    try results.append(allocator, try runBenchmark("dropLast Array", allocator, benchDropLast, "Array Operations"));
+    try results.append(allocator, try runBenchmark("compact Array", allocator, benchCompact, "Array Operations"));
+    try results.append(allocator, try runBenchmark("unique Array", allocator, benchUnique, "Array Operations"));
+    try results.append(allocator, try runBenchmark("first/last Access", allocator, benchFirstLast, "Array Operations"));
+
+    // Vectorized Ops
+    try results.append(allocator, try runBenchmark("every (all match)", allocator, benchEvery, "Vectorized Ops"));
+    try results.append(allocator, try runBenchmark("some (any match)", allocator, benchSome, "Vectorized Ops"));
 
     // Struct Conversion
     try results.append(allocator, try runBenchmark("Document to Struct", allocator, benchToStruct, "Struct Conversion"));
@@ -285,7 +509,6 @@ pub fn main() !void {
     }) catch "";
     try report.appendSlice(allocator, header);
 
-    // Write categorized tables
     for (BenchmarkResult.categories) |cat| {
         var has_category = false;
         for (results.items) |r| {
@@ -296,7 +519,7 @@ pub fn main() !void {
         }
         if (!has_category) continue;
 
-        const cat_md = std.fmt.allocPrint(allocator,
+        const cat_md = try std.fmt.allocPrint(allocator,
             \\
             \\<details>
             \\<summary><strong>{s}</strong></summary>
@@ -304,7 +527,7 @@ pub fn main() !void {
             \\| Benchmark | Ops/sec (higher is better) | Avg Latency (ns) (lower is better) |
             \\| :--- | :--- | :--- |
             \\
-        , .{cat}) catch continue;
+        , .{cat});
         defer allocator.free(cat_md);
         try report.appendSlice(allocator, cat_md);
 

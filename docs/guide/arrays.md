@@ -207,3 +207,57 @@ const name = doc.getString("name"); // "my_package"
 const paths_len = doc.arrayLen("paths"); // 3
 const first_path = doc.getArrayString("paths", 0); // "build.zig"
 ```
+
+## Array Sorting
+
+Sort array elements alphabetically:
+
+```zig
+try doc.sortArray("tags");
+```
+
+Reverse array order:
+
+```zig
+try doc.reverseArray("tags");
+```
+
+## Array Truncation
+
+Shorten arrays by truncating, or dropping from start/end:
+
+```zig
+try doc.truncate("arr", 2);     // keep only first 2 elements
+try doc.dropFirst("arr", 1);    // remove first element
+try doc.dropLast("arr", 2);     // remove last 2 elements
+```
+
+## Array Cleanup
+
+Remove null or duplicate values:
+
+```zig
+try doc.compact("arr");  // remove all null values
+try doc.unique("arr");   // remove duplicate string values
+```
+
+## Array Boundaries
+
+Access first and last elements:
+
+```zig
+if (doc.first("arr")) |first| { /* ... */ }
+if (doc.last("arr")) |last| { /* ... */ }
+```
+
+## Array Predicate Checks
+
+Check if all or any array elements satisfy a condition:
+
+```zig
+fn isEven(v: *const zon.Value) bool {
+    return @rem(v.asInt().?, 2) == 0;
+}
+const all_even = doc.every("nums", isEven);
+const any_odd = doc.some("nums", isOdd);
+```

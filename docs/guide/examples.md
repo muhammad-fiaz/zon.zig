@@ -22,6 +22,10 @@ zig build run-error_handling
 zig build run-nested_creation
 zig build run-identifier_values
 zig build run-file_operations
+zig build run-walk_map
+zig build run-pick_omit
+zig build run-sort_format
+zig build run-validation_sort
 
 # Run all examples
 zig build run-all-examples
@@ -296,6 +300,52 @@ const compact = try doc.toCompactString();
 defer allocator.free(compact);
 ```
 
+## Validation & Type Checking
+
+Validate types, transform case, sort arrays, and filter documents:
+
+```zig
+var doc = try zon.parse(allocator,
+    \\.{
+    \\    .name = "MyApp",
+    \\    .port = 8080,
+    \\    .rate = 3.14,
+    \\    .enabled = true,
+    \\    .tags = .{ "zig", "rust", "gamma", "beta", "apple" },
+    \\    .nested = .{ .value = 42 },
+    \\}
+);
+defer doc.deinit();
+
+// Type checking (supports dot paths for nested values)
+std.debug.print("isString:  {}\n", .{doc.isString("name")});
+std.debug.print("isInt:     {}\n", .{doc.isInt("port")});
+std.debug.print("isFloat:   {}\n", .{doc.isFloat("rate")});
+std.debug.print("isBool:    {}\n", .{doc.isBool("enabled")});
+std.debug.print("isArray:   {}\n", .{doc.isArray("tags")});
+std.debug.print("isObject:  {}\n", .{doc.isObject("nested")});
+std.debug.print("isNumber:  {}\n", .{doc.isNumber("rate")});
+
+// Case utilities (modify in-place)
+try doc.toUpper("name");    // "MyApp" -> "MYAPP"
+try doc.toLower("name");    // "MYAPP" -> "myapp"
+
+// Array sorting and truncation
+try doc.sortArray("tags");      // asc: apple, beta, gamma, rust, zig
+try doc.reverseArray("tags");   // desc: zig, rust, gamma, beta, apple
+try doc.dropFirst("tags", 2);   // remove first 2
+try doc.dropLast("tags", 1);    // remove last 1
+
+// Semantic version validation
+std.debug.print("valid semver: {}\n", .{zon.validateSemVer("1.2.3")});
+
+// Base64 encode/decode
+const enc = try zon.base64Encode(allocator, "hello");
+defer allocator.free(enc);
+const dec = try zon.base64Decode(allocator, enc);
+defer allocator.free(dec);
+```
+
 ## Available Examples
 
 | Example             | Description           | Command                           |
@@ -312,3 +362,7 @@ defer allocator.free(compact);
 | `identifier_values` | .name = .value syntax | `zig build run-identifier_values` |
 | `file_operations`   | Safe atomic writes, backups, read/write helpers | `zig build run-file_operations` |
 | `struct_conversion` | struct <-> zon conversion | `zig build run-struct_conversion` |
+| `walk_map`          | Walk and transform values | `zig build run-walk_map` |
+| `pick_omit`         | Document subsets with pick/omit | `zig build run-pick_omit` |
+| `sort_format`       | Key sorting and stringify options | `zig build run-sort_format` |
+| `validation_sort`   | Type checking, case utils, sorting, truncation, filter | `zig build run-validation_sort` |

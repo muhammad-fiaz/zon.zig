@@ -37,6 +37,13 @@ pub const Number = union(enum) {
 | Method              | Return       | Description                     |
 | ------------------- | ------------ | ------------------------------- |
 | `isNull()`          | `bool`       | Check if value is null          |
+| `isString()`        | `bool`       | Check if value is a string      |
+| `isBool()`          | `bool`       | Check if value is a boolean     |
+| `isInt()`           | `bool`       | Check if value is an integer    |
+| `isFloat()`         | `bool`       | Check if value is a float       |
+| `isNumber()`        | `bool`       | Check if value is any number    |
+| `isObject()`        | `bool`       | Check if value is an object     |
+| `isArray()`         | `bool`       | Check if value is an array      |
 | `isIdentifier()`    | `bool`       | Check if value is an identifier |
 | `isNan()`           | `bool`       | Check if value is NaN           |
 | `isPositiveInf()`   | `bool`       | Check if positive infinity      |
@@ -68,8 +75,6 @@ pub const Number = union(enum) {
 
 | Method                 | Description               |
 | ---------------------- | ------------------------- |
-| Method                 | Description               |
-| -------------------    | ------------------------- |
 | `deinit(allocator)`    | Free all memory           |
 | `clone(allocator)`     | Create deep copy          |
 | `eql(other)`           | **Deep equality check**   |
@@ -132,6 +137,8 @@ pub const Array = struct {
 | `push(value)`     | `!void`    | Alias for append   |
 | `get(index)`      | `?*Value`  | Get value at index |
 | `at(index)`       | `?*Value`  | Alias for get      |
+| `insert(i, val)`  | `!void`    | Insert at index    |
+| `remove(index)`   | `bool`     | Remove item at index |
 | `len()`           | `usize`    | Number of elements |
 | `size()`          | `usize`    | Alias for len      |
 | `count()`         | `usize`    | Alias for len      |

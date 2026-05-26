@@ -338,8 +338,7 @@ pub const Value = union(enum) {
     }
 
     pub fn isIdentifier(self: *const Value) bool {
-        //     std.Thread.sleep(50 * std.time.ns_per_ms);
-        return self.* == .identifier; // Re-added to maintain syntactic correctness and original logic
+        return self.* == .identifier;
     }
 
     pub fn asBool(self: *const Value) ?bool {
@@ -382,6 +381,40 @@ pub const Value = union(enum) {
 
     pub fn isNull(self: *const Value) bool {
         return self.* == .null_val;
+    }
+
+    pub fn isString(self: *const Value) bool {
+        return self.* == .string;
+    }
+
+    pub fn isBool(self: *const Value) bool {
+        return self.* == .bool_val;
+    }
+
+    pub fn isInt(self: *const Value) bool {
+        return switch (self.*) {
+            .number => |n| n == .int,
+            else => false,
+        };
+    }
+
+    pub fn isFloat(self: *const Value) bool {
+        return switch (self.*) {
+            .number => |n| n == .float,
+            else => false,
+        };
+    }
+
+    pub fn isNumber(self: *const Value) bool {
+        return self.* == .number;
+    }
+
+    pub fn isObject(self: *const Value) bool {
+        return self.* == .object;
+    }
+
+    pub fn isArray(self: *const Value) bool {
+        return self.* == .array;
     }
 
     pub fn asObject(self: *Value) ?*Object {
@@ -492,11 +525,7 @@ pub const Value = union(enum) {
 
                 var it = o.entries.keyIterator();
                 while (it.next()) |k| keys_buf.append(o.allocator, k.*) catch break;
-                std.mem.sort([]const u8, keys_buf.items, {}, struct {
-                    fn lessThan(_: void, a: []const u8, b: []const u8) bool {
-                        return std.mem.order(u8, a, b) == .lt;
-                    }
-                }.lessThan);
+                std.mem.sort([]const u8, keys_buf.items, {}, utils.stringLessThan);
 
                 for (keys_buf.items) |key| {
                     hasher.update(key);

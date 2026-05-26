@@ -100,6 +100,19 @@ A **document-based** ZON (Zig Object Notation) library for Zig, designed for con
 | [Runtime Structs](guide/runtime-structs) | Convert ZON documents to Zig structs (`toStruct`) |
 | [Struct to ZON](guide/runtime-structs) | Create/Update Documents from Zig Structs (`initFromStruct`) |
 | [Smart Stringify](guide/writing) | Intelligent key quoting (ZON-compliant unquoted keys) |
+| [Sort Keys](guide/writing) | Alphabetical key sorting in stringify output (`sort_keys` option) |
+| [Walk & Map](guide/basic-usage) | Traverse and transform values with `walk()` and `mapValues()` |
+| [Pick & Omit](guide/basic-usage) | Create document subsets with `pick()` and `omit()` |
+| [Path Enumeration](guide/basic-usage) | Recursively list all paths with `paths()` |
+| [In-Place Sort](guide/basic-usage) | Recursively sort all object keys with `sortKeys()` |
+| [Descending Sort](guide/basic-usage) | Sort keys in descending order with `sortKeysDesc()` |
+| [Array Sort](guide/arrays) | Sort array elements with `sortArray()` and `reverseArray()` |
+| [Array Truncation](guide/arrays) | `truncate()`, `dropFirst()`, `dropLast()` for array manipulation |
+| [Type Checking](api/document) | `isString()`, `isBool()`, `isInt()`, `isFloat()`, `isNumber()`, `isObject()`, `isArray()` |
+| [Case Utilities](api/document) | `toUpper()`, `toLower()`, `isUpperCase()`, `isLowerCase()` |
+| [Vectorized Ops](api/document) | `filter()`, `forEach()`, `every()`, `some()` for batch operations |
+| [Array Helpers](api/document) | `first()`, `last()`, `compact()`, `unique()` for common array tasks |
+| [Filter](api/document) | Create document subsets with predicate-based `filter()` |
 | [Diagnostic Errors](guide/error-handling) | High-quality syntax error reporting with line/column |
 
 </details>
@@ -425,8 +438,14 @@ defer copy.deinit();
 | `clear()`                    | Clear all data                                                              |
 | `count()`                    | Get number of root keys                                                     |
 | `keys()`                     | Get all root keys                                                           |
+| `paths()`                    | Recursively list all paths in the document                                  |
 | `merge(other)`               | Merge another document                                                      |
 | `clone()`                    | Create a deep copy                                                          |
+| `pick(paths)`                | Create new document with only specified paths                               |
+| `omit(paths)`                | Create new document excluding specified paths                               |
+| `walk(context, visitor)`     | Depth-first traversal of all values                                         |
+| `mapValues(context, map)`    | Transform all values recursively                                            |
+| `sortKeys()`                 | Recursively sort all object keys alphabetically                              |
 | `save()`                     | Save to original file path                                                  |
 | `saveAs(path)`               | Save to specified path                                                      |
 | `saveAsAtomic(path)`         | Atomically save to specified path (temporary file + rename)                 |
@@ -459,6 +478,10 @@ The `examples/` directory contains comprehensive examples:
 - **identifier_values.zig** - Identifier value parsing and usage
 - **nested_creation.zig** - Creating deeply nested structures
 - **error_handling.zig** - Examples of parse and file error handling
+- **walk_map.zig** - Walking and mapping values in documents
+- **pick_omit.zig** - Creating document subsets with pick and omit
+- **sort_format.zig** - Key sorting and stringify sort_keys option
+- **validation_sort.zig** - Type checking, case utilities, array sorting, truncation, filter
 
 ### File helpers and utilities
 

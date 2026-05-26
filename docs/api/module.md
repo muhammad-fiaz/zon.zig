@@ -13,6 +13,27 @@ Top-level functions in the `zon` module.
 const zon = @import("zon");
 ```
 
+## Aliases
+
+Many module-level functions have convenience aliases for common use cases:
+
+| Primary Function       | Aliases                                 |
+| ---------------------- | --------------------------------------- |
+| `create(alloc)`        | `new`, `init`                           |
+| `open(alloc, path)`    | `load`, `fromFile`, `openFile`, `parseFile` |
+| `parse(alloc, src)`    | `fromSource`, `parseString`             |
+| `fromJson(alloc, src)` | `parseJson`                             |
+| `fromMap(alloc, map)`  | `initFromMap`                           |
+| `fromStruct(alloc, v)` | `initFromStruct`                        |
+| `readFile(alloc, path)`| `read`                                  |
+| `writeFileAtomic(...)` | `writeAtomic`, `saveAtomic`             |
+| `deleteFile(path)`     | `removeFile`                            |
+| `moveFile(...)`        | `renameFile`                            |
+| `fileExists(path)`     | `hasFile`                               |
+| `validate(alloc, src)` | `isValid`, `isZonValid`                 |
+| `validateFile(...)`    | `isValidFile`, `isZonFileValid`         |
+| `toStruct(doc, T)`     | `unmarshal`                             |
+
 ## Struct Conversion
 
 ### fromStruct
@@ -318,6 +339,211 @@ pub fn checkForUpdates(allocator: Allocator) void
 zon.checkForUpdates(allocator);
 ```
 
+## Validation & Encoding
+
+### validateSemVer
+
+Validate a semantic version string using Zig's built-in `std.SemanticVersion`.
+
+```zig
+pub fn validateSemVer(version_str: []const u8) bool
+```
+
+**Example:**
+
+```zig
+if (zon.validateSemVer("1.2.3")) {
+    std.debug.print("Valid semver\n", .{});
+}
+if (!zon.validateSemVer("not-a-version")) {
+    std.debug.print("Invalid semver\n", .{});
+}
+```
+
+### base64Encode
+
+Encode bytes to a standard base64 string. Caller must free the returned string.
+
+```zig
+pub fn base64Encode(allocator: Allocator, data: []const u8) ![]const u8
+```
+
+**Example:**
+
+```zig
+const encoded = try zon.base64Encode(allocator, "hello world");
+defer allocator.free(encoded);
+std.debug.print("{s}\n", .{encoded}); // "aGVsbG8gd29ybGQ="
+```
+
+### base64Decode
+
+Decode a standard base64 string back to bytes. Caller must free the returned bytes. Returns `error.InvalidBase64` if input is not valid base64.
+
+```zig
+pub fn base64Decode(allocator: Allocator, encoded: []const u8) ![]u8
+```
+
+**Example:**
+
+```zig
+const decoded = try zon.base64Decode(allocator, "aGVsbG8gd29ybGQ=");
+defer allocator.free(decoded);
+std.debug.print("{s}\n", .{decoded}); // "hello world"
+```
+
+## Stringify
+
+### stringify
+
+Stringify a Value tree to ZON source code.
+
+```zig
+pub fn stringify(allocator: Allocator, value: *const Value, options: StringifyOptions) StringifyError![]u8
+```
+
+### StringifyOptions
+
+```zig
+pub const StringifyOptions = struct {
+    indent: usize = 4,
+    initial_indent: usize = 0,
+    quote_keys: bool = false,
+    sort_keys: bool = true,
+};
+```
+
+- `indent` — Number of spaces per indent level (default `4`)
+- `initial_indent` — Starting indent level in spaces (default `0`)
+- `quote_keys` — Always quote object keys, even valid identifiers (default `false`)
+- `sort_keys` — Sort object keys alphabetically (default `true`)
+
+### stringifyJson
+
+Stringify a Value tree to JSON.
+
+```zig
+pub fn stringifyJson(allocator: Allocator, value: *const Value) StringifyError![]u8
+```
+
+## Validation
+
+### validate
+
+Check if a ZON source string is syntactically valid.
+
+```zig
+pub fn validate(allocator: Allocator, source: []const u8) bool
+```
+
+**Example:**
+```zig
+if (zon.validate(allocator, source)) {
+    std.debug.print("Valid ZON\n", .{});
+}
+```
+
+### validateFile
+
+Check if a ZON file is syntactically valid.
+
+```zig
+pub fn validateFile(allocator: Allocator, path: []const u8) bool
+```
+
+**Example:**
+```zig
+if (zon.validateFile(allocator, "config.zon")) {
+    std.debug.print("Valid ZON file\n", .{});
+}
+```
+
+## Formatting
+
+### format
+
+Re-format a ZON source string with canonical indentation.
+
+```zig
+pub fn format(allocator: Allocator, source: []const u8) ![]u8
+```
+
+**Example:**
+```zig
+const formatted = try zon.format(allocator, source);
+defer allocator.free(formatted);
+```
+
+### formatFile
+
+Re-format a ZON file in-place with canonical indentation.
+
+```zig
+pub fn formatFile(allocator: Allocator, path: []const u8) !void
+```
+
+**Example:**
+```zig
+try zon.formatFile(allocator, "config.zon");
+```
+
+## JSON Interop
+
+### fromJson
+
+Create a Document from a JSON string.
+
+```zig
+pub fn fromJson(allocator: Allocator, json: []const u8) !Document
+```
+
+**Example:**
+```zig
+var doc = try zon.fromJson(allocator, `{"name": "app", "port": 80}`);
+defer doc.deinit();
+```
+
+### fromMap
+
+Create a Document from a Zig `std.StringHashMap` or any `anytype` container.
+
+```zig
+pub fn fromMap(allocator: Allocator, map: anytype) !Document
+```
+
+**Example:**
+```zig
+var map = std.StringHashMap(Value).init(allocator);
+try map.put("key", .{ .string = "value" });
+var doc = try zon.fromMap(allocator, map);
+defer doc.deinit();
+```
+
+## Struct Conversion (Document to Struct)
+
+### toStruct
+
+Convert a Document directly to a Zig struct.
+
+```zig
+pub fn toStruct(doc: *const Document, comptime T: type) !T
+```
+
+**Example:**
+```zig
+const Config = struct {
+    name: []const u8,
+    port: u16,
+    debug: bool,
+};
+
+var doc = try zon.parse(allocator, source);
+defer doc.deinit();
+
+const cfg = try zon.toStruct(&doc, Config);
+std.debug.print("{s} on port {d}\n", .{ cfg.name, cfg.port });
+```
+
 ## Constants
 
 ### version
@@ -406,3 +632,5 @@ zon.zig 0.0.5
 Found existing config
 Parsed: true
 ```
+
+

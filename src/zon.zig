@@ -28,6 +28,7 @@ pub const Token = @import("tokenizer.zig").Token;
 pub const version = version_info.version;
 pub const stringify = @import("stringify.zig").stringify;
 pub const stringifyJson = @import("stringify.zig").stringifyJson;
+pub const StringifyOptions = @import("stringify.zig").StringifyOptions;
 
 /// Disables update checking.
 pub fn disableUpdateCheck() void {
@@ -329,6 +330,54 @@ pub fn unmarshal(doc: *const Document, comptime T: type) !T {
     return doc.toStruct(T);
 }
 
+/// Validates a semantic version string (e.g. "1.2.3", "0.16.0").
+/// Returns true if the string is a valid semver.
+pub fn validateSemVer(version_str: []const u8) bool {
+    _ = std.SemanticVersion.parse(version_str) catch return false;
+    return true;
+}
+
+/// Encodes bytes to base64. Caller must free the returned string.
+pub fn base64Encode(allocator: Allocator, data: []const u8) ![]const u8 {
+    const encoder = std.base64.standard.Encoder;
+    const out_len = encoder.calcSize(data.len);
+    const out = try allocator.alloc(u8, out_len);
+    _ = encoder.encode(out, data);
+    return out;
+}
+
+/// Decodes a base64 string. Caller must free the returned bytes.
+pub fn base64Decode(allocator: Allocator, encoded: []const u8) ![]u8 {
+    const decoder = std.base64.standard.Decoder;
+    const out_len = decoder.calcSizeForSlice(encoded) catch return error.InvalidBase64;
+    const out = try allocator.alloc(u8, out_len);
+    decoder.decode(out, encoded) catch return error.InvalidBase64;
+    return out;
+}
+
+test "validateSemVer" {
+    const allocator = std.testing.allocator;
+    _ = allocator;
+    try std.testing.expect(validateSemVer("1.2.3"));
+    try std.testing.expect(validateSemVer("0.16.0"));
+    try std.testing.expect(validateSemVer("999.999.999"));
+    try std.testing.expect(!validateSemVer("1.2"));
+    try std.testing.expect(!validateSemVer("not-a-version"));
+    try std.testing.expect(!validateSemVer(""));
+}
+
+test "base64 encode/decode roundtrip" {
+    const allocator = std.testing.allocator;
+    const original = "hello world";
+    const encoded = try base64Encode(allocator, original);
+    defer allocator.free(encoded);
+    try std.testing.expectEqualStrings("aGVsbG8gd29ybGQ=", encoded);
+
+    const decoded = try base64Decode(allocator, encoded);
+    defer allocator.free(decoded);
+    try std.testing.expectEqualStrings(original, decoded);
+}
+
 test "create and set values" {
     const allocator = std.testing.allocator;
 
@@ -461,6 +510,27 @@ test "stringify document" {
     try std.testing.expect(std.mem.indexOf(u8, output, "\"myapp\"") != null);
     try std.testing.expect(std.mem.indexOf(u8, output, ".private") != null);
     try std.testing.expect(std.mem.indexOf(u8, output, "true") != null);
+}
+
+test "stringify with sort_keys option" {
+    const allocator = std.testing.allocator;
+
+    var doc = create(allocator);
+    defer doc.deinit();
+
+    try doc.setString("z", "last");
+    try doc.setString("a", "first");
+    try doc.setInt("m", 42);
+
+    // With sort_keys=true (default), keys are sorted alphabetically
+    const sorted = try stringify(allocator, &doc.root, .{ .sort_keys = true });
+    defer allocator.free(sorted);
+
+    const a_pos = std.mem.indexOf(u8, sorted, ".a").?;
+    const m_pos = std.mem.indexOf(u8, sorted, ".m").?;
+    const z_pos = std.mem.indexOf(u8, sorted, ".z").?;
+    try std.testing.expect(a_pos < m_pos);
+    try std.testing.expect(m_pos < z_pos);
 }
 
 test "version info" {
