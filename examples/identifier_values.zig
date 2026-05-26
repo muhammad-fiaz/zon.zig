@@ -6,7 +6,7 @@ const std = @import("std");
 const zon = @import("zon");
 
 pub fn main() !void {
-    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    var gpa = std.heap.DebugAllocator(.{}){};
     defer _ = gpa.deinit();
     const allocator = gpa.allocator();
 
@@ -20,7 +20,7 @@ pub fn main() !void {
         \\    .name = .my_package,
         \\    .version = "1.0.0",
         \\    .fingerprint = 0xee480fa30d50cbf6,
-        \\    .minimum_zig_version = "0.15.0",
+        \\    .minimum_zig_version = "0.16.0",
         \\    .dependencies = .{
         \\        .http = .{
         \\            .url = "https://github.com/example/http.git",
@@ -91,7 +91,7 @@ pub fn main() !void {
     // Use setIdentifier for .name = .value syntax
     try new_doc.setIdentifier("name", "downloader");
     try new_doc.setString("version", "0.1.0");
-    try new_doc.setString("minimum_zig_version", "0.15.0");
+    try new_doc.setString("minimum_zig_version", "0.16.0");
 
     // Set fingerprint as large integer
     const fingerprint: u64 = 0xaabbccdd11223344;

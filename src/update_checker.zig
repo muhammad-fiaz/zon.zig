@@ -2,6 +2,7 @@
 
 const std = @import("std");
 const version = @import("version.zig");
+const has_http_io = @hasField(std.http.Client, "io");
 
 pub const VersionRelation = enum {
     local_newer,
@@ -68,9 +69,23 @@ pub fn checkForUpdates(allocator: std.mem.Allocator) !UpdateInfo {
         };
     }
 
-    var http_client = std.http.Client{ .allocator = allocator };
-    defer http_client.deinit();
+    if (comptime has_http_io) {
+        var threaded: std.Io.Threaded = .init_single_threaded;
+        const io = threaded.io();
 
+        var http_client = std.http.Client{ .allocator = allocator, .io = io };
+        defer http_client.deinit();
+
+        return try checkWithClient(&http_client, allocator);
+    } else {
+        var http_client = std.http.Client{ .allocator = allocator };
+        defer http_client.deinit();
+
+        return try checkWithClient(&http_client, allocator);
+    }
+}
+
+fn checkWithClient(http_client: *std.http.Client, allocator: std.mem.Allocator) !UpdateInfo {
     const uri = std.Uri.parse(config.releases_endpoint) catch {
         return UpdateInfo{
             .available = false,
@@ -80,13 +95,11 @@ pub fn checkForUpdates(allocator: std.mem.Allocator) !UpdateInfo {
         };
     };
 
-    var server_header_buffer: [16 * 1024]u8 = undefined;
-    var req = http_client.open(.GET, uri, .{
+    var req = http_client.request(.GET, uri, .{
         .extra_headers = &.{
             .{ .name = "User-Agent", .value = config.user_agent },
             .{ .name = "Accept", .value = "application/vnd.github.v3+json" },
         },
-        .server_header_buffer = &server_header_buffer,
     }) catch {
         return UpdateInfo{
             .available = false,
@@ -97,7 +110,7 @@ pub fn checkForUpdates(allocator: std.mem.Allocator) !UpdateInfo {
     };
     defer req.deinit();
 
-    req.send() catch {
+    req.sendBodiless() catch {
         return UpdateInfo{
             .available = false,
             .current_version = version.version,
@@ -106,7 +119,8 @@ pub fn checkForUpdates(allocator: std.mem.Allocator) !UpdateInfo {
         };
     };
 
-    req.wait() catch {
+    var redirect_buffer: [2048]u8 = undefined;
+    var response = req.receiveHead(&redirect_buffer) catch {
         return UpdateInfo{
             .available = false,
             .current_version = version.version,
@@ -115,7 +129,7 @@ pub fn checkForUpdates(allocator: std.mem.Allocator) !UpdateInfo {
         };
     };
 
-    if (req.status != .ok) {
+    if (response.head.status != .ok) {
         return UpdateInfo{
             .available = false,
             .current_version = version.version,
@@ -127,9 +141,12 @@ pub fn checkForUpdates(allocator: std.mem.Allocator) !UpdateInfo {
     var body_buffer: std.ArrayListUnmanaged(u8) = .empty;
     defer body_buffer.deinit(allocator);
 
+    var transfer_buf: [1024]u8 = undefined;
+    const body_reader = response.reader(&transfer_buf);
+
     var buf: [4096]u8 = undefined;
     while (true) {
-        const n = req.reader().read(&buf) catch break;
+        const n = body_reader.readSliceShort(&buf) catch break;
         if (n == 0) break;
         body_buffer.appendSlice(allocator, buf[0..n]) catch break;
         if (body_buffer.items.len > 512 * 1024) break;
@@ -197,17 +214,13 @@ pub fn checkAndNotify(allocator: std.mem.Allocator) void {
 }
 
 pub fn compareVersions(remote_version: []const u8) VersionRelation {
-    const local = version.semanticVersion();
-    const remote = std.SemanticVersion.parse(remote_version) catch return .unknown;
-
-    if (local.major > remote.major) return .local_newer;
-    if (local.major < remote.major) return .remote_newer;
-    if (local.minor > remote.minor) return .local_newer;
-    if (local.minor < remote.minor) return .remote_newer;
-    if (local.patch > remote.patch) return .local_newer;
-    if (local.patch < remote.patch) return .remote_newer;
-
-    return .equal;
+    const cmp = version.compareVersions(version.version, remote_version);
+    return switch (cmp) {
+        -1 => .remote_newer,
+        0 => .equal,
+        1 => .local_newer,
+        else => .unknown,
+    };
 }
 
 pub fn getCurrentVersion() []const u8 {
@@ -251,7 +264,7 @@ test "version comparison - local newer" {
 
 test "current version" {
     const ver = getCurrentVersion();
-    try std.testing.expectEqualStrings("0.0.3", ver);
+    try std.testing.expectEqualStrings("0.0.5", ver);
 }
 
 test "version tag parsing" {

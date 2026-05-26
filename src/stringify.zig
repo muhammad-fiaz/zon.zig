@@ -16,6 +16,7 @@ pub const StringifyOptions = struct {
     indent: usize = 4,
     initial_indent: usize = 0,
     quote_keys: bool = false,
+    sort_keys: bool = true,
 };
 
 pub const StringifyError = Allocator.Error;
@@ -56,7 +57,7 @@ pub fn stringify(allocator: Allocator, value: *const Value, options: StringifyOp
     var buffer = Buffer.init(allocator);
     errdefer buffer.deinit();
 
-    try stringifyValue(&buffer, value, options.initial_indent, options.indent, options.quote_keys);
+    try stringifyValue(&buffer, value, options.initial_indent, options.indent, options.quote_keys, options.sort_keys);
 
     return buffer.toOwnedSlice();
 }
@@ -79,16 +80,16 @@ pub fn writeToFileAtomic(allocator: Allocator, value: *const Value, path: []cons
     const tmp_path = try std.fmt.allocPrint(allocator, "{s}.tmp", .{path});
     defer allocator.free(tmp_path);
 
-    const file = try std.fs.cwd().createFile(tmp_path, .{});
-    defer file.close();
+    const file = try utils.fs.createFile(tmp_path, .{});
+    defer utils.fs.closeFile(file);
 
-    try file.writeAll(output);
-    try file.writeAll("\n");
+    try utils.fs.writeFile(file, output);
+    try utils.fs.writeFile(file, "\n");
 
-    try std.fs.cwd().rename(tmp_path, path);
+    try utils.fs.rename(tmp_path, path);
 }
 
-fn stringifyValue(buffer: *Buffer, value: *const Value, indent: usize, indent_size: usize, quote_keys: bool) StringifyError!void {
+fn stringifyValue(buffer: *Buffer, value: *const Value, indent: usize, indent_size: usize, quote_keys: bool, sort_keys: bool) StringifyError!void {
     switch (value.*) {
         .null_val => try buffer.appendSlice("null"),
         .bool_val => |b| try buffer.appendSlice(if (b) "true" else "false"),
@@ -114,8 +115,8 @@ fn stringifyValue(buffer: *Buffer, value: *const Value, indent: usize, indent_si
         },
         .string => |s| try stringifyString(buffer, s),
         .identifier => |s| try stringifyIdentifier(buffer, s),
-        .object => |o| try stringifyObject(buffer, &o, indent, indent_size, quote_keys),
-        .array => |a| try stringifyArray(buffer, &a, indent, indent_size, quote_keys),
+        .object => |o| try stringifyObject(buffer, &o, indent, indent_size, quote_keys, sort_keys),
+        .array => |a| try stringifyArray(buffer, &a, indent, indent_size, quote_keys, sort_keys),
     }
 }
 
@@ -139,7 +140,7 @@ fn stringifyString(buffer: *Buffer, s: []const u8) StringifyError!void {
     try buffer.append('"');
 }
 
-fn stringifyObject(buffer: *Buffer, obj: *const Value.Object, indent: usize, indent_size: usize, quote_keys: bool) StringifyError!void {
+fn stringifyObject(buffer: *Buffer, obj: *const Value.Object, indent: usize, indent_size: usize, quote_keys: bool, sort_keys: bool) StringifyError!void {
     if (obj.count() == 0) {
         try buffer.appendSlice(".{}");
         return;
@@ -150,11 +151,9 @@ fn stringifyObject(buffer: *Buffer, obj: *const Value.Object, indent: usize, ind
     const keys = try obj.keys(buffer.allocator);
     defer buffer.allocator.free(keys);
 
-    std.mem.sort([]const u8, keys, {}, struct {
-        fn lessThan(_: void, a: []const u8, b: []const u8) bool {
-            return std.mem.order(u8, a, b) == .lt;
-        }
-    }.lessThan);
+    if (sort_keys) {
+        std.mem.sort([]const u8, keys, {}, utils.stringLessThan);
+    }
 
     for (keys) |key| {
         const val_ptr = obj.entries.getPtr(key).?;
@@ -167,7 +166,7 @@ fn stringifyObject(buffer: *Buffer, obj: *const Value.Object, indent: usize, ind
             try buffer.appendSlice(key);
         }
         try buffer.appendSlice(" = ");
-        try stringifyValue(buffer, val_ptr, indent + indent_size, indent_size, quote_keys);
+        try stringifyValue(buffer, val_ptr, indent + indent_size, indent_size, quote_keys, sort_keys);
         try buffer.appendSlice(",\n");
     }
 
@@ -225,7 +224,7 @@ fn stringifyValueJson(buffer: *Buffer, value: *const Value) StringifyError!void 
     }
 }
 
-fn stringifyArray(buffer: *Buffer, arr: *const Value.Array, indent: usize, indent_size: usize, quote_keys: bool) StringifyError!void {
+fn stringifyArray(buffer: *Buffer, arr: *const Value.Array, indent: usize, indent_size: usize, quote_keys: bool, sort_keys: bool) StringifyError!void {
     if (arr.len() == 0) {
         try buffer.appendSlice(".{}");
         return;
@@ -235,7 +234,7 @@ fn stringifyArray(buffer: *Buffer, arr: *const Value.Array, indent: usize, inden
 
     for (arr.items.items) |*item| {
         try appendIndent(buffer, indent + indent_size);
-        try stringifyValue(buffer, item, indent + indent_size, indent_size, quote_keys);
+        try stringifyValue(buffer, item, indent + indent_size, indent_size, quote_keys, sort_keys);
         try buffer.appendSlice(",\n");
     }
 
@@ -354,4 +353,32 @@ test "stringify: compact output" {
     defer allocator.free(result);
 
     try std.testing.expect(std.mem.indexOf(u8, result, "    ") == null);
+}
+
+test "stringify: sort_keys respects ordering" {
+    const allocator = std.testing.allocator;
+
+    // Insert keys z, a, y - with sort_keys=true (default), output should be a, y, z
+    var obj = Value.Object.init(allocator);
+    try obj.put("z", .{ .string = try allocator.dupe(u8, "last") });
+    // We need to put keys in reverse order to observe the sort effect
+    try obj.put("a", .{ .string = try allocator.dupe(u8, "first") });
+    try obj.put("y", .{ .string = try allocator.dupe(u8, "middle") });
+    var val: Value = .{ .object = obj };
+    defer val.deinit(allocator);
+
+    // With sort_keys=true (default), keys should appear in sorted order
+    const result = try stringify(allocator, &val, .{});
+    defer allocator.free(result);
+
+    try std.testing.expect(std.mem.indexOf(u8, result, ".a = \"first\"") != null);
+    try std.testing.expect(std.mem.indexOf(u8, result, ".y = \"middle\"") != null);
+    try std.testing.expect(std.mem.indexOf(u8, result, ".z = \"last\"") != null);
+
+    // .a should appear before .y which should appear before .z in sorted output
+    const a_pos = std.mem.indexOf(u8, result, ".a").?;
+    const y_pos = std.mem.indexOf(u8, result, ".y").?;
+    const z_pos = std.mem.indexOf(u8, result, ".z").?;
+    try std.testing.expect(a_pos < y_pos);
+    try std.testing.expect(y_pos < z_pos);
 }

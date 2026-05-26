@@ -106,6 +106,49 @@ if (doc.exists("config.database.host")) {
 const type_name = doc.getType("config.database.port"); // "int"
 ```
 
+## Type-Checking Nested Values
+
+All `is*` methods support dot paths, making it easy to validate the structure of deeply nested documents:
+
+```zig
+// Validate nested value types
+if (doc.isString("server.host")) {
+    std.debug.print("host is a string\n", .{});
+}
+if (doc.isInt("server.port")) {
+    std.debug.print("port is an integer\n", .{});
+}
+if (doc.isBool("server.ssl.enabled")) {
+    std.debug.print("ssl.enabled is a bool\n", .{});
+}
+if (doc.isFloat("server.rate")) {
+    std.debug.print("rate is a float\n", .{});
+}
+if (doc.isObject("server.ssl")) {
+    std.debug.print("ssl is an object\n", .{});
+}
+if (doc.isArray("tags")) {
+    std.debug.print("tags is an array\n", .{});
+}
+
+// isIdentifier works on nested paths too
+if (doc.isIdentifier("dependencies.http.version")) {
+    const ver = doc.getIdentifier("dependencies.http.version").?;
+    std.debug.print("Version: .{s}\n", .{ver});
+}
+
+// Chain existence + type check
+if (doc.exists("database.host") and doc.isString("database.host")) {
+    const host = doc.getString("database.host").?;
+    // safe to use
+}
+
+// Check if a nested value is a number (int or float)
+if (doc.isNumber("server.rate")) {
+    const val = doc.getFloat("server.rate").?;
+}
+```
+
 ## Accessing Nested Objects
 
 Get a reference to a nested object for direct manipulation:

@@ -10,13 +10,11 @@ pub fn build(b: *std.Build) void {
     });
 
     // Expose the module for external projects that depend on this package.
-    // This allows users to do: `const zon = @import("zon");` in their code
-    // after adding zon as a dependency and calling `dep.module("zon")` in their build.zig
     _ = b.addModule("zon", .{
         .root_source_file = b.path("src/zon.zig"),
     });
 
-    const examples = [_]struct { name: []const u8, path: []const u8, skip_run_all: bool = false }{
+    const examples = [_]struct { name: []const u8, path: []const u8 }{
         .{ .name = "basic", .path = "examples/basic.zig" },
         .{ .name = "package_manifest", .path = "examples/package_manifest.zig" },
         .{ .name = "find_replace", .path = "examples/find_replace.zig" },
@@ -25,11 +23,15 @@ pub fn build(b: *std.Build) void {
         .{ .name = "merge_clone", .path = "examples/merge_clone.zig" },
         .{ .name = "config_management", .path = "examples/config_management.zig" },
         .{ .name = "error_handling", .path = "examples/error_handling.zig" },
-        .{ .name = "file_operations", .path = "examples/file_operations.zig", .skip_run_all = false },
+        .{ .name = "file_operations", .path = "examples/file_operations.zig" },
         .{ .name = "nested_creation", .path = "examples/nested_creation.zig" },
         .{ .name = "identifier_values", .path = "examples/identifier_values.zig" },
         .{ .name = "allocators", .path = "examples/allocators.zig" },
         .{ .name = "struct_conversion", .path = "examples/struct_conversion.zig" },
+        .{ .name = "walk_map", .path = "examples/walk_map.zig" },
+        .{ .name = "pick_omit", .path = "examples/pick_omit.zig" },
+        .{ .name = "sort_format", .path = "examples/sort_format.zig" },
+        .{ .name = "validation_sort", .path = "examples/validation_sort.zig" },
     };
 
     inline for (examples) |example| {
@@ -54,37 +56,6 @@ pub fn build(b: *std.Build) void {
         run_step.dependOn(&run_exe.step);
     }
 
-    // Create run-all-examples step that runs all examples sequentially
-    const run_all_examples = b.step("run-all-examples", "Run all examples sequentially");
-    var previous_run_step: ?*std.Build.Step = null;
-
-    inline for (examples) |example| {
-        if (example.skip_run_all) continue;
-        const exe = b.addExecutable(.{
-            .name = "run-all-" ++ example.name,
-            .root_module = b.createModule(.{
-                .root_source_file = b.path(example.path),
-                .target = target,
-                .optimize = optimize,
-            }),
-        });
-        exe.root_module.addImport("zon", zon_module);
-
-        const install_exe = b.addInstallArtifact(exe, .{});
-        const run_exe = b.addRunArtifact(exe);
-        run_exe.step.dependOn(&install_exe.step);
-
-        // Make each run step depend on the previous run step to ensure sequential execution
-        if (previous_run_step) |prev| {
-            run_exe.step.dependOn(prev);
-        }
-        previous_run_step = &run_exe.step;
-    }
-
-    if (previous_run_step) |last| {
-        run_all_examples.dependOn(last);
-    }
-
     // Backward compatibility: "example" runs basic example
     const basic_exe = b.addExecutable(.{
         .name = "example",
@@ -98,6 +69,8 @@ pub fn build(b: *std.Build) void {
     const run_basic = b.addRunArtifact(basic_exe);
     const example_step = b.step("example", "Run basic example");
     example_step.dependOn(&run_basic.step);
+
+    const run_all_examples = b.step("run-all-examples", "Run all examples sequentially (one at a time)");
 
     // Alias: "examples" runs all examples
     const examples_step = b.step("examples", "Run all examples");
@@ -118,11 +91,7 @@ pub fn build(b: *std.Build) void {
 
     // Create comprehensive test-all step that runs everything sequentially
     const test_all_step = b.step("test-all", "Run all tests and examples sequentially");
-
-    // First run unit tests
     test_all_step.dependOn(test_step);
-
-    // Then run all examples
     test_all_step.dependOn(run_all_examples);
 
     // Benchmark step
@@ -131,7 +100,7 @@ pub fn build(b: *std.Build) void {
         .root_module = b.createModule(.{
             .root_source_file = b.path("bench/benchmark.zig"),
             .target = target,
-            .optimize = .ReleaseFast, // Benchmarks should run fast
+            .optimize = .ReleaseFast,
         }),
     });
     bench_exe.root_module.addImport("zon", zon_module);

@@ -28,6 +28,7 @@ const ArrayList = std.ArrayList;
 const Tokenizer = @import("tokenizer.zig").Tokenizer;
 const Token = @import("tokenizer.zig").Token;
 const Value = @import("value.zig").Value;
+const utils = @import("utils.zig");
 
 /// Errors that can occur during parsing.
 pub const ParseError = error{
@@ -78,7 +79,7 @@ pub const Parser = struct {
             .bool => |b| return .{ .bool_val = b },
             .integer => |i| return .{ .number = .{ .int = @intCast(i) } },
             .float => |f| return .{ .number = .{ .float = f } },
-            .string => |s| return .{ .string = try allocator.dupe(u8, s) },
+            .string => |s| return .{ .string = try utils.dupeString(allocator, s) },
             .array => |a| {
                 var arr = Value.Array.init(allocator);
                 errdefer arr.deinit();
@@ -297,7 +298,7 @@ pub const Parser = struct {
 
     fn parseKey(self: *Parser) ParseError![]const u8 {
         if (self.current.tag == .identifier) {
-            const key = try self.allocator.dupe(u8, self.tokenizer.slice(self.current));
+            const key = try utils.dupeString(self.allocator, self.tokenizer.slice(self.current));
             self.advance();
             return key;
         } else if (self.current.tag == .at_sign) {
@@ -334,7 +335,7 @@ pub const Parser = struct {
     }
 
     fn parseMultilineString(self: *Parser) ParseError!Value {
-        var result = std.ArrayListUnmanaged(u8){};
+        var result: std.ArrayListUnmanaged(u8) = .empty;
         errdefer result.deinit(self.allocator);
 
         while (self.current.tag == .multiline_string_literal) {
@@ -495,11 +496,8 @@ pub fn parse(allocator: Allocator, source: []const u8) ParseError!Value {
 }
 
 /// Parse ZON from a file on disk.
-pub fn parseFile(allocator: Allocator, path: []const u8) ParseError!Value {
-    const file = try std.fs.cwd().openFile(path, .{});
-    defer file.close();
-
-    const source = try file.readToEndAlloc(allocator, 1024 * 1024 * 64);
+pub fn parseFile(allocator: Allocator, path: []const u8) !Value {
+    const source = try utils.fs.readFileAlloc(allocator, path, .limited(1024 * 1024 * 64));
     defer allocator.free(source);
 
     return parse(allocator, source);
@@ -560,7 +558,7 @@ test "parse build.zig.zon style" {
         \\    .name = .zon,
         \\    .version = "0.0.3",
         \\    .fingerprint = 0xee480fa30d50cbf6,
-        \\    .minimum_zig_version = "0.15.0",
+        \\    .minimum_zig_version = "0.16.0",
         \\    .paths = .{
         \\        "build.zig",
         \\        "build.zig.zon",

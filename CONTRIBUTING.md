@@ -22,7 +22,7 @@ Please be respectful and constructive in all interactions. We welcome contributo
 
 ### Prerequisites
 
-- Zig 0.15.0 or later
+- Zig 0.16.0 or later
 - Git
 
 ### Building

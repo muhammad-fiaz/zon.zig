@@ -326,7 +326,7 @@ const source =
     \\    .name = .my_package,
     \\    .version = "0.1.0",
     \\    .fingerprint = 0xee480fa30d50cbf6,
-    \\    .minimum_zig_version = "0.15.0",
+    \\    .minimum_zig_version = "0.16.0",
     \\    .paths = .{
     \\        "build.zig",
     \\        "build.zig.zon",
@@ -379,6 +379,51 @@ Paths:
   - build.zig.zon
   - src
 HTTP dep: https://github.com/example/http
+```
+
+## Type Checking
+
+All type checkers support dot-separated nested paths and return `bool`:
+
+```zig
+// Basic type checks
+const is_str = doc.isString("name");
+const is_int = doc.isInt("port");
+const is_flt = doc.isFloat("rate");
+const is_bool = doc.isBool("enabled");
+const is_num = doc.isNumber("port");  // true for both int and float
+const is_obj = doc.isObject("database");
+const is_arr = doc.isArray("tags");
+
+// Nested paths work too
+if (doc.isString("database.host")) {
+    std.debug.print("host is a string\n", .{});
+}
+```
+
+**Example File:**
+```zig
+.{
+    .name = "myapp",
+    .port = 8080,
+    .rate = 3.14,
+    .enabled = true,
+    .tags = .{ "a", "b" },
+    .database = .{
+        .host = "localhost",
+    },
+}
+```
+
+**Output:**
+```
+isString("name"):    true
+isInt("port"):       true
+isFloat("rate"):     true
+isBool("enabled"):   true
+isNumber("port"):    true
+isObject("database"): true
+isArray("tags"):     true
 ```
 
 ## Error Handling

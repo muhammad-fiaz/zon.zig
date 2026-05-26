@@ -22,6 +22,7 @@
 //!
 
 const std = @import("std");
+const utils = @import("utils.zig");
 
 /// Represents a single token from the source.
 pub const Token = struct {
@@ -420,30 +421,28 @@ pub const Tokenizer = struct {
 /// Load file contents into an allocator-owned buffer suitable for tokenizing.
 /// Caller is responsible for freeing the returned buffer via the same allocator.
 pub fn loadSourceFromFile(allocator: std.mem.Allocator, path: []const u8) ![]u8 {
-    const file = try std.fs.cwd().openFile(path, .{});
-    defer file.close();
-    return try file.readToEndAlloc(allocator, 1024 * 1024 * 64);
+    return try utils.fs.readFileAlloc(allocator, path, .limited(1024 * 1024 * 64));
 }
 
 // Character Classification Helpers
 
-fn isDigit(c: u8) bool {
+pub fn isDigit(c: u8) bool {
     return c >= '0' and c <= '9';
 }
 
-fn isHexDigit(c: u8) bool {
+pub fn isHexDigit(c: u8) bool {
     return isDigit(c) or (c >= 'a' and c <= 'f') or (c >= 'A' and c <= 'F');
 }
 
-fn isOctalDigit(c: u8) bool {
+pub fn isOctalDigit(c: u8) bool {
     return c >= '0' and c <= '7';
 }
 
-fn isBinaryDigit(c: u8) bool {
+pub fn isBinaryDigit(c: u8) bool {
     return c == '0' or c == '1';
 }
 
-fn isAlphaNumeric(c: u8) bool {
+pub fn isAlphaNumeric(c: u8) bool {
     return (c >= 'a' and c <= 'z') or (c >= 'A' and c <= 'Z') or (c >= '0' and c <= '9') or c == '_';
 }
 

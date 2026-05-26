@@ -16,13 +16,14 @@ const Value = @import("value.zig").Value;
 const parser = @import("parser.zig");
 const stringify = @import("stringify.zig");
 const utils = @import("utils.zig");
+const Mtime = i128;
 
 /// A parsed ZON document.
 pub const Document = struct {
     allocator: Allocator,
     root: Value,
     file_path: ?[]const u8,
-    last_mtime: i128 = 0,
+    last_mtime: Mtime = 0,
 
     /// Creates an empty document.
     pub fn initEmpty(allocator: Allocator) Document {
@@ -97,13 +98,13 @@ pub const Document = struct {
 
     /// Opens and parses a ZON file.
     pub fn initFromFile(allocator: Allocator, path: []const u8) !Document {
-        const file = try std.fs.cwd().openFile(path, .{});
-        defer file.close();
+        const file = try utils.fs.openFile(path, .{});
+        defer utils.fs.closeFile(file);
 
-        const stat = try file.stat();
-        const mtime = stat.mtime;
+        const stat = try utils.fs.fileStat(file);
+        const mtime = stat.mtime.nanoseconds;
 
-        const source = try file.readToEndAlloc(allocator, 1024 * 1024 * 16);
+        const source = try utils.fs.readFileAlloc(allocator, path, .limited(1024 * 1024 * 16));
         defer allocator.free(source);
 
         var doc = try initFromSource(allocator, source);
@@ -228,6 +229,64 @@ pub const Document = struct {
         return val.isNull();
     }
 
+    /// Returns true if the value at the path is a string.
+    pub fn isString(self: *const Document, path: []const u8) bool {
+        const val = self.getValueByPath(path) orelse return false;
+        return val.* == .string;
+    }
+
+    /// Returns true if the value at the path is a bool.
+    pub fn isBool(self: *const Document, path: []const u8) bool {
+        const val = self.getValueByPath(path) orelse return false;
+        return val.* == .bool_val;
+    }
+
+    /// Returns true if the value at the path is an integer.
+    pub fn isInt(self: *const Document, path: []const u8) bool {
+        const val = self.getValueByPath(path) orelse return false;
+        return switch (val.*) {
+            .number => |n| n == .int,
+            else => false,
+        };
+    }
+
+    /// Returns true if the value at the path is a float.
+    pub fn isFloat(self: *const Document, path: []const u8) bool {
+        const val = self.getValueByPath(path) orelse return false;
+        return switch (val.*) {
+            .number => |n| n == .float,
+            else => false,
+        };
+    }
+
+    /// Returns true if the value at the path is a number (int or float).
+    pub fn isNumber(self: *const Document, path: []const u8) bool {
+        const val = self.getValueByPath(path) orelse return false;
+        return val.* == .number;
+    }
+
+    /// Returns true if the value at the path is an object.
+    pub fn isObject(self: *const Document, path: []const u8) bool {
+        const val = self.getValueByPath(path) orelse return false;
+        return val.* == .object;
+    }
+
+    /// Returns true if the value at the path is an array.
+    pub fn isArray(self: *const Document, path: []const u8) bool {
+        const val = self.getValueByPath(path) orelse return false;
+        return val.* == .array;
+    }
+
+    /// Alias for exists(). Returns true if the path has a value.
+    pub fn isValue(self: *const Document, path: []const u8) bool {
+        return self.exists(path);
+    }
+
+    /// Alias for exists(). Returns true if the key exists.
+    pub fn isKey(self: *const Document, path: []const u8) bool {
+        return self.exists(path);
+    }
+
     /// Returns true if the path exists.
     pub fn exists(self: *const Document, path: []const u8) bool {
         return self.getValueByPath(path) != null;
@@ -241,6 +300,52 @@ pub const Document = struct {
     /// Alias for exists().
     pub fn contains(self: *const Document, path: []const u8) bool {
         return self.exists(path);
+    }
+
+    /// Applies a transform function to the string value at the path in-place.
+    fn transformString(self: *Document, path: []const u8, comptime transform: fn (u8) u8) !void {
+        const val = self.getMutableValueByPath(path) orelse return error.PathNotFound;
+        switch (val.*) {
+            .string => |s| {
+                const owned = try self.allocator.alloc(u8, s.len);
+                for (s, 0..) |c, i| {
+                    owned[i] = transform(c);
+                }
+                self.allocator.free(s);
+                val.* = .{ .string = owned };
+            },
+            else => return error.NotAString,
+        }
+    }
+
+    /// Converts the string value at the path to uppercase in-place.
+    pub fn toUpper(self: *Document, path: []const u8) !void {
+        try self.transformString(path, std.ascii.toUpper);
+    }
+
+    /// Converts the string value at the path to lowercase in-place.
+    pub fn toLower(self: *Document, path: []const u8) !void {
+        try self.transformString(path, std.ascii.toLower);
+    }
+
+    /// Returns true if the string value at the path is all uppercase.
+    pub fn isUpperCase(self: *const Document, path: []const u8) bool {
+        const val = self.getValueByPath(path) orelse return false;
+        const s = val.asString() orelse return false;
+        for (s) |c| {
+            if (!std.ascii.isUpper(c)) return false;
+        }
+        return true;
+    }
+
+    /// Returns true if the string value at the path is all lowercase.
+    pub fn isLowerCase(self: *const Document, path: []const u8) bool {
+        const val = self.getValueByPath(path) orelse return false;
+        const s = val.asString() orelse return false;
+        for (s) |c| {
+            if (!std.ascii.isLower(c)) return false;
+        }
+        return true;
     }
 
     /// Returns the string value at the path, or a default value.
@@ -541,14 +646,14 @@ pub const Document = struct {
 
     /// Replaces the last occurrence of a string value.
     pub fn replaceLast(self: *Document, needle: []const u8, replacement: []const u8) !bool {
-        const paths = self.findExact(needle) catch |err| return err;
+        const found_paths = self.findExact(needle) catch |err| return err;
         defer {
-            for (paths) |p| self.allocator.free(p);
-            self.allocator.free(paths);
+            for (found_paths) |p| self.allocator.free(p);
+            self.allocator.free(found_paths);
         }
 
-        if (paths.len == 0) return false;
-        self.setString(paths[paths.len - 1], replacement) catch |err| return err;
+        if (found_paths.len == 0) return false;
+        self.setString(found_paths[found_paths.len - 1], replacement) catch |err| return err;
         return true;
     }
 
@@ -749,42 +854,41 @@ pub const Document = struct {
 
     /// Saves the document to the specified file path.
     pub fn saveAs(self: *const Document, path: []const u8) !void {
-        const output = stringify.stringify(self.allocator, &self.root, .{}) catch |err| return err;
+        const output = try stringify.stringify(self.allocator, &self.root, .{});
         defer self.allocator.free(output);
 
-        const file = std.fs.cwd().createFile(path, .{}) catch |err| return err;
-        defer file.close();
+        const file = try utils.fs.createFile(path, .{});
+        defer utils.fs.closeFile(file);
 
-        file.writeAll(output) catch |err| return err;
-        file.writeAll("\n") catch |err| return err;
+        try utils.fs.writeFile(file, output);
+        try utils.fs.writeFile(file, "\n");
     }
 
     /// Atomically write the document to `path` by writing to a temporary file, then renaming.
     pub fn saveAsAtomic(self: *const Document, path: []const u8) !void {
-        const output = stringify.stringify(self.allocator, &self.root, .{}) catch |err| return err;
+        const output = try stringify.stringify(self.allocator, &self.root, .{});
         defer self.allocator.free(output);
 
-        const tmp_path = std.fmt.allocPrint(self.allocator, "{s}.tmp", .{path}) catch |err| return err;
+        const tmp_path = try std.fmt.allocPrint(self.allocator, "{s}.tmp", .{path});
         defer self.allocator.free(tmp_path);
 
-        const tmp_file = std.fs.cwd().createFile(tmp_path, .{}) catch |err| return err;
-        defer tmp_file.close();
+        const tmp_file = try utils.fs.createFile(tmp_path, .{});
+        defer utils.fs.closeFile(tmp_file);
 
-        tmp_file.writeAll(output) catch |err| return err;
-        tmp_file.writeAll("\n") catch |err| return err;
+        try utils.fs.writeFile(tmp_file, output);
+        try utils.fs.writeFile(tmp_file, "\n");
 
-        std.fs.cwd().rename(tmp_path, path) catch |err| return err;
+        try utils.fs.rename(tmp_path, path);
 
         // Update mtime if this document is associated with this path
         if (self.file_path) |fp| {
             if (std.mem.eql(u8, fp, path)) {
-                // Best effort update mtime
-                if (std.fs.cwd().openFile(path, .{})) |f| {
-                    defer f.close();
-                    if (f.stat()) |stat| {
-                        // Cast away const to update mtime (mutable operation on logically const object if saving)
+                if (utils.fs.openFile(path, .{})) |mut_f| {
+                    const f = mut_f;
+                    defer utils.fs.closeFile(f);
+                    if (utils.fs.fileStat(f)) |stat| {
                         const self_mut = @constCast(self);
-                        self_mut.last_mtime = stat.mtime;
+                        self_mut.last_mtime = stat.mtime.nanoseconds;
                     } else |_| {}
                 } else |_| {}
             }
@@ -796,17 +900,17 @@ pub const Document = struct {
     pub fn saveWithBackup(self: *const Document, backup_ext: []const u8) !void {
         const path = self.file_path orelse return error.NoFilePath;
 
-        const file_opt = std.fs.cwd().openFile(path, .{}) catch null;
-        if (file_opt != null) {
-            var file = file_opt.?;
-            defer file.close();
+        const file_opt = utils.fs.openFile(path, .{}) catch null;
+        if (file_opt) |mut_f| {
+            const file = mut_f;
+            defer utils.fs.closeFile(file);
 
-            const backup = std.fmt.allocPrint(self.allocator, "{s}{s}", .{ path, backup_ext }) catch |err| return err;
+            const backup = try std.fmt.allocPrint(self.allocator, "{s}{s}", .{ path, backup_ext });
             defer self.allocator.free(backup);
-            std.fs.cwd().rename(path, backup) catch |err| return err;
+            try utils.fs.rename(path, backup);
         }
 
-        self.saveAs(path) catch |err| return err;
+        try self.saveAs(path);
     }
 
     /// Save only if document content differs from existing file. Returns `true` if a write occurred.
@@ -816,15 +920,15 @@ pub const Document = struct {
         const new_output = stringify.stringify(self.allocator, &self.root, .{}) catch |err| return err;
         defer self.allocator.free(new_output);
 
-        const file_opt = std.fs.cwd().openFile(path, .{}) catch null;
+        const file_opt = utils.fs.openFile(path, .{}) catch null;
         if (file_opt == null) {
             self.saveAs(path) catch |err| return err;
             return true;
         }
-        var file = file_opt.?;
-        defer file.close();
+        const file = file_opt.?;
+        defer utils.fs.closeFile(file);
 
-        const existing = file.readToEndAlloc(self.allocator, 1024 * 1024 * 16) catch |err| return err;
+        const existing = try utils.fs.readFileAlloc(self.allocator, path, .limited(1024 * 1024 * 16));
         defer self.allocator.free(existing);
 
         // Normalize trailing newline when comparing (we write a trailing newline on save)
@@ -840,36 +944,33 @@ pub const Document = struct {
     /// Deletes the backing file from disk.
     pub fn deleteFileOnDisk(self: *Document) !void {
         const path = self.file_path orelse return error.NoFilePath;
-        std.fs.cwd().deleteFile(path) catch |err| return err;
-        // We don't clear file_path, as the document might be saved again effectively "restoring" it or creating new.
-        // But maybe we should? Generally if I delete the file, the doc is now "unsaved" / "new".
-        // Let's keep file_path so save() re-creates it.
+        try utils.fs.deleteFile(path);
     }
 
     /// Renames the backing file on disk and updates file_path.
     pub fn renameFileOnDisk(self: *Document, new_path: []const u8) !void {
         const old_path = self.file_path orelse return error.NoFilePath;
-        std.fs.cwd().rename(old_path, new_path) catch |err| return err;
+        try utils.fs.rename(old_path, new_path);
 
         self.allocator.free(old_path);
-        self.file_path = utils.dupeString(self.allocator, new_path) catch |err| return err;
+        self.file_path = try utils.dupeString(self.allocator, new_path);
     }
 
     /// Reloads the document from disk, discarding current changes.
     pub fn reload(self: *Document) !void {
         const path = self.file_path orelse return error.NoFilePath;
 
-        const file = std.fs.cwd().openFile(path, .{}) catch |err| return err;
-        defer file.close();
+        const file = try utils.fs.openFile(path, .{});
+        defer utils.fs.closeFile(file);
 
-        const stat = file.stat() catch |err| return err;
-        self.last_mtime = stat.mtime;
+        const stat = try utils.fs.fileStat(file);
+        self.last_mtime = stat.mtime.nanoseconds;
 
-        const source = file.readToEndAlloc(self.allocator, 1024 * 1024 * 16) catch |err| return err;
+        const source = try utils.fs.readFileAlloc(self.allocator, path, .limited(1024 * 1024 * 16));
         defer self.allocator.free(source);
 
         // Parse new root
-        const new_root = parser.parse(self.allocator, source) catch |err| return err;
+        const new_root = try parser.parse(self.allocator, source);
 
         // Replace old root
         self.root.deinit(self.allocator);
@@ -879,11 +980,12 @@ pub const Document = struct {
     /// Checks if the file on disk has changed since load/save.
     pub fn hasChangedOnDisk(self: *const Document) bool {
         const path = self.file_path orelse return false;
-        const file = std.fs.cwd().openFile(path, .{}) catch return false;
-        defer file.close();
 
-        const stat = file.stat() catch return false;
-        return stat.mtime > self.last_mtime;
+        const file = utils.fs.openFile(path, .{}) catch return false;
+        defer utils.fs.closeFile(file);
+
+        const stat = utils.fs.fileStat(file) catch return false;
+        return stat.mtime.nanoseconds > self.last_mtime;
     }
 
     /// Returns the ZON string with default formatting.
@@ -1377,6 +1479,415 @@ pub const Document = struct {
         }
     }
 
+    /// Returns all paths (dot-notation) in the document recursively.
+    pub fn paths(self: *const Document) ![][]const u8 {
+        var results: std.ArrayListUnmanaged([]const u8) = .empty;
+        errdefer {
+            for (results.items) |p| self.allocator.free(p);
+            results.deinit(self.allocator);
+        }
+        try self.collectPaths(&self.root, "", &results);
+        return results.toOwnedSlice(self.allocator);
+    }
+
+    fn collectPaths(self: *const Document, value: *const Value, prefix: []const u8, results: *std.ArrayListUnmanaged([]const u8)) !void {
+        switch (value.*) {
+            .object => |*o| {
+                var it = o.entries.iterator();
+                while (it.next()) |entry| {
+                    const path = if (prefix.len == 0)
+                        try self.allocator.dupe(u8, entry.key_ptr.*)
+                    else
+                        try std.fmt.allocPrint(self.allocator, "{s}.{s}", .{ prefix, entry.key_ptr.* });
+                    errdefer self.allocator.free(path);
+                    try results.append(self.allocator, path);
+                    try self.collectPaths(entry.value_ptr, path, results);
+                }
+            },
+            .array => |*a| {
+                for (a.items.items, 0..) |*item, i| {
+                    const path = try std.fmt.allocPrint(self.allocator, "{s}[{d}]", .{ prefix, i });
+                    errdefer self.allocator.free(path);
+                    try results.append(self.allocator, path);
+                    try self.collectPaths(item, path, results);
+                }
+            },
+            else => {},
+        }
+    }
+
+    /// Walks all values depth-first, calling `visitor` for each.
+    pub fn walk(self: *const Document, context: anytype, visitor: fn (ctx: @TypeOf(context), path: []const u8, value: *const Value) void) void {
+        self.walkValue(&self.root, "", context, visitor);
+    }
+
+    fn walkValue(self: *const Document, value: *const Value, prefix: []const u8, context: anytype, visitor: fn (ctx: @TypeOf(context), path: []const u8, value: *const Value) void) void {
+        visitor(context, prefix, value);
+        switch (value.*) {
+            .object => |*o| {
+                var it = o.entries.iterator();
+                while (it.next()) |entry| {
+                    const next_prefix = if (prefix.len == 0)
+                        self.allocator.dupe(u8, entry.key_ptr.*) catch return
+                    else
+                        std.fmt.allocPrint(self.allocator, "{s}.{s}", .{ prefix, entry.key_ptr.* }) catch return;
+                    defer self.allocator.free(next_prefix);
+                    self.walkValue(entry.value_ptr, next_prefix, context, visitor);
+                }
+            },
+            .array => |*a| {
+                for (a.items.items, 0..) |*item, i| {
+                    const next_prefix = std.fmt.allocPrint(self.allocator, "{s}[{d}]", .{ prefix, i }) catch return;
+                    defer self.allocator.free(next_prefix);
+                    self.walkValue(item, next_prefix, context, visitor);
+                }
+            },
+            else => {},
+        }
+    }
+
+    /// Transforms all leaf values recursively using `mapper`.
+    /// The mapper receives the path and a owned copy of each Value, and must return a new Value.
+    pub fn mapValues(self: *Document, context: anytype, mapper: fn (ctx: @TypeOf(context), path: []const u8, value: Value) anyerror!Value) !void {
+        self.root = try self.mapValue(self.root, "", context, mapper);
+    }
+
+    fn mapValue(self: *Document, value: Value, prefix: []const u8, context: anytype, mapper: fn (ctx: @TypeOf(context), path: []const u8, value: Value) anyerror!Value) anyerror!Value {
+        var mutable = value;
+        switch (mutable) {
+            .object => |*o| {
+                var new_obj = Value.Object.init(self.allocator);
+                errdefer new_obj.deinit();
+
+                var keys_buf: std.ArrayListUnmanaged([]const u8) = .empty;
+                defer keys_buf.deinit(self.allocator);
+                var kit = o.entries.keyIterator();
+                while (kit.next()) |k| {
+                    try keys_buf.append(self.allocator, k.*);
+                }
+
+                for (keys_buf.items) |key| {
+                    const next_prefix = if (prefix.len == 0)
+                        try self.allocator.dupe(u8, key)
+                    else
+                        try std.fmt.allocPrint(self.allocator, "{s}.{s}", .{ prefix, key });
+                    defer self.allocator.free(next_prefix);
+
+                    const entry = o.entries.fetchRemove(key).?;
+                    const mapped_child = try self.mapValue(entry.value, next_prefix, context, mapper);
+                    try new_obj.put(entry.key, mapped_child);
+                    self.allocator.free(entry.key);
+                }
+                o.deinit();
+                return try mapper(context, prefix, .{ .object = new_obj });
+            },
+            .array => |*a| {
+                var new_arr = Value.Array.init(self.allocator);
+                errdefer new_arr.deinit();
+                for (a.items.items, 0..) |*item, i| {
+                    const next_prefix = try std.fmt.allocPrint(self.allocator, "{s}[{d}]", .{ prefix, i });
+                    defer self.allocator.free(next_prefix);
+                    var taken: Value = .null_val;
+                    std.mem.swap(Value, item, &taken);
+                    const mapped_child = try self.mapValue(taken, next_prefix, context, mapper);
+                    try new_arr.append(mapped_child);
+                }
+                a.deinit();
+                return try mapper(context, prefix, .{ .array = new_arr });
+            },
+            else => {
+                var val = value;
+                const copy_val = try val.clone(self.allocator);
+                const result = try mapper(context, prefix, copy_val);
+                val.deinit(self.allocator);
+                return result;
+            },
+        }
+    }
+
+    /// Creates a new document containing only the specified paths.
+    pub fn pick(self: *const Document, selected: []const []const u8) !Document {
+        var new_doc = Document.initEmpty(self.allocator);
+        errdefer new_doc.deinit();
+        for (selected) |path| {
+            if (self.getValueByPath(path)) |val| {
+                const cloned = try val.clone(self.allocator);
+                try new_doc.setValueByPath(path, cloned);
+            }
+        }
+        return new_doc;
+    }
+
+    /// Creates a new document excluding the specified paths.
+    pub fn omit(self: *const Document, excluded: []const []const u8) !Document {
+        var new_doc = try self.clone();
+        for (excluded) |path| {
+            _ = new_doc.delete(path);
+        }
+        return new_doc;
+    }
+
+    /// Recursively sorts object keys. Use desc=true for descending order.
+    fn sortKeysInternal(self: *Document, value: *Value, comptime desc: bool) void {
+        const cmp = struct {
+            fn lessThan(_: void, a: []const u8, b: []const u8) bool {
+                return if (desc) std.mem.order(u8, a, b) == .gt else std.mem.order(u8, a, b) == .lt;
+            }
+        }.lessThan;
+
+        switch (value.*) {
+            .object => |*o| {
+                var new_entries: std.StringHashMapUnmanaged(Value) = .{};
+                errdefer new_entries.deinit(self.allocator);
+
+                var keys_buf: std.ArrayListUnmanaged([]const u8) = .empty;
+                defer keys_buf.deinit(self.allocator);
+
+                var it = o.entries.keyIterator();
+                while (it.next()) |k| {
+                    keys_buf.append(self.allocator, k.*) catch return;
+                }
+
+                std.mem.sort([]const u8, keys_buf.items, {}, cmp);
+
+                for (keys_buf.items) |key| {
+                    var entry = o.entries.fetchRemove(key).?;
+                    new_entries.put(self.allocator, entry.key, entry.value) catch {
+                        self.allocator.free(entry.key);
+                        entry.value.deinit(self.allocator);
+                        return;
+                    };
+                }
+
+                o.entries.deinit(self.allocator);
+                o.entries = new_entries;
+
+                var child_it = o.entries.iterator();
+                while (child_it.next()) |entry| {
+                    self.sortKeysInternal(entry.value_ptr, desc);
+                }
+            },
+            .array => |*a| {
+                for (a.items.items) |*item| {
+                    self.sortKeysInternal(item, desc);
+                }
+            },
+            else => {},
+        }
+    }
+
+    /// Recursively sorts all object keys in ascending alphabetical order.
+    pub fn sortKeys(self: *Document) void {
+        self.sortKeysInternal(&self.root, false);
+    }
+
+    /// Recursively sorts all object keys in descending alphabetical order.
+    pub fn sortKeysDesc(self: *Document) void {
+        self.sortKeysInternal(&self.root, true);
+    }
+
+    /// Sorts array elements at the path in ascending order (string comparison).
+    pub fn sortArray(self: *Document, path: []const u8) !void {
+        const val = self.getMutableValueByPath(path) orelse return error.PathNotFound;
+        const arr = val.asArray() orelse return error.NotAnArray;
+        std.mem.sort(Value, arr.items.items, {}, struct {
+            fn lessThan(_: void, a: Value, b: Value) bool {
+                const as = a.asString();
+                const bs = b.asString();
+                if (as != null and bs != null) {
+                    return std.mem.order(u8, as.?, bs.?) == .lt;
+                }
+                return @intFromEnum(std.meta.activeTag(a)) < @intFromEnum(std.meta.activeTag(b));
+            }
+        }.lessThan);
+    }
+
+    /// Reverses array elements at the path in-place.
+    pub fn reverseArray(self: *Document, path: []const u8) !void {
+        const val = self.getMutableValueByPath(path) orelse return error.PathNotFound;
+        const arr = val.asArray() orelse return error.NotAnArray;
+        var i: usize = 0;
+        var j: usize = arr.items.items.len;
+        while (i < j) {
+            j -= 1;
+            std.mem.swap(Value, &arr.items.items[i], &arr.items.items[j]);
+            i += 1;
+        }
+    }
+
+    /// Truncates the array at the path to the given new length.
+    /// Elements beyond new_len are deinitialized.
+    pub fn truncate(self: *Document, path: []const u8, new_len: usize) !void {
+        const val = self.getMutableValueByPath(path) orelse return error.PathNotFound;
+        const arr = val.asArray() orelse return error.NotAnArray;
+        const old_len = arr.items.items.len;
+        if (new_len >= old_len) return;
+        while (arr.items.items.len > new_len) {
+            var item = arr.pop().?;
+            item.deinit(self.allocator);
+        }
+    }
+
+    /// Drops the first n elements from the array at the path.
+    pub fn dropFirst(self: *Document, path: []const u8, n: usize) !void {
+        const val = self.getMutableValueByPath(path) orelse return error.PathNotFound;
+        const arr = val.asArray() orelse return error.NotAnArray;
+        const drop_count = @min(n, arr.items.items.len);
+        var i: usize = 0;
+        while (i < drop_count) : (i += 1) {
+            var item = arr.items.orderedRemove(0);
+            item.deinit(self.allocator);
+        }
+    }
+
+    /// Drops the last n elements from the array at the path.
+    pub fn dropLast(self: *Document, path: []const u8, n: usize) !void {
+        const val = self.getMutableValueByPath(path) orelse return error.PathNotFound;
+        const arr = val.asArray() orelse return error.NotAnArray;
+        const drop_count = @min(n, arr.items.items.len);
+        var i: usize = 0;
+        while (i < drop_count) : (i += 1) {
+            var item = arr.pop().?;
+            item.deinit(self.allocator);
+        }
+    }
+
+    /// Returns a pointer to the first element of the array at the path.
+    pub fn first(self: *const Document, path: []const u8) ?*const Value {
+        const val = self.getValueByPath(path) orelse return null;
+        const arr = switch (val.*) {
+            .array => |a| a,
+            else => return null,
+        };
+        return arr.get(0);
+    }
+
+    /// Returns a pointer to the last element of the array at the path.
+    pub fn last(self: *const Document, path: []const u8) ?*const Value {
+        const val = self.getValueByPath(path) orelse return null;
+        const arr = switch (val.*) {
+            .array => |a| a,
+            else => return null,
+        };
+        const arr_len = arr.len();
+        if (arr_len == 0) return null;
+        return arr.get(arr_len - 1);
+    }
+
+    /// Removes all null values from the array at the path in-place.
+    pub fn compact(self: *Document, path: []const u8) !void {
+        const val = self.getMutableValueByPath(path) orelse return error.PathNotFound;
+        const arr = val.asArray() orelse return error.NotAnArray;
+        var i: usize = 0;
+        while (i < arr.items.items.len) {
+            if (arr.items.items[i] == .null_val) {
+                var item = arr.items.orderedRemove(i);
+                item.deinit(self.allocator);
+            } else {
+                i += 1;
+            }
+        }
+    }
+
+    /// Removes duplicate values from the array at the path in-place (string comparison).
+    pub fn unique(self: *Document, path: []const u8) !void {
+        const val = self.getMutableValueByPath(path) orelse return error.PathNotFound;
+        const arr = val.asArray() orelse return error.NotAnArray;
+        var i: usize = 0;
+        while (i < arr.items.items.len) {
+            const a = &arr.items.items[i];
+            var dup = false;
+            var j: usize = 0;
+            while (j < i) {
+                if (a.eql(&arr.items.items[j])) {
+                    dup = true;
+                    break;
+                }
+                j += 1;
+            }
+            if (dup) {
+                var item = arr.items.orderedRemove(i);
+                item.deinit(self.allocator);
+            } else {
+                i += 1;
+            }
+        }
+    }
+
+    /// Creates a new document containing only paths where the predicate returns true.
+    /// The predicate receives each path and value.
+    pub fn filter(self: *const Document, allocator: Allocator, context: anytype, predicate: fn (ctx: @TypeOf(context), path: []const u8, value: *const Value) bool) !Document {
+        var new_doc = Document.initEmpty(allocator);
+        errdefer new_doc.deinit();
+        try self.filterRecursive(&self.root, "", context, predicate, &new_doc);
+        return new_doc;
+    }
+
+    fn filterRecursive(self: *const Document, value: *const Value, prefix: []const u8, context: anytype, predicate: fn (ctx: @TypeOf(context), path: []const u8, value: *const Value) bool, result: *Document) !void {
+        if (predicate(context, prefix, value)) {
+            const cloned = try value.clone(self.allocator);
+            if (prefix.len == 0) {
+                result.root.deinit(result.allocator);
+                result.root = cloned;
+            } else {
+                try result.setValueByPath(prefix, cloned);
+            }
+            return;
+        }
+        switch (value.*) {
+            .object => |*o| {
+                var it = o.entries.iterator();
+                while (it.next()) |entry| {
+                    const next_prefix = if (prefix.len == 0)
+                        try self.allocator.dupe(u8, entry.key_ptr.*)
+                    else
+                        try std.fmt.allocPrint(self.allocator, "{s}.{s}", .{ prefix, entry.key_ptr.* });
+                    defer self.allocator.free(next_prefix);
+                    try self.filterRecursive(entry.value_ptr, next_prefix, context, predicate, result);
+                }
+            },
+            .array => |*a| {
+                for (a.items.items, 0..) |*item, i| {
+                    const next_prefix = try std.fmt.allocPrint(self.allocator, "{s}[{d}]", .{ prefix, i });
+                    defer self.allocator.free(next_prefix);
+                    try self.filterRecursive(item, next_prefix, context, predicate, result);
+                }
+            },
+            else => {},
+        }
+    }
+
+    /// Iterates over all values with a callback. Returns void.
+    pub fn forEach(self: *const Document, context: anytype, callback: fn (ctx: @TypeOf(context), path: []const u8, value: *const Value) void) void {
+        self.walk(context, callback);
+    }
+
+    /// Returns true if all elements in the array at the path satisfy the predicate.
+    pub fn every(self: *const Document, path: []const u8, predicate: *const fn (*const Value) bool) bool {
+        const val = self.getValueByPath(path) orelse return false;
+        const arr = switch (val.*) {
+            .array => |a| a,
+            else => return false,
+        };
+        for (arr.items.items) |*item| {
+            if (!predicate(item)) return false;
+        }
+        return true;
+    }
+
+    /// Returns true if any element in the array at the path satisfies the predicate.
+    pub fn some(self: *const Document, path: []const u8, predicate: *const fn (*const Value) bool) bool {
+        const val = self.getValueByPath(path) orelse return false;
+        const arr = switch (val.*) {
+            .array => |a| a,
+            else => return false,
+        };
+        for (arr.items.items) |*item| {
+            if (predicate(item)) return true;
+        }
+        return false;
+    }
+
     fn replaceInValue(self: *Document, value: *Value, needle: []const u8, replacement: []const u8, mode: ReplaceMode) !usize {
         var replaced: usize = 0;
 
@@ -1553,7 +2064,7 @@ test "Document: saveIfChanged writes file and avoids unnecessary writes" {
     const path = "test_save_if_changed.zon";
 
     // Ensure no leftover file
-    _ = std.fs.cwd().deleteFile(path) catch null;
+    _ = utils.fs.deleteFile(path) catch null;
 
     var doc = Document.initEmpty(allocator);
     defer doc.deinit();
@@ -1577,7 +2088,7 @@ test "Document: saveIfChanged writes file and avoids unnecessary writes" {
     try std.testing.expect(changed3);
 
     // Cleanup
-    _ = std.fs.cwd().deleteFile(path) catch null;
+    _ = utils.fs.deleteFile(path) catch null;
 }
 
 test "Document: type checking" {
@@ -1679,4 +2190,597 @@ test "Document: getOrPut" {
 
     try std.testing.expectEqual(@as(i64, 42), try doc.getOrPutInt("i", 42));
     try std.testing.expectEqual(@as(i64, 42), doc.getInt("i").?);
+}
+
+test "Document: paths" {
+    const allocator = std.testing.allocator;
+    var doc = Document.initEmpty(allocator);
+    defer doc.deinit();
+
+    try doc.setString("server.host", "localhost");
+    try doc.setInt("server.port", 8080);
+    try doc.setBool("ssl.enabled", true);
+
+    const all_paths = try doc.paths();
+    defer {
+        for (all_paths) |p| allocator.free(p);
+        allocator.free(all_paths);
+    }
+
+    try std.testing.expectEqual(@as(usize, 5), all_paths.len);
+    var found: usize = 0;
+    for (all_paths) |p| {
+        if (std.mem.eql(u8, p, "server.host") or std.mem.eql(u8, p, "server.port") or std.mem.eql(u8, p, "ssl.enabled")) {
+            found += 1;
+        }
+    }
+    try std.testing.expectEqual(@as(usize, 3), found);
+}
+
+test "Document: walk" {
+    const allocator = std.testing.allocator;
+    var doc = Document.initEmpty(allocator);
+    defer doc.deinit();
+
+    try doc.setString("a", "hello");
+    try doc.setBool("b", true);
+    try doc.setInt("c", 42);
+
+    var count: usize = 0;
+    const Context = struct {
+        count: *usize,
+    };
+    var ctx = Context{ .count = &count };
+
+    doc.walk(&ctx, struct {
+        fn visit(c: *Context, path: []const u8, value: *const Value) void {
+            _ = path;
+            _ = value;
+            c.count.* += 1;
+        }
+    }.visit);
+
+    try std.testing.expectEqual(@as(usize, 4), count); // root object + 3 values
+}
+
+test "Document: mapValues transforms strings" {
+    const allocator = std.testing.allocator;
+    var doc = Document.initEmpty(allocator);
+    defer doc.deinit();
+
+    try doc.setString("a", "hello");
+    try doc.setString("b", "world");
+
+    const Context = struct {
+        doc: *Document,
+        allocator: std.mem.Allocator,
+        fn map(c: *@This(), path: []const u8, value: Value) anyerror!Value {
+            _ = path;
+            if (value == .string) {
+                var owned = value;
+                const result_str = try std.ascii.allocUpperString(c.allocator, owned.string);
+                owned.deinit(c.allocator);
+                return Value{ .string = result_str };
+            }
+            return value;
+        }
+    };
+
+    var ctx = Context{ .doc = &doc, .allocator = allocator };
+    try doc.mapValues(&ctx, Context.map);
+
+    try std.testing.expectEqualStrings("HELLO", doc.getString("a").?);
+    try std.testing.expectEqualStrings("WORLD", doc.getString("b").?);
+}
+
+test "Document: pick" {
+    const allocator = std.testing.allocator;
+    var doc = Document.initEmpty(allocator);
+    defer doc.deinit();
+
+    try doc.setString("name", "test");
+    try doc.setInt("version", 1);
+    try doc.setBool("active", true);
+
+    var picked = try doc.pick(&.{ "name", "version" });
+    defer picked.deinit();
+
+    try std.testing.expectEqualStrings("test", picked.getString("name").?);
+    try std.testing.expectEqual(@as(i64, 1), picked.getInt("version").?);
+    try std.testing.expect(!picked.exists("active"));
+}
+
+test "Document: omit" {
+    const allocator = std.testing.allocator;
+    var doc = Document.initEmpty(allocator);
+    defer doc.deinit();
+
+    try doc.setString("name", "test");
+    try doc.setInt("version", 1);
+    try doc.setBool("active", true);
+
+    var omitted = try doc.omit(&.{"version"});
+    defer omitted.deinit();
+
+    try std.testing.expectEqualStrings("test", omitted.getString("name").?);
+    try std.testing.expect(!omitted.exists("version"));
+    try std.testing.expectEqual(true, omitted.getBool("active").?);
+}
+
+test "Document: sortKeys" {
+    const allocator = std.testing.allocator;
+    var doc = Document.initEmpty(allocator);
+    defer doc.deinit();
+
+    var obj = Value.Object.init(allocator);
+    try obj.put("z", .{ .string = try allocator.dupe(u8, "last") });
+    try obj.put("a", .{ .string = try allocator.dupe(u8, "first") });
+    try obj.put("m", .{ .string = try allocator.dupe(u8, "middle") });
+
+    var inner_obj = Value.Object.init(allocator);
+    try inner_obj.put("y", .{ .string = try allocator.dupe(u8, "inner_last") });
+    try inner_obj.put("b", .{ .string = try allocator.dupe(u8, "inner_first") });
+    try obj.put("nested", .{ .object = inner_obj });
+
+    doc.root = .{ .object = obj };
+
+    doc.sortKeys();
+
+    // Verify values are preserved
+    try std.testing.expectEqualStrings("first", doc.getString("a").?);
+    try std.testing.expectEqualStrings("last", doc.getString("z").?);
+    try std.testing.expectEqualStrings("middle", doc.getString("m").?);
+    try std.testing.expectEqualStrings("inner_first", doc.getString("nested.b").?);
+    try std.testing.expectEqualStrings("inner_last", doc.getString("nested.y").?);
+}
+
+test "Document: type checking isString isBool isInt isFloat isNumber isObject isArray" {
+    const allocator = std.testing.allocator;
+    var doc = Document.initEmpty(allocator);
+    defer doc.deinit();
+
+    try doc.setString("s", "hello");
+    try doc.setBool("b", true);
+    try doc.setInt("i", 42);
+    try doc.setFloat("f", 3.14);
+    try doc.setObject("o");
+    try doc.setArray("a");
+
+    try std.testing.expect(doc.isString("s"));
+    try std.testing.expect(!doc.isString("b"));
+    try std.testing.expect(doc.isBool("b"));
+    try std.testing.expect(!doc.isBool("s"));
+    try std.testing.expect(doc.isInt("i"));
+    try std.testing.expect(!doc.isInt("f"));
+    try std.testing.expect(doc.isFloat("f"));
+    try std.testing.expect(!doc.isFloat("i"));
+    try std.testing.expect(doc.isNumber("i"));
+    try std.testing.expect(doc.isNumber("f"));
+    try std.testing.expect(!doc.isNumber("s"));
+    try std.testing.expect(doc.isObject("o"));
+    try std.testing.expect(!doc.isObject("s"));
+    try std.testing.expect(doc.isArray("a"));
+    try std.testing.expect(!doc.isArray("s"));
+}
+
+test "Document: isValue and isKey aliases" {
+    const allocator = std.testing.allocator;
+    var doc = Document.initEmpty(allocator);
+    defer doc.deinit();
+
+    try doc.setString("name", "test");
+    try std.testing.expect(doc.isValue("name"));
+    try std.testing.expect(doc.isKey("name"));
+    try std.testing.expect(!doc.isValue("nonexistent"));
+    try std.testing.expect(!doc.isKey("nonexistent"));
+}
+
+test "Document: toUpper and toLower" {
+    const allocator = std.testing.allocator;
+    var doc = Document.initEmpty(allocator);
+    defer doc.deinit();
+
+    try doc.setString("name", "Hello World");
+    try doc.toUpper("name");
+    try std.testing.expectEqualStrings("HELLO WORLD", doc.getString("name").?);
+
+    try doc.toLower("name");
+    try std.testing.expectEqualStrings("hello world", doc.getString("name").?);
+}
+
+test "Document: isUpperCase and isLowerCase" {
+    const allocator = std.testing.allocator;
+    var doc = Document.initEmpty(allocator);
+    defer doc.deinit();
+
+    try doc.setString("upper", "HELLO");
+    try doc.setString("lower", "hello");
+    try doc.setString("mixed", "Hello");
+
+    try std.testing.expect(doc.isUpperCase("upper"));
+    try std.testing.expect(!doc.isUpperCase("lower"));
+    try std.testing.expect(!doc.isUpperCase("mixed"));
+
+    try std.testing.expect(doc.isLowerCase("lower"));
+    try std.testing.expect(!doc.isLowerCase("upper"));
+    try std.testing.expect(!doc.isLowerCase("mixed"));
+}
+
+test "Document: sortKeysDesc" {
+    const allocator = std.testing.allocator;
+    var doc = Document.initEmpty(allocator);
+    defer doc.deinit();
+
+    var obj = Value.Object.init(allocator);
+    try obj.put("a", .{ .string = try allocator.dupe(u8, "first") });
+    try obj.put("m", .{ .string = try allocator.dupe(u8, "middle") });
+    try obj.put("z", .{ .string = try allocator.dupe(u8, "last") });
+
+    doc.root = .{ .object = obj };
+    doc.sortKeysDesc();
+
+    try std.testing.expectEqualStrings("first", doc.getString("a").?);
+    try std.testing.expectEqualStrings("middle", doc.getString("m").?);
+    try std.testing.expectEqualStrings("last", doc.getString("z").?);
+}
+
+test "Document: sortArray" {
+    const allocator = std.testing.allocator;
+    var doc = Document.initEmpty(allocator);
+    defer doc.deinit();
+
+    try doc.setArray("arr");
+    try doc.appendToArray("arr", "zebra");
+    try doc.appendToArray("arr", "apple");
+    try doc.appendToArray("arr", "monkey");
+
+    try doc.sortArray("arr");
+
+    try std.testing.expectEqualStrings("apple", doc.getArrayString("arr", 0).?);
+    try std.testing.expectEqualStrings("monkey", doc.getArrayString("arr", 1).?);
+    try std.testing.expectEqualStrings("zebra", doc.getArrayString("arr", 2).?);
+}
+
+test "Document: reverseArray" {
+    const allocator = std.testing.allocator;
+    var doc = Document.initEmpty(allocator);
+    defer doc.deinit();
+
+    try doc.setArray("arr");
+    try doc.appendToArray("arr", "one");
+    try doc.appendToArray("arr", "two");
+    try doc.appendToArray("arr", "three");
+
+    try doc.reverseArray("arr");
+
+    try std.testing.expectEqualStrings("three", doc.getArrayString("arr", 0).?);
+    try std.testing.expectEqualStrings("two", doc.getArrayString("arr", 1).?);
+    try std.testing.expectEqualStrings("one", doc.getArrayString("arr", 2).?);
+}
+
+test "Document: truncate array" {
+    const allocator = std.testing.allocator;
+    var doc = Document.initEmpty(allocator);
+    defer doc.deinit();
+
+    try doc.setArray("arr");
+    try doc.appendToArray("arr", "a");
+    try doc.appendToArray("arr", "b");
+    try doc.appendToArray("arr", "c");
+    try doc.appendToArray("arr", "d");
+
+    try doc.truncate("arr", 2);
+    try std.testing.expectEqual(@as(usize, 2), doc.arrayLen("arr").?);
+    try std.testing.expectEqualStrings("a", doc.getArrayString("arr", 0).?);
+    try std.testing.expectEqualStrings("b", doc.getArrayString("arr", 1).?);
+}
+
+test "Document: dropFirst and dropLast" {
+    const allocator = std.testing.allocator;
+    var doc = Document.initEmpty(allocator);
+    defer doc.deinit();
+
+    try doc.setArray("arr");
+    try doc.appendToArray("arr", "a");
+    try doc.appendToArray("arr", "b");
+    try doc.appendToArray("arr", "c");
+    try doc.appendToArray("arr", "d");
+    try doc.appendToArray("arr", "e");
+
+    try doc.dropFirst("arr", 2);
+    try std.testing.expectEqual(@as(usize, 3), doc.arrayLen("arr").?);
+    try std.testing.expectEqualStrings("c", doc.getArrayString("arr", 0).?);
+
+    try doc.dropLast("arr", 1);
+    try std.testing.expectEqual(@as(usize, 2), doc.arrayLen("arr").?);
+    try std.testing.expectEqualStrings("c", doc.getArrayString("arr", 0).?);
+    try std.testing.expectEqualStrings("d", doc.getArrayString("arr", 1).?);
+}
+
+test "Document: forEach iterates all values" {
+    const allocator = std.testing.allocator;
+    var doc = Document.initEmpty(allocator);
+    defer doc.deinit();
+
+    try doc.setString("a", "hello");
+    try doc.setBool("b", true);
+
+    var count: usize = 0;
+    const Context = struct {
+        count: *usize,
+    };
+    var ctx = Context{ .count = &count };
+    doc.forEach(&ctx, struct {
+        fn cb(c: *Context, _: []const u8, _: *const Value) void {
+            c.count.* += 1;
+        }
+    }.cb);
+
+    try std.testing.expectEqual(@as(usize, 3), count); // root object + 2 values
+}
+
+test "Document: every and some on array" {
+    const allocator = std.testing.allocator;
+    var doc = Document.initEmpty(allocator);
+    defer doc.deinit();
+
+    try doc.setArray("nums");
+    try doc.appendIntToArray("nums", 2);
+    try doc.appendIntToArray("nums", 4);
+    try doc.appendIntToArray("nums", 6);
+
+    const Predicates = struct {
+        fn isEven(v: *const Value) bool {
+            const i = v.asInt() orelse return false;
+            return @rem(i, 2) == 0;
+        }
+        fn isOdd(v: *const Value) bool {
+            const i = v.asInt() orelse return false;
+            return @rem(i, 2) != 0;
+        }
+    };
+
+    try std.testing.expect(doc.every("nums", Predicates.isEven));
+    try std.testing.expect(!doc.some("nums", Predicates.isOdd));
+}
+
+test "Document: filter" {
+    const allocator = std.testing.allocator;
+    var doc = Document.initEmpty(allocator);
+    defer doc.deinit();
+
+    try doc.setString("name", "test");
+    try doc.setInt("version", 1);
+    try doc.setBool("active", true);
+
+    const Context = struct {
+        fn isString(_: *@This(), _: []const u8, value: *const Value) bool {
+            return value.* == .string;
+        }
+    };
+
+    var ctx = Context{};
+    var filtered = try doc.filter(allocator, &ctx, Context.isString);
+    defer filtered.deinit();
+
+    try std.testing.expectEqualStrings("test", filtered.getString("name").?);
+    try std.testing.expect(!filtered.exists("version"));
+    try std.testing.expect(!filtered.exists("active"));
+}
+
+test "Document: first and last on array" {
+    const allocator = std.testing.allocator;
+    var doc = Document.initEmpty(allocator);
+    defer doc.deinit();
+
+    try doc.setArray("arr");
+    try doc.appendToArray("arr", "first");
+    try doc.appendToArray("arr", "middle");
+    try doc.appendToArray("arr", "last");
+
+    try std.testing.expectEqualStrings("first", doc.first("arr").?.asString().?);
+    try std.testing.expectEqualStrings("last", doc.last("arr").?.asString().?);
+}
+
+test "Document: compact removes nulls from array" {
+    const allocator = std.testing.allocator;
+    var doc = Document.initEmpty(allocator);
+    defer doc.deinit();
+
+    try doc.setArray("arr");
+    try doc.appendToArray("arr", "a");
+    try doc.setValue("arr[1]", .null_val);
+    try doc.appendToArray("arr", "b");
+    try doc.setValue("arr[3]", .null_val);
+    try doc.appendToArray("arr", "c");
+
+    try doc.compact("arr");
+
+    try std.testing.expectEqual(@as(usize, 3), doc.arrayLen("arr").?);
+    try std.testing.expectEqualStrings("a", doc.getArrayString("arr", 0).?);
+    try std.testing.expectEqualStrings("b", doc.getArrayString("arr", 1).?);
+    try std.testing.expectEqualStrings("c", doc.getArrayString("arr", 2).?);
+}
+
+test "Document: unique removes duplicates from array" {
+    const allocator = std.testing.allocator;
+    var doc = Document.initEmpty(allocator);
+    defer doc.deinit();
+
+    try doc.setArray("arr");
+    try doc.appendToArray("arr", "a");
+    try doc.appendToArray("arr", "b");
+    try doc.appendToArray("arr", "a");
+    try doc.appendToArray("arr", "c");
+    try doc.appendToArray("arr", "b");
+
+    try doc.unique("arr");
+
+    try std.testing.expectEqual(@as(usize, 3), doc.arrayLen("arr").?);
+    try std.testing.expectEqualStrings("a", doc.getArrayString("arr", 0).?);
+    try std.testing.expectEqualStrings("b", doc.getArrayString("arr", 1).?);
+    try std.testing.expectEqualStrings("c", doc.getArrayString("arr", 2).?);
+}
+
+test "Document: nested path validation" {
+    const allocator = std.testing.allocator;
+    var doc = Document.initEmpty(allocator);
+    defer doc.deinit();
+
+    try doc.setString("server.host", "localhost");
+    try doc.setInt("server.port", 8080);
+    try doc.setBool("server.ssl.enabled", true);
+    try doc.setObject("server.tags");
+    try doc.setArray("server.mirrors");
+
+    try std.testing.expect(doc.isString("server.host"));
+    try std.testing.expect(doc.isInt("server.port"));
+    try std.testing.expect(doc.isBool("server.ssl.enabled"));
+    try std.testing.expect(doc.isObject("server.tags"));
+    try std.testing.expect(doc.isArray("server.mirrors"));
+    try std.testing.expect(!doc.isString("server.port"));
+    try std.testing.expect(!doc.isArray("server.host"));
+}
+
+test "Document: nested toUpper and toLower" {
+    const allocator = std.testing.allocator;
+    var doc = Document.initEmpty(allocator);
+    defer doc.deinit();
+
+    try doc.setString("config.name", "MyApp");
+    try doc.toUpper("config.name");
+    try std.testing.expectEqualStrings("MYAPP", doc.getString("config.name").?);
+    try std.testing.expect(doc.isUpperCase("config.name"));
+
+    try doc.toLower("config.name");
+    try std.testing.expectEqualStrings("myapp", doc.getString("config.name").?);
+    try std.testing.expect(doc.isLowerCase("config.name"));
+}
+
+test "Document: nested sortArray and reverseArray" {
+    const allocator = std.testing.allocator;
+    var doc = Document.initEmpty(allocator);
+    defer doc.deinit();
+
+    try doc.setArray("config.tags");
+    try doc.appendToArray("config.tags", "z");
+    try doc.appendToArray("config.tags", "a");
+    try doc.appendToArray("config.tags", "m");
+
+    try doc.sortArray("config.tags");
+    try std.testing.expectEqualStrings("a", doc.getArrayString("config.tags", 0).?);
+    try std.testing.expectEqualStrings("m", doc.getArrayString("config.tags", 1).?);
+    try std.testing.expectEqualStrings("z", doc.getArrayString("config.tags", 2).?);
+
+    try doc.reverseArray("config.tags");
+    try std.testing.expectEqualStrings("z", doc.getArrayString("config.tags", 0).?);
+}
+
+test "Document: nested truncate and drop" {
+    const allocator = std.testing.allocator;
+    var doc = Document.initEmpty(allocator);
+    defer doc.deinit();
+
+    try doc.setArray("config.items");
+    try doc.appendToArray("config.items", "a");
+    try doc.appendToArray("config.items", "b");
+    try doc.appendToArray("config.items", "c");
+    try doc.appendToArray("config.items", "d");
+    try doc.appendToArray("config.items", "e");
+
+    try doc.dropFirst("config.items", 2);
+    try std.testing.expectEqual(@as(usize, 3), doc.arrayLen("config.items").?);
+    try std.testing.expectEqualStrings("c", doc.getArrayString("config.items", 0).?);
+
+    try doc.truncate("config.items", 1);
+    try std.testing.expectEqual(@as(usize, 1), doc.arrayLen("config.items").?);
+    try std.testing.expectEqualStrings("c", doc.getArrayString("config.items", 0).?);
+}
+
+test "Document: nested compact and unique" {
+    const allocator = std.testing.allocator;
+    var doc = Document.initEmpty(allocator);
+    defer doc.deinit();
+
+    try doc.setArray("data.vals");
+    try doc.appendToArray("data.vals", "a");
+    try doc.setValue("data.vals[1]", .null_val);
+    try doc.appendToArray("data.vals", "a");
+    try doc.appendToArray("data.vals", "b");
+    try doc.setValue("data.vals[4]", .null_val);
+
+    try doc.compact("data.vals");
+    try std.testing.expectEqual(@as(usize, 3), doc.arrayLen("data.vals").?);
+
+    try doc.unique("data.vals");
+    try std.testing.expectEqual(@as(usize, 2), doc.arrayLen("data.vals").?);
+    try std.testing.expectEqualStrings("a", doc.getArrayString("data.vals", 0).?);
+    try std.testing.expectEqualStrings("b", doc.getArrayString("data.vals", 1).?);
+}
+
+test "Document: nested every and some" {
+    const allocator = std.testing.allocator;
+    var doc = Document.initEmpty(allocator);
+    defer doc.deinit();
+
+    try doc.setArray("nums");
+    try doc.appendIntToArray("nums", 2);
+    try doc.appendIntToArray("nums", 4);
+    try doc.appendIntToArray("nums", 6);
+
+    const NestedPred = struct {
+        fn isEven(v: *const Value) bool {
+            const i = v.asInt() orelse return false;
+            return @rem(i, 2) == 0;
+        }
+        fn isOdd(v: *const Value) bool {
+            const i = v.asInt() orelse return false;
+            return @rem(i, 2) != 0;
+        }
+    };
+
+    try std.testing.expect(doc.every("nums", NestedPred.isEven));
+    try std.testing.expect(!doc.some("nums", NestedPred.isOdd));
+}
+
+test "Document: nested sortKeys" {
+    const allocator = std.testing.allocator;
+    var doc = Document.initEmpty(allocator);
+    defer doc.deinit();
+
+    var obj = Value.Object.init(allocator);
+    try obj.put("z", .{ .string = try allocator.dupe(u8, "last") });
+    try obj.put("a", .{ .string = try allocator.dupe(u8, "first") });
+    try obj.put("m", .{ .string = try allocator.dupe(u8, "middle") });
+
+    doc.root = .{ .object = obj };
+    doc.sortKeysDesc();
+
+    try std.testing.expectEqualStrings("first", doc.getString("a").?);
+    try std.testing.expectEqualStrings("middle", doc.getString("m").?);
+    try std.testing.expectEqualStrings("last", doc.getString("z").?);
+}
+
+test "Document: nested filter" {
+    const allocator = std.testing.allocator;
+    var doc = Document.initEmpty(allocator);
+    defer doc.deinit();
+
+    try doc.setString("app.name", "test");
+    try doc.setInt("app.version", 1);
+    try doc.setBool("app.active", true);
+
+    const Ctx = struct {
+        fn isString(_: *@This(), _: []const u8, value: *const Value) bool {
+            return value.* == .string;
+        }
+    };
+
+    var ctx = Ctx{};
+    var filtered = try doc.filter(allocator, &ctx, Ctx.isString);
+    defer filtered.deinit();
+
+    try std.testing.expectEqualStrings("test", filtered.getString("app.name").?);
+    try std.testing.expect(!filtered.exists("app.version"));
+    try std.testing.expect(!filtered.exists("app.active"));
 }

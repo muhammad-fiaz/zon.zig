@@ -5,7 +5,7 @@
 # zon.zig
 
 <a href="https://muhammad-fiaz.github.io/zon.zig/"><img src="https://img.shields.io/badge/docs-muhammad--fiaz.github.io-blue" alt="Documentation"></a>
-<a href="https://ziglang.org/"><img src="https://img.shields.io/badge/Zig-0.15.0+-orange.svg?logo=zig" alt="Zig Version"></a>
+<a href="https://ziglang.org/"><img src="https://img.shields.io/badge/Zig-0.16.0+-orange.svg?logo=zig" alt="Zig Version"></a>
 <a href="https://github.com/muhammad-fiaz/zon.zig"><img src="https://img.shields.io/github/stars/muhammad-fiaz/zon.zig" alt="GitHub stars"></a>
 <a href="https://github.com/muhammad-fiaz/zon.zig/issues"><img src="https://img.shields.io/github/issues/muhammad-fiaz/zon.zig" alt="GitHub issues"></a>
 <a href="https://github.com/muhammad-fiaz/zon.zig/pulls"><img src="https://img.shields.io/github/issues-pr/muhammad-fiaz/zon.zig" alt="GitHub pull requests"></a>
@@ -33,6 +33,16 @@
 ---
 
 A **document-based** ZON (Zig Object Notation) library for Zig, designed for configuration file editing, dynamic access, and data manipulation. Unlike [`std.zon`](https://codeberg.org/ziglang/zig/src/branch/master/lib/std/zon) which parses ZON into typed structures, zon.zig maintains an in-memory document tree that you can query, modify, and serialize.
+
+**Related Zig projects:**
+
+- For **API framework** support, check out **[api.zig](https://github.com/muhammad-fiaz/api.zig)**.
+- For **web framework** support, check out **[zix](https://github.com/muhammad-fiaz/zix)**.
+- For **logging** support, check out **[logly.zig](https://github.com/muhammad-fiaz/logly.zig)**.
+- For **data validation and serialization** support, check out **[zigantic](https://github.com/muhammad-fiaz/zigantic)**.
+- For **HTTP Server/Client** support, check out **[httpx.zig](https://github.com/muhammad-fiaz/httpx.zig)**.
+- For **ZON file format** support, check out **[zon.zig](https://github.com/muhammad-fiaz/zon.zig)** 
+- For **Args Parsing** support, check out **[args.zig](https://github.com/muhammad-fiaz/args.zig)**.
 
 **If you find `zon.zig` useful, please give it a star!**
 
@@ -100,6 +110,19 @@ A **document-based** ZON (Zig Object Notation) library for Zig, designed for con
 | [Runtime Structs](guide/runtime-structs) | Convert ZON documents to Zig structs (`toStruct`) |
 | [Struct to ZON](guide/runtime-structs) | Create/Update Documents from Zig Structs (`initFromStruct`) |
 | [Smart Stringify](guide/writing) | Intelligent key quoting (ZON-compliant unquoted keys) |
+| [Sort Keys](guide/writing) | Alphabetical key sorting in stringify output (`sort_keys` option) |
+| [Walk & Map](guide/basic-usage) | Traverse and transform values with `walk()` and `mapValues()` |
+| [Pick & Omit](guide/basic-usage) | Create document subsets with `pick()` and `omit()` |
+| [Path Enumeration](guide/basic-usage) | Recursively list all paths with `paths()` |
+| [In-Place Sort](guide/basic-usage) | Recursively sort all object keys with `sortKeys()` |
+| [Descending Sort](guide/basic-usage) | Sort keys in descending order with `sortKeysDesc()` |
+| [Array Sort](guide/arrays) | Sort array elements with `sortArray()` and `reverseArray()` |
+| [Array Truncation](guide/arrays) | `truncate()`, `dropFirst()`, `dropLast()` for array manipulation |
+| [Type Checking](api/document) | `isString()`, `isBool()`, `isInt()`, `isFloat()`, `isNumber()`, `isObject()`, `isArray()` |
+| [Case Utilities](api/document) | `toUpper()`, `toLower()`, `isUpperCase()`, `isLowerCase()` |
+| [Vectorized Ops](api/document) | `filter()`, `forEach()`, `every()`, `some()` for batch operations |
+| [Array Helpers](api/document) | `first()`, `last()`, `compact()`, `unique()` for common array tasks |
+| [Filter](api/document) | Create document subsets with predicate-based `filter()` |
 | [Diagnostic Errors](guide/error-handling) | High-quality syntax error reporting with line/column |
 
 </details>
@@ -115,7 +138,7 @@ A **document-based** ZON (Zig Object Notation) library for Zig, designed for con
 
 | Requirement          | Version                   | Notes                                                      |
 | -------------------- | ------------------------- | ---------------------------------------------------------- |
-| **Zig**              | 0.15.0+                   | Download from [ziglang.org](https://ziglang.org/download/) |
+| **Zig**              | 0.16.0+                   | Download from [ziglang.org](https://ziglang.org/download/) |
 | **Operating System** | Windows 10+, Linux, macOS | Cross-platform support                                     |
 
 ---
@@ -134,6 +157,14 @@ A **document-based** ZON (Zig Object Notation) library for Zig, designed for con
 ---
 
 ## Installation
+
+For **Zig 0.16.0** support (recommended), use `v0.0.5`:
+
+```bash
+zig fetch --save https://github.com/muhammad-fiaz/zon.zig/archive/refs/tags/v0.0.5.tar.gz
+```
+
+For **Zig 0.15.0**, use `v0.0.4`:
 
 ```bash
 zig fetch --save https://github.com/muhammad-fiaz/zon.zig/archive/refs/tags/0.0.4.tar.gz
@@ -202,9 +233,9 @@ zon.zig fully supports the `build.zig.zon` format:
 ```zig
 .{
     .name = .zon,                        // Identifier as value
-    .version = "0.0.4",                  // String
+    .version = "0.0.5",                  // String
     .fingerprint = 0xee480fa30d50cbf6,   // Multi-bit hex handled as i128
-    .minimum_zig_version = "0.15.0",
+    .minimum_zig_version = "0.16.0",
     .paths = .{                          // Array of strings
         "build.zig",
         "build.zig.zon",
@@ -417,8 +448,14 @@ defer copy.deinit();
 | `clear()`                    | Clear all data                                                              |
 | `count()`                    | Get number of root keys                                                     |
 | `keys()`                     | Get all root keys                                                           |
+| `paths()`                    | Recursively list all paths in the document                                  |
 | `merge(other)`               | Merge another document                                                      |
 | `clone()`                    | Create a deep copy                                                          |
+| `pick(paths)`                | Create new document with only specified paths                               |
+| `omit(paths)`                | Create new document excluding specified paths                               |
+| `walk(context, visitor)`     | Depth-first traversal of all values                                         |
+| `mapValues(context, map)`    | Transform all values recursively                                            |
+| `sortKeys()`                 | Recursively sort all object keys alphabetically                              |
 | `save()`                     | Save to original file path                                                  |
 | `saveAs(path)`               | Save to specified path                                                      |
 | `saveAsAtomic(path)`         | Atomically save to specified path (temporary file + rename)                 |
@@ -451,6 +488,10 @@ The `examples/` directory contains comprehensive examples:
 - **identifier_values.zig** - Identifier value parsing and usage
 - **nested_creation.zig** - Creating deeply nested structures
 - **error_handling.zig** - Examples of parse and file error handling
+- **walk_map.zig** - Walking and mapping values in documents
+- **pick_omit.zig** - Creating document subsets with pick and omit
+- **sort_format.zig** - Key sorting and stringify sort_keys option
+- **validation_sort.zig** - Type checking, case utilities, array sorting, truncation, filter
 
 ### File helpers and utilities
 

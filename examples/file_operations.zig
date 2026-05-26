@@ -2,7 +2,7 @@ const std = @import("std");
 const zon = @import("zon");
 
 pub fn main() !void {
-    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    var gpa = std.heap.DebugAllocator(.{}){};
     defer _ = gpa.deinit();
     const allocator = gpa.allocator();
 
@@ -63,12 +63,12 @@ pub fn main() !void {
     try zon.writeFileAtomic(allocator, out_path, out_data);
 
     // 10) Cleanup demo files
-    _ = std.fs.cwd().deleteFile(a) catch null;
-    _ = std.fs.cwd().deleteFile(c) catch null;
-    _ = std.fs.cwd().deleteFile(out_path) catch null;
+    zon.deleteFile(a) catch {};
+    zon.deleteFile(c) catch {};
+    zon.deleteFile(out_path) catch {};
     const backup_name = try std.fmt.allocPrint(allocator, "{s}{s}", .{ a, backup_ext });
     defer allocator.free(backup_name);
-    _ = std.fs.cwd().deleteFile(backup_name) catch null;
+    zon.deleteFile(backup_name) catch {};
 
     std.debug.print("File operations demo completed successfully.\n", .{});
 }

@@ -59,7 +59,7 @@ try config.mergeRecursive(&prod_overrides);
 You can automate this by checking an environment variable:
 
 ```zig
-const env = std.posix.getenv("APP_ENV") orelse "dev";
+const env = std.process.getenv("APP_ENV") orelse "dev";
 
 var config = try zon.open(allocator, "config/default.zon");
 defer config.deinit();

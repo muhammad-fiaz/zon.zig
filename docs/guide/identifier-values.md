@@ -93,7 +93,7 @@ const source =
     \\    .name = .downloader,
     \\    .version = "0.1.0",
     \\    .fingerprint = 0xee480fa30d50cbf6,
-    \\    .minimum_zig_version = "0.15.0",
+    \\    .minimum_zig_version = "0.16.0",
     \\    .paths = .{
     \\        "build.zig",
     \\        "build.zig.zon",
@@ -134,7 +134,7 @@ defer doc.deinit();
 // Package name as identifier
 try doc.setIdentifier("name", "my_lib");
 try doc.setString("version", "0.1.0");
-try doc.setString("minimum_zig_version", "0.15.0");
+try doc.setString("minimum_zig_version", "0.16.0");
 
 // Fingerprint (handled transitionally as i128 to capture full 64-bit hex)
 const fp: u64 = 0xee480fa30d50cbf6;
@@ -164,7 +164,7 @@ Output:
         },
     },
     .fingerprint = 0xee480fa30d50cbf6,
-    .minimum_zig_version = "0.15.0",
+    .minimum_zig_version = "0.16.0",
     .name = .my_lib,
     .paths = .{
         "build.zig",
@@ -172,6 +172,59 @@ Output:
         "src",
     },
     .version = "0.1.0",
+}
+```
+
+## Validating Nested Identifiers
+
+Type-checking and dot-path access work for identifiers at any nesting level:
+
+```zig
+const source =
+    \\.{
+    \\    .dependencies = .{
+    \\        .http = .{
+    \\            .url = "https://example.com/http",
+    \\            .version = .v2_0,
+    \\        },
+    \\        .json = .{
+    \\            .url = "https://example.com/json",
+    \\            .version = .v1_5,
+    \\        },
+    \\    },
+    \\}
+;
+
+var doc = try zon.parse(allocator, source);
+defer doc.deinit();
+
+// Validate identifier at nested path
+if (doc.isIdentifier("dependencies.http.version")) {
+    const http_ver = doc.getIdentifier("dependencies.http.version").?;
+    std.debug.print("HTTP version: .{s}\n", .{http_ver});
+}
+
+// getString works for identifiers too
+const json_ver = doc.getString("dependencies.json.version").?;
+std.debug.print("JSON version: {s}\n", .{json_ver});
+
+// Setting nested identifiers
+try doc.setIdentifier("dependencies.crypto.version", "v3_0");
+if (doc.isIdentifier("dependencies.crypto.version")) {
+    std.debug.print("Crypto version set\n", .{});
+}
+
+// Iterate all dependencies with identifier checks
+if (doc.isObject("dependencies")) {
+    var deps = doc.getObject("dependencies").?;
+    var it = deps.iterator();
+    while (it.next()) |entry| {
+        if (entry.value.isIdentifier()) {
+            std.debug.print("{s} is an identifier: .{s}\n", .{
+                entry.key, entry.value.asIdentifier().?,
+            });
+        }
+    }
 }
 ```
 

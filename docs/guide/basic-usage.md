@@ -256,6 +256,46 @@ Possible types:
 - `"object"`
 - `"array"`
 
+### Type Checking Methods
+
+```zig
+if (doc.isString("name"))    { /* value is string */ }
+if (doc.isBool("enabled"))   { /* value is bool */ }
+if (doc.isInt("port"))       { /* value is integer */ }
+if (doc.isFloat("rate"))     { /* value is float */ }
+if (doc.isNumber("value"))   { /* value is int or float */ }
+if (doc.isObject("config"))  { /* value is object */ }
+if (doc.isArray("tags"))     { /* value is array */ }
+if (doc.isValue("key"))      { /* path exists (alias for exists) */ }
+if (doc.isKey("key"))        { /* path exists (alias for exists) */ }
+```
+
+All type-checking methods support **dot-separated nested paths**:
+
+```zig
+// Validate nested structure
+if (doc.isString("server.host"))           { /* host is string */ }
+if (doc.isInt("server.port"))               { /* port is int */ }
+if (doc.isBool("server.ssl.enabled"))       { /* ssl flag is bool */ }
+if (doc.isFloat("server.rate"))             { /* rate is float */ }
+if (doc.isObject("server.ssl"))             { /* ssl is an object */ }
+if (doc.isArray("tags"))                    { /* tags is an array */ }
+if (doc.isIdentifier("dependencies.http.version")) {
+    /* nested identifier */
+}
+```
+
+### Case Utilities
+
+```zig
+try doc.setString("name", "MyApp");
+try doc.toUpper("name");               // "MYAPP"
+std.debug.print("Upper: {}\n", .{doc.isUpperCase("name")}); // true
+
+try doc.toLower("name");               // "myapp"
+std.debug.print("Lower: {}\n", .{doc.isLowerCase("name")}); // true
+```
+
 ### Check if Empty
 
 ```zig
@@ -379,6 +419,19 @@ pub fn main() !void {
     std.debug.print("Type of 'name': {s}\n", .{doc.getType("name").?});
     std.debug.print("Type of 'port': {s}\n", .{doc.getType("port").?});
 
+    // Value-level type checks
+    std.debug.print("isString:  {}\n", .{doc.isString("version")});
+    std.debug.print("isInt:     {}\n", .{doc.isInt("port")});
+    std.debug.print("isBool:    {}\n", .{doc.isBool("debug")});
+    std.debug.print("isNumber:  {}\n", .{doc.isNumber("rate")});
+
+    // Validation & encoding
+    std.debug.print("valid semver: {}\n", .{zon.validateSemVer("1.2.3")});
+
+    const enc = try zon.base64Encode(allocator, "hello");
+    defer allocator.free(enc);
+    std.debug.print("base64: {s}\n", .{enc});
+
     // Output
     const output = try doc.toString();
     defer allocator.free(output);
@@ -394,6 +447,12 @@ Port: 8080
 Debug: true
 Type of 'name': identifier
 Type of 'port': int
+isString:  true
+isInt:     true
+isBool:    true
+isNumber:  true
+valid semver: true
+base64: aGVsbG8=
 
 .{
     .debug = true,

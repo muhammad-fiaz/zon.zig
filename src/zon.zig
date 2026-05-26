@@ -28,6 +28,7 @@ pub const Token = @import("tokenizer.zig").Token;
 pub const version = version_info.version;
 pub const stringify = @import("stringify.zig").stringify;
 pub const stringifyJson = @import("stringify.zig").stringifyJson;
+pub const StringifyOptions = @import("stringify.zig").StringifyOptions;
 
 /// Disables update checking.
 pub fn disableUpdateCheck() void {
@@ -141,48 +142,46 @@ pub fn parseFile(allocator: Allocator, path: []const u8) !Document {
 
 /// Deletes a file.
 pub fn deleteFile(file_path: []const u8) !void {
-    try std.fs.cwd().deleteFile(file_path);
+    try utils.fs.deleteFile(file_path);
 }
 
 /// Returns true if the file exists.
 pub fn fileExists(file_path: []const u8) bool {
-    std.fs.cwd().access(file_path, .{}) catch return false;
+    utils.fs.access(file_path, .{}) catch return false;
     return true;
 }
 
 /// Copy a file, with optional overwrite behaviour.
 pub fn copyFile(source_path: []const u8, dest_path: []const u8, overwrite: bool) !void {
     if (!overwrite) {
-        const dest_file_opt = std.fs.cwd().openFile(dest_path, .{}) catch null;
-        if (dest_file_opt != null) {
-            var dest_file = dest_file_opt.?;
-            defer dest_file.close();
+        const dest_file_opt = utils.fs.openFile(dest_path, .{}) catch null;
+        if (dest_file_opt) |mut_f| {
+            const dest_file = mut_f;
+            utils.fs.closeFile(dest_file);
             return FileError.FileAlreadyExists;
         }
     }
-    try std.fs.cwd().copyFile(source_path, std.fs.cwd(), dest_path, .{});
+    try utils.fs.copyFile(source_path, dest_path, .{});
 }
 
 /// Move (rename) a file, with optional overwrite.
 pub fn moveFile(old_path: []const u8, new_path: []const u8, overwrite: bool) !void {
     if (overwrite) {
-        _ = std.fs.cwd().deleteFile(new_path) catch null;
+        _ = utils.fs.deleteFile(new_path) catch null;
     } else {
-        const existing_file_opt = std.fs.cwd().openFile(new_path, .{}) catch null;
-        if (existing_file_opt != null) {
-            var existing_file = existing_file_opt.?;
-            defer existing_file.close();
+        const existing_file_opt = utils.fs.openFile(new_path, .{}) catch null;
+        if (existing_file_opt) |mut_f| {
+            const existing_file = mut_f;
+            utils.fs.closeFile(existing_file);
             return FileError.FileAlreadyExists;
         }
     }
-    try std.fs.cwd().rename(old_path, new_path);
+    try utils.fs.rename(old_path, new_path);
 }
 
 /// Read a file into an allocator-owned buffer (caller must free).
 pub fn readFile(allocator: Allocator, path: []const u8) ![]u8 {
-    const f = try std.fs.cwd().openFile(path, .{});
-    defer f.close();
-    return try f.readToEndAlloc(allocator, 1024 * 1024 * 64);
+    return try utils.fs.readFileAlloc(allocator, path, .limited(1024 * 1024 * 64));
 }
 
 /// Alias for readFile().
@@ -195,13 +194,13 @@ pub fn writeFileAtomic(allocator: Allocator, path: []const u8, data: []const u8)
     const tmp = try std.fmt.allocPrint(allocator, "{s}.tmp", .{path});
     defer allocator.free(tmp);
 
-    const f = try std.fs.cwd().createFile(tmp, .{});
-    defer f.close();
+    const f = try utils.fs.createFile(tmp, .{});
+    defer utils.fs.closeFile(f);
 
-    try f.writeAll(data);
-    try f.writeAll("\n");
+    try utils.fs.writeFile(f, data);
+    try utils.fs.writeFile(f, "\n");
 
-    try std.fs.cwd().rename(tmp, path);
+    try utils.fs.rename(tmp, path);
 }
 
 /// Alias for writeFileAtomic().
@@ -315,6 +314,54 @@ pub fn unmarshal(doc: *const Document, comptime T: type) !T {
     return doc.toStruct(T);
 }
 
+/// Validates a semantic version string (e.g. "1.2.3", "0.16.0").
+/// Returns true if the string is a valid semver.
+pub fn validateSemVer(version_str: []const u8) bool {
+    _ = std.SemanticVersion.parse(version_str) catch return false;
+    return true;
+}
+
+/// Encodes bytes to base64. Caller must free the returned string.
+pub fn base64Encode(allocator: Allocator, data: []const u8) ![]const u8 {
+    const encoder = std.base64.standard.Encoder;
+    const out_len = encoder.calcSize(data.len);
+    const out = try allocator.alloc(u8, out_len);
+    _ = encoder.encode(out, data);
+    return out;
+}
+
+/// Decodes a base64 string. Caller must free the returned bytes.
+pub fn base64Decode(allocator: Allocator, encoded: []const u8) ![]u8 {
+    const decoder = std.base64.standard.Decoder;
+    const out_len = decoder.calcSizeForSlice(encoded) catch return error.InvalidBase64;
+    const out = try allocator.alloc(u8, out_len);
+    decoder.decode(out, encoded) catch return error.InvalidBase64;
+    return out;
+}
+
+test "validateSemVer" {
+    const allocator = std.testing.allocator;
+    _ = allocator;
+    try std.testing.expect(validateSemVer("1.2.3"));
+    try std.testing.expect(validateSemVer("0.16.0"));
+    try std.testing.expect(validateSemVer("999.999.999"));
+    try std.testing.expect(!validateSemVer("1.2"));
+    try std.testing.expect(!validateSemVer("not-a-version"));
+    try std.testing.expect(!validateSemVer(""));
+}
+
+test "base64 encode/decode roundtrip" {
+    const allocator = std.testing.allocator;
+    const original = "hello world";
+    const encoded = try base64Encode(allocator, original);
+    defer allocator.free(encoded);
+    try std.testing.expectEqualStrings("aGVsbG8gd29ybGQ=", encoded);
+
+    const decoded = try base64Decode(allocator, encoded);
+    defer allocator.free(decoded);
+    try std.testing.expectEqualStrings(original, decoded);
+}
+
 test "create and set values" {
     const allocator = std.testing.allocator;
 
@@ -388,7 +435,7 @@ test "parse build.zig.zon format" {
         \\    .name = .zon,
         \\    .version = "0.0.3",
         \\    .fingerprint = 0xee480fa30d50cbf6,
-        \\    .minimum_zig_version = "0.15.0",
+        \\    .minimum_zig_version = "0.16.0",
         \\    .paths = .{
         \\        "build.zig",
         \\        "build.zig.zon",
@@ -449,8 +496,29 @@ test "stringify document" {
     try std.testing.expect(std.mem.indexOf(u8, output, "true") != null);
 }
 
+test "stringify with sort_keys option" {
+    const allocator = std.testing.allocator;
+
+    var doc = create(allocator);
+    defer doc.deinit();
+
+    try doc.setString("z", "last");
+    try doc.setString("a", "first");
+    try doc.setInt("m", 42);
+
+    // With sort_keys=true (default), keys are sorted alphabetically
+    const sorted = try stringify(allocator, &doc.root, .{ .sort_keys = true });
+    defer allocator.free(sorted);
+
+    const a_pos = std.mem.indexOf(u8, sorted, ".a").?;
+    const m_pos = std.mem.indexOf(u8, sorted, ".m").?;
+    const z_pos = std.mem.indexOf(u8, sorted, ".z").?;
+    try std.testing.expect(a_pos < m_pos);
+    try std.testing.expect(m_pos < z_pos);
+}
+
 test "version info" {
-    try std.testing.expectEqualStrings("0.0.4", version);
+    try std.testing.expectEqualStrings("0.0.5", version);
 }
 
 test "find and replace" {
@@ -511,7 +579,7 @@ test "file utilities: write/read atomic" {
     const allocator = std.testing.allocator;
     const path = "test_write_atomic.zon";
 
-    _ = std.fs.cwd().deleteFile(path) catch null;
+    _ = utils.fs.deleteFile(path) catch null;
 
     const data = " .{ .name = \"atomic\" }\n";
     try writeFileAtomic(allocator, path, data);
@@ -522,13 +590,13 @@ test "file utilities: write/read atomic" {
     try std.testing.expect(std.mem.indexOf(u8, read_back, "atomic") != null);
 
     // cleanup
-    _ = std.fs.cwd().deleteFile(path) catch null;
+    _ = utils.fs.deleteFile(path) catch null;
 }
 
 test "file utilities: copy & move with overwrite" {
     const allocator = std.testing.allocator;
-    _ = std.fs.cwd().deleteFile("a.zon") catch null;
-    _ = std.fs.cwd().deleteFile("b.zon") catch null;
+    _ = utils.fs.deleteFile("a.zon") catch null;
+    _ = utils.fs.deleteFile("b.zon") catch null;
 
     try writeFileAtomic(allocator, "a.zon", ".{ .x = 1 }\n");
     try copyFile("a.zon", "b.zon", true);
@@ -542,8 +610,8 @@ test "file utilities: copy & move with overwrite" {
     try std.testing.expect(std.mem.indexOf(u8, c_buf, "x") != null);
 
     // cleanup
-    _ = std.fs.cwd().deleteFile("a.zon") catch null;
-    _ = std.fs.cwd().deleteFile("c.zon") catch null;
+    _ = utils.fs.deleteFile("a.zon") catch null;
+    _ = utils.fs.deleteFile("c.zon") catch null;
 }
 
 test "advanced: special floats" {
@@ -877,8 +945,8 @@ test "array extensions: pop, shift, unshift" {
 test "document file management" {
     const allocator = std.testing.allocator;
     const path = "test_doc_file.zon";
-    _ = std.fs.cwd().deleteFile(path) catch {};
-    defer _ = std.fs.cwd().deleteFile(path) catch {};
+    utils.fs.deleteFile(path) catch {};
+    defer utils.fs.deleteFile(path) catch {};
 
     var doc = create(allocator);
     // Verify modification time tracking and external change detection.
@@ -893,10 +961,17 @@ test "document file management" {
     try std.testing.expect(!doc.hasChangedOnDisk());
 
     // Simulate external modification.
-    // Ensure sufficient delay for filesystem modification time resolution.
-    std.Thread.sleep(20 * std.time.ns_per_ms);
-
-    try writeFileAtomic(allocator, path, ".{ .status = \"changed\" }");
+    {
+        // On some CI filesystems, mtime resolution is coarse (100ns-1ms).
+        // Write repeatedly until mtime advances past the document's recorded time.
+        var i: usize = 0;
+        while (i < 100) : (i += 1) {
+            const f = try utils.fs.createFile(path, .{});
+            try utils.fs.writeFile(f, ".{ .status = \"changed\" }\n");
+            utils.fs.closeFile(f);
+            if (doc.hasChangedOnDisk()) break;
+        }
+    }
     try std.testing.expect(doc.hasChangedOnDisk());
 
     // Verify reload invalidates current state and reads from disk.
@@ -905,8 +980,8 @@ test "document file management" {
 
     // Verify renaming the backing file and updating internal path state.
     const new_path = "test_doc_renamed.zon";
-    _ = std.fs.cwd().deleteFile(new_path) catch {};
-    defer _ = std.fs.cwd().deleteFile(new_path) catch {};
+    utils.fs.deleteFile(new_path) catch {};
+    defer utils.fs.deleteFile(new_path) catch {};
 
     try doc.renameFileOnDisk(new_path);
     try std.testing.expectEqualStrings(new_path, doc.file_path.?);
@@ -921,7 +996,7 @@ test "document file management" {
 test "advanced: file path utilities" {
     const allocator = std.testing.allocator;
     const path = "test_path_utils.zon";
-    defer _ = std.fs.cwd().deleteFile(path) catch null;
+    defer _ = utils.fs.deleteFile(path) catch null;
 
     try writeFileAtomic(allocator, path, ".{ .old = 123 }");
 
@@ -936,6 +1011,84 @@ test "advanced: file path utilities" {
     defer doc2.deinit();
     try std.testing.expectEqual(@as(i64, 123), doc2.getInt("new").?);
     try std.testing.expectEqual(@as(i64, 123), doc2.getInt("dupe").?);
+}
+
+test "comprehensive: identifiers, types, and zon file round-trip" {
+    const allocator = std.testing.allocator;
+    const source =
+        \\.{
+        \\    .dependencies = .{
+        \\        .http = .{
+        \\            .path = "../http",
+        \\            .version = "0.1.0",
+        \\        },
+        \\        .json = .{
+        \\            .path = "../json",
+        \\        },
+        \\    },
+        \\    .name = "myapp",
+        \\    .port = 8080,
+        \\    .timeout = 30.5,
+        \\    .version = "2.0.0",
+        \\}
+    ;
+
+    var doc = try Document.initFromSource(allocator, source);
+    defer doc.deinit();
+
+    try std.testing.expect(doc.exists("dependencies"));
+    try std.testing.expect(doc.isObject("dependencies"));
+    try std.testing.expect(doc.exists("name"));
+    try std.testing.expect(doc.exists("port"));
+    try std.testing.expect(doc.exists("timeout"));
+    try std.testing.expect(doc.exists("version"));
+
+    try std.testing.expect(doc.isString("name"));
+    try std.testing.expectEqualStrings("myapp", doc.getString("name").?);
+
+    try std.testing.expect(doc.isInt("port"));
+    try std.testing.expectEqual(@as(i64, 8080), doc.getInt("port").?);
+
+    try std.testing.expect(doc.isFloat("timeout"));
+    try std.testing.expectEqual(@as(f64, 30.5), doc.getFloat("timeout").?);
+
+    try std.testing.expect(doc.isString("version"));
+    try std.testing.expectEqualStrings("2.0.0", doc.getString("version").?);
+
+    try std.testing.expect(doc.isString("dependencies.http.path"));
+    try std.testing.expectEqualStrings("../http", doc.getString("dependencies.http.path").?);
+
+    try std.testing.expect(doc.isString("dependencies.http.version"));
+    try std.testing.expectEqualStrings("0.1.0", doc.getString("dependencies.http.version").?);
+
+    try std.testing.expect(doc.isString("dependencies.json.path"));
+    try std.testing.expectEqualStrings("../json", doc.getString("dependencies.json.path").?);
+
+    const path = "test_identifiers_roundtrip.zon";
+    _ = utils.fs.deleteFile(path) catch {};
+    defer _ = utils.fs.deleteFile(path) catch {};
+
+    doc.file_path = try allocator.dupe(u8, path);
+    try doc.save();
+
+    var doc2 = try load(allocator, path);
+    defer doc2.deinit();
+
+    try std.testing.expect(doc2.isString("name"));
+    try std.testing.expectEqualStrings("myapp", doc2.getString("name").?);
+
+    try std.testing.expect(doc2.isInt("port"));
+    try std.testing.expectEqual(@as(i64, 8080), doc2.getInt("port").?);
+
+    try std.testing.expect(doc2.isFloat("timeout"));
+    try std.testing.expectEqual(@as(f64, 30.5), doc2.getFloat("timeout").?);
+
+    try std.testing.expect(doc2.isString("version"));
+    try std.testing.expectEqualStrings("2.0.0", doc2.getString("version").?);
+
+    try std.testing.expectEqualStrings("../http", doc2.getString("dependencies.http.path").?);
+    try std.testing.expectEqualStrings("0.1.0", doc2.getString("dependencies.http.version").?);
+    try std.testing.expectEqualStrings("../json", doc2.getString("dependencies.json.path").?);
 }
 
 test "struct conversion from top-level" {

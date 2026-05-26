@@ -45,7 +45,7 @@ try doc.save();  // Write back
 ### When to Use std.zon
 
 ```zig
-// std.zon: Type-based, compile-time safe (Zig 0.15+)
+// std.zon: Type-based, compile-time safe (Zig 0.16+)
 const Config = struct { server: struct { host: []const u8 } };
 const config = try std.zon.fromSlice(Config, allocator, source, null, .{});
 // Direct field access: config.server.host
@@ -179,12 +179,12 @@ try doc.setInt("port", 8080);
 | Identifier values   | ✅      | ✅      |
 | Memory safe         | ✅      | ✅      |
 
-> **Note:** `std.zon` (available in Zig 0.15+) is better for deserializing into known types.
+> **Note:** `std.zon` (available in Zig 0.16+) is better for deserializing into known types.
 > zon.zig is better for editing and manipulating configuration files dynamically.
 
 ## Requirements
 
-- Zig 0.15.0 or later
+- Zig 0.16.0 or later
 - No external dependencies
 
 ## Next Steps
