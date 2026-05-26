@@ -98,15 +98,13 @@ pub const Document = struct {
 
     /// Opens and parses a ZON file.
     pub fn initFromFile(allocator: Allocator, path: []const u8) !Document {
-        const cwd = std.fs.cwd();
+        const file = try utils.fs.openFile(path, .{});
+        defer utils.fs.closeFile(file);
 
-        var file = try cwd.openFile(path, .{});
-        defer file.close();
+        const stat = try utils.fs.fileStat(file);
+        const mtime = stat.mtime.nanoseconds;
 
-        const stat = try file.stat();
-        const mtime = stat.mtime;
-
-        const source = try cwd.readFileAlloc(allocator, path, 1024 * 1024 * 16);
+        const source = try utils.fs.readFileAlloc(allocator, path, .limited(1024 * 1024 * 16));
         defer allocator.free(source);
 
         var doc = try initFromSource(allocator, source);
@@ -856,45 +854,41 @@ pub const Document = struct {
 
     /// Saves the document to the specified file path.
     pub fn saveAs(self: *const Document, path: []const u8) !void {
-        const output = stringify.stringify(self.allocator, &self.root, .{}) catch |err| return err;
+        const output = try stringify.stringify(self.allocator, &self.root, .{});
         defer self.allocator.free(output);
 
-        const cwd = std.fs.cwd();
+        const file = try utils.fs.createFile(path, .{});
+        defer utils.fs.closeFile(file);
 
-        var file = try cwd.createFile(path, .{});
-        defer file.close();
-
-        try file.writeAll(output);
-        try file.writeAll("\n");
+        try utils.fs.writeFile(file, output);
+        try utils.fs.writeFile(file, "\n");
     }
 
     /// Atomically write the document to `path` by writing to a temporary file, then renaming.
     pub fn saveAsAtomic(self: *const Document, path: []const u8) !void {
-        const output = stringify.stringify(self.allocator, &self.root, .{}) catch |err| return err;
+        const output = try stringify.stringify(self.allocator, &self.root, .{});
         defer self.allocator.free(output);
 
-        const tmp_path = std.fmt.allocPrint(self.allocator, "{s}.tmp", .{path}) catch |err| return err;
+        const tmp_path = try std.fmt.allocPrint(self.allocator, "{s}.tmp", .{path});
         defer self.allocator.free(tmp_path);
 
-        const cwd = std.fs.cwd();
+        const tmp_file = try utils.fs.createFile(tmp_path, .{});
+        defer utils.fs.closeFile(tmp_file);
 
-        var tmp_file = try cwd.createFile(tmp_path, .{});
-        defer tmp_file.close();
+        try utils.fs.writeFile(tmp_file, output);
+        try utils.fs.writeFile(tmp_file, "\n");
 
-        try tmp_file.writeAll(output);
-        try tmp_file.writeAll("\n");
-
-        try cwd.rename(tmp_path, path);
+        try utils.fs.rename(tmp_path, path);
 
         // Update mtime if this document is associated with this path
         if (self.file_path) |fp| {
             if (std.mem.eql(u8, fp, path)) {
-                if (cwd.openFile(path, .{})) |mut_f| {
-                    var f = mut_f;
-                    defer f.close();
-                    if (f.stat()) |stat| {
+                if (utils.fs.openFile(path, .{})) |mut_f| {
+                    const f = mut_f;
+                    defer utils.fs.closeFile(f);
+                    if (utils.fs.fileStat(f)) |stat| {
                         const self_mut = @constCast(self);
-                        self_mut.last_mtime = stat.mtime;
+                        self_mut.last_mtime = stat.mtime.nanoseconds;
                     } else |_| {}
                 } else |_| {}
             }
@@ -906,19 +900,17 @@ pub const Document = struct {
     pub fn saveWithBackup(self: *const Document, backup_ext: []const u8) !void {
         const path = self.file_path orelse return error.NoFilePath;
 
-        const cwd = std.fs.cwd();
-
-        const file_opt = cwd.openFile(path, .{}) catch null;
+        const file_opt = utils.fs.openFile(path, .{}) catch null;
         if (file_opt) |mut_f| {
-            var file = mut_f;
-            defer file.close();
+            const file = mut_f;
+            defer utils.fs.closeFile(file);
 
-            const backup = std.fmt.allocPrint(self.allocator, "{s}{s}", .{ path, backup_ext }) catch |err| return err;
+            const backup = try std.fmt.allocPrint(self.allocator, "{s}{s}", .{ path, backup_ext });
             defer self.allocator.free(backup);
-            cwd.rename(path, backup) catch |err| return err;
+            try utils.fs.rename(path, backup);
         }
 
-        self.saveAs(path) catch |err| return err;
+        try self.saveAs(path);
     }
 
     /// Save only if document content differs from existing file. Returns `true` if a write occurred.
@@ -927,17 +919,16 @@ pub const Document = struct {
 
         const new_output = stringify.stringify(self.allocator, &self.root, .{}) catch |err| return err;
         defer self.allocator.free(new_output);
-        const cwd = std.fs.cwd();
 
-        const file_opt = cwd.openFile(path, .{}) catch null;
+        const file_opt = utils.fs.openFile(path, .{}) catch null;
         if (file_opt == null) {
             self.saveAs(path) catch |err| return err;
             return true;
         }
-        var file = file_opt.?;
-        defer file.close();
+        const file = file_opt.?;
+        defer utils.fs.closeFile(file);
 
-        const existing = cwd.readFileAlloc(self.allocator, path, 1024 * 1024 * 16) catch |err| return err;
+        const existing = try utils.fs.readFileAlloc(self.allocator, path, .limited(1024 * 1024 * 16));
         defer self.allocator.free(existing);
 
         // Normalize trailing newline when comparing (we write a trailing newline on save)
@@ -953,36 +944,33 @@ pub const Document = struct {
     /// Deletes the backing file from disk.
     pub fn deleteFileOnDisk(self: *Document) !void {
         const path = self.file_path orelse return error.NoFilePath;
-        const cwd = std.fs.cwd();
-        cwd.deleteFile(path) catch |err| return err;
+        try utils.fs.deleteFile(path);
     }
 
     /// Renames the backing file on disk and updates file_path.
     pub fn renameFileOnDisk(self: *Document, new_path: []const u8) !void {
         const old_path = self.file_path orelse return error.NoFilePath;
-        const cwd = std.fs.cwd();
-        cwd.rename(old_path, new_path) catch |err| return err;
+        try utils.fs.rename(old_path, new_path);
 
         self.allocator.free(old_path);
-        self.file_path = utils.dupeString(self.allocator, new_path) catch |err| return err;
+        self.file_path = try utils.dupeString(self.allocator, new_path);
     }
 
     /// Reloads the document from disk, discarding current changes.
     pub fn reload(self: *Document) !void {
         const path = self.file_path orelse return error.NoFilePath;
-        const cwd = std.fs.cwd();
 
-        var file = try cwd.openFile(path, .{});
-        defer file.close();
+        const file = try utils.fs.openFile(path, .{});
+        defer utils.fs.closeFile(file);
 
-        const stat = file.stat() catch |err| return err;
-        self.last_mtime = stat.mtime;
+        const stat = try utils.fs.fileStat(file);
+        self.last_mtime = stat.mtime.nanoseconds;
 
-        const source = cwd.readFileAlloc(self.allocator, path, 1024 * 1024 * 16) catch |err| return err;
+        const source = try utils.fs.readFileAlloc(self.allocator, path, .limited(1024 * 1024 * 16));
         defer self.allocator.free(source);
 
         // Parse new root
-        const new_root = parser.parse(self.allocator, source) catch |err| return err;
+        const new_root = try parser.parse(self.allocator, source);
 
         // Replace old root
         self.root.deinit(self.allocator);
@@ -992,13 +980,12 @@ pub const Document = struct {
     /// Checks if the file on disk has changed since load/save.
     pub fn hasChangedOnDisk(self: *const Document) bool {
         const path = self.file_path orelse return false;
-        const cwd = std.fs.cwd();
 
-        var file = cwd.openFile(path, .{}) catch return false;
-        defer file.close();
+        const file = utils.fs.openFile(path, .{}) catch return false;
+        defer utils.fs.closeFile(file);
 
-        const stat = file.stat() catch return false;
-        return stat.mtime > self.last_mtime;
+        const stat = utils.fs.fileStat(file) catch return false;
+        return stat.mtime.nanoseconds > self.last_mtime;
     }
 
     /// Returns the ZON string with default formatting.
@@ -2077,7 +2064,7 @@ test "Document: saveIfChanged writes file and avoids unnecessary writes" {
     const path = "test_save_if_changed.zon";
 
     // Ensure no leftover file
-    _ = std.fs.cwd().deleteFile(path) catch null;
+    _ = utils.fs.deleteFile(path) catch null;
 
     var doc = Document.initEmpty(allocator);
     defer doc.deinit();
@@ -2101,7 +2088,7 @@ test "Document: saveIfChanged writes file and avoids unnecessary writes" {
     try std.testing.expect(changed3);
 
     // Cleanup
-    _ = std.fs.cwd().deleteFile(path) catch null;
+    _ = utils.fs.deleteFile(path) catch null;
 }
 
 test "Document: type checking" {

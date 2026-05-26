@@ -142,48 +142,46 @@ pub fn parseFile(allocator: Allocator, path: []const u8) !Document {
 
 /// Deletes a file.
 pub fn deleteFile(file_path: []const u8) !void {
-    try std.fs.cwd().deleteFile(file_path);
+    try utils.fs.deleteFile(file_path);
 }
 
 /// Returns true if the file exists.
 pub fn fileExists(file_path: []const u8) bool {
-    std.fs.cwd().access(file_path, .{}) catch return false;
+    utils.fs.access(file_path, .{}) catch return false;
     return true;
 }
 
 /// Copy a file, with optional overwrite behaviour.
 pub fn copyFile(source_path: []const u8, dest_path: []const u8, overwrite: bool) !void {
-    const cwd = std.fs.cwd();
     if (!overwrite) {
-        const dest_file_opt = cwd.openFile(dest_path, .{}) catch null;
+        const dest_file_opt = utils.fs.openFile(dest_path, .{}) catch null;
         if (dest_file_opt) |mut_f| {
-            var dest_file = mut_f;
-            dest_file.close();
+            const dest_file = mut_f;
+            utils.fs.closeFile(dest_file);
             return FileError.FileAlreadyExists;
         }
     }
-    try cwd.copyFile(source_path, cwd, dest_path, .{});
+    try utils.fs.copyFile(source_path, dest_path, .{});
 }
 
 /// Move (rename) a file, with optional overwrite.
 pub fn moveFile(old_path: []const u8, new_path: []const u8, overwrite: bool) !void {
-    const cwd = std.fs.cwd();
     if (overwrite) {
-        _ = cwd.deleteFile(new_path) catch null;
+        _ = utils.fs.deleteFile(new_path) catch null;
     } else {
-        const existing_file_opt = cwd.openFile(new_path, .{}) catch null;
+        const existing_file_opt = utils.fs.openFile(new_path, .{}) catch null;
         if (existing_file_opt) |mut_f| {
-            var existing_file = mut_f;
-            existing_file.close();
+            const existing_file = mut_f;
+            utils.fs.closeFile(existing_file);
             return FileError.FileAlreadyExists;
         }
     }
-    try cwd.rename(old_path, new_path);
+    try utils.fs.rename(old_path, new_path);
 }
 
 /// Read a file into an allocator-owned buffer (caller must free).
 pub fn readFile(allocator: Allocator, path: []const u8) ![]u8 {
-    return try std.fs.cwd().readFileAlloc(allocator, path, 1024 * 1024 * 64);
+    return try utils.fs.readFileAlloc(allocator, path, .limited(1024 * 1024 * 64));
 }
 
 /// Alias for readFile().
@@ -196,15 +194,13 @@ pub fn writeFileAtomic(allocator: Allocator, path: []const u8, data: []const u8)
     const tmp = try std.fmt.allocPrint(allocator, "{s}.tmp", .{path});
     defer allocator.free(tmp);
 
-    const cwd = std.fs.cwd();
+    const f = try utils.fs.createFile(tmp, .{});
+    defer utils.fs.closeFile(f);
 
-    var f = try cwd.createFile(tmp, .{});
-    defer f.close();
+    try utils.fs.writeFile(f, data);
+    try utils.fs.writeFile(f, "\n");
 
-    try f.writeAll(data);
-    try f.writeAll("\n");
-
-    try cwd.rename(tmp, path);
+    try utils.fs.rename(tmp, path);
 }
 
 /// Alias for writeFileAtomic().
@@ -583,7 +579,7 @@ test "file utilities: write/read atomic" {
     const allocator = std.testing.allocator;
     const path = "test_write_atomic.zon";
 
-    _ = std.fs.cwd().deleteFile(path) catch null;
+    _ = utils.fs.deleteFile(path) catch null;
 
     const data = " .{ .name = \"atomic\" }\n";
     try writeFileAtomic(allocator, path, data);
@@ -594,13 +590,13 @@ test "file utilities: write/read atomic" {
     try std.testing.expect(std.mem.indexOf(u8, read_back, "atomic") != null);
 
     // cleanup
-    _ = std.fs.cwd().deleteFile(path) catch null;
+    _ = utils.fs.deleteFile(path) catch null;
 }
 
 test "file utilities: copy & move with overwrite" {
     const allocator = std.testing.allocator;
-    _ = std.fs.cwd().deleteFile("a.zon") catch null;
-    _ = std.fs.cwd().deleteFile("b.zon") catch null;
+    _ = utils.fs.deleteFile("a.zon") catch null;
+    _ = utils.fs.deleteFile("b.zon") catch null;
 
     try writeFileAtomic(allocator, "a.zon", ".{ .x = 1 }\n");
     try copyFile("a.zon", "b.zon", true);
@@ -614,8 +610,8 @@ test "file utilities: copy & move with overwrite" {
     try std.testing.expect(std.mem.indexOf(u8, c_buf, "x") != null);
 
     // cleanup
-    _ = std.fs.cwd().deleteFile("a.zon") catch null;
-    _ = std.fs.cwd().deleteFile("c.zon") catch null;
+    _ = utils.fs.deleteFile("a.zon") catch null;
+    _ = utils.fs.deleteFile("c.zon") catch null;
 }
 
 test "advanced: special floats" {
@@ -949,8 +945,8 @@ test "array extensions: pop, shift, unshift" {
 test "document file management" {
     const allocator = std.testing.allocator;
     const path = "test_doc_file.zon";
-    _ = std.fs.cwd().deleteFile(path) catch {};
-    defer _ = std.fs.cwd().deleteFile(path) catch {};
+    utils.fs.deleteFile(path) catch {};
+    defer utils.fs.deleteFile(path) catch {};
 
     var doc = create(allocator);
     // Verify modification time tracking and external change detection.
@@ -965,9 +961,6 @@ test "document file management" {
     try std.testing.expect(!doc.hasChangedOnDisk());
 
     // Simulate external modification.
-    // Ensure sufficient delay for filesystem modification time resolution.
-    std.time.sleep(20 * std.time.ns_per_ms);
-
     try writeFileAtomic(allocator, path, ".{ .status = \"changed\" }");
     try std.testing.expect(doc.hasChangedOnDisk());
 
@@ -977,8 +970,8 @@ test "document file management" {
 
     // Verify renaming the backing file and updating internal path state.
     const new_path = "test_doc_renamed.zon";
-    _ = std.fs.cwd().deleteFile(new_path) catch {};
-    defer _ = std.fs.cwd().deleteFile(new_path) catch {};
+    utils.fs.deleteFile(new_path) catch {};
+    defer utils.fs.deleteFile(new_path) catch {};
 
     try doc.renameFileOnDisk(new_path);
     try std.testing.expectEqualStrings(new_path, doc.file_path.?);
@@ -993,7 +986,7 @@ test "document file management" {
 test "advanced: file path utilities" {
     const allocator = std.testing.allocator;
     const path = "test_path_utils.zon";
-    defer _ = std.fs.cwd().deleteFile(path) catch null;
+    defer _ = utils.fs.deleteFile(path) catch null;
 
     try writeFileAtomic(allocator, path, ".{ .old = 123 }");
 

@@ -496,11 +496,8 @@ pub fn parse(allocator: Allocator, source: []const u8) ParseError!Value {
 }
 
 /// Parse ZON from a file on disk.
-pub fn parseFile(allocator: Allocator, path: []const u8) ParseError!Value {
-    const file = try std.fs.cwd().openFile(path, .{});
-    defer file.close();
-
-    const source = try file.readToEndAlloc(allocator, 1024 * 1024 * 64);
+pub fn parseFile(allocator: Allocator, path: []const u8) !Value {
+    const source = try utils.fs.readFileAlloc(allocator, path, .limited(1024 * 1024 * 64));
     defer allocator.free(source);
 
     return parse(allocator, source);

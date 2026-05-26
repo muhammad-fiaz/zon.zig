@@ -80,13 +80,13 @@ pub fn writeToFileAtomic(allocator: Allocator, value: *const Value, path: []cons
     const tmp_path = try std.fmt.allocPrint(allocator, "{s}.tmp", .{path});
     defer allocator.free(tmp_path);
 
-    const file = try std.fs.cwd().createFile(tmp_path, .{});
-    defer file.close();
+    const file = try utils.fs.createFile(tmp_path, .{});
+    defer utils.fs.closeFile(file);
 
-    try file.writeAll(output);
-    try file.writeAll("\n");
+    try utils.fs.writeFile(file, output);
+    try utils.fs.writeFile(file, "\n");
 
-    try std.fs.cwd().rename(tmp_path, path);
+    try utils.fs.rename(tmp_path, path);
 }
 
 fn stringifyValue(buffer: *Buffer, value: *const Value, indent: usize, indent_size: usize, quote_keys: bool, sort_keys: bool) StringifyError!void {
