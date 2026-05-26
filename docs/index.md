@@ -73,7 +73,7 @@ const std = @import("std");
 const zon = @import("zon");
 
 pub fn main() !void {
-    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    var gpa = std.heap.DebugAllocator(.{}){};
     defer _ = gpa.deinit();
     const allocator = gpa.allocator();
 
@@ -108,17 +108,12 @@ pub fn main() !void {
 
 ### Release Installation (Recommended)
 
-Install the latest stable release (v0.0.5):
+Install the latest stable release:
 
-```bash
-zig fetch --save https://github.com/muhammad-fiaz/zon.zig/archive/refs/tags/v0.0.5.tar.gz
-```
-
-For **Zig 0.15.0**, use `v0.0.4`:
-
-```bash
-zig fetch --save https://github.com/muhammad-fiaz/zon.zig/archive/refs/tags/0.0.4.tar.gz
-```
+| Zig Version | zon.zig Version | Command |
+|-------------|-----------------|---------|
+| **Zig 0.16.x** | **v0.0.5 or newer** | `zig fetch --save https://github.com/muhammad-fiaz/zon.zig/archive/refs/tags/v0.0.5.tar.gz` |
+| **Zig 0.15.x** | **v0.0.4 or older** | `zig fetch --save https://github.com/muhammad-fiaz/zon.zig/archive/refs/tags/v0.0.4.tar.gz` |
 
 ### Nightly Installation
 

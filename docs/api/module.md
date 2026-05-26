@@ -505,16 +505,15 @@ defer doc.deinit();
 
 ### fromMap
 
-Create a Document from a Zig `std.StringHashMap` or any `anytype` container.
-
+Create a Document from a Zig map or any compatible container.
 ```zig
 pub fn fromMap(allocator: Allocator, map: anytype) !Document
 ```
 
 **Example:**
 ```zig
-var map = std.StringHashMap(Value).init(allocator);
-try map.put("key", .{ .string = "value" });
+var map = std.StringHashMapUnmanaged(Value){};
+try map.put(allocator, "key", .{ .string = try allocator.dupe(u8, "value") });
 var doc = try zon.fromMap(allocator, map);
 defer doc.deinit();
 ```

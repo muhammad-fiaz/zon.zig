@@ -11,12 +11,12 @@ zon.zig follows standard Zig patterns for memory management. Any function that m
 
 The library is designed to work with **any** Zig allocator. The most common ones are:
 
-### 1. GeneralPurposeAllocator (GPA)
+### 1. DebugAllocator (GPA)
 
 Best for long-running processes or when you are dynamically adding/removing many keys in different documents.
 
 ```zig
-var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+var gpa = std.heap.DebugAllocator(.{}){};
 defer _ = gpa.deinit();
 const allocator = gpa.allocator();
 
