@@ -100,7 +100,7 @@ A **document-based** ZON (Zig Object Notation) library for Zig, designed for con
 | [High Performance](guide/basic-usage) | Efficient parsing and serialization |
 | [File Operations](guide/file-operations) | Delete, copy, rename, check existence |
 | [Update Checker](api/module) | Optional automatic update checking |
-| [Memory Flexibility](guide/allocators) | Full support for GPA, Arena, and custom allocators |
+| [Memory Flexibility](guide/allocators) | Full support for DebugAllocator, ArenaAllocator, SmpAllocator, FixedBufferAllocator, PageAllocator, and custom allocators |
 | [JSON Interop](api/module) | Import from and Export to standard JSON |
 | [Object Iterators](guide/reading) | Programmatic iteration over key-value pairs |
 | [Flatten & Expand](guide/nested-paths) | Convert nested ZON to flat dot-notation maps |
@@ -197,9 +197,9 @@ const std = @import("std");
 const zon = @import("zon");
 
 pub fn main() !void {
-    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-    defer _ = gpa.deinit();
-    const allocator = gpa.allocator();
+    var da = std.heap.DebugAllocator(.{}){};
+    defer _ = da.deinit();
+    const allocator = da.allocator();
 
     // Optional: Disable update checking
     zon.disableUpdateCheck();
