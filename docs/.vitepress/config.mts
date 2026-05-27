@@ -4,7 +4,8 @@ import llmstxt from "vitepress-plugin-llms";
 // Site configuration
 export const SITE_URL = "https://muhammad-fiaz.github.io/zon.zig";
 export const SITE_NAME = "zon.zig";
-export const SITE_DESCRIPTION = "A high-performance, document-based ZON (Zig Object Notation) library for Zig. Features include dynamic modification, deep merging, find & replace, and runtime struct conversion.";
+export const SITE_DESCRIPTION =
+  "A high-performance, document-based ZON (Zig Object Notation) library for Zig. Features include dynamic modification, deep merging, find & replace, and runtime struct conversion.";
 
 // Google Analytics and Google Tag Manager IDs
 export const GA_ID = "G-6BVYCRK57P";
@@ -14,7 +15,8 @@ export const GTM_ID = "GTM-P4M9T8ZR";
 export const ADSENSE_CLIENT_ID = "ca-pub-2040560600290490";
 
 // SEO Keywords
-export const KEYWORDS = "zig, zon, zig object notation, config parser, serialization, configuration management, zig library, zon parser, document object model, dom, std.zon alternative";
+export const KEYWORDS =
+  "zig, zon, zig object notation, config parser, serialization, configuration management, zig library, zon parser, document object model, dom, std.zon alternative";
 
 export default defineConfig({
   lang: "en-US",
@@ -33,7 +35,10 @@ export default defineConfig({
   },
 
   head: [
-    ["meta", { name: "viewport", content: "width=device-width, initial-scale=1.0" }],
+    [
+      "meta",
+      { name: "viewport", content: "width=device-width, initial-scale=1.0" },
+    ],
     ["meta", { name: "google-adsense-account", content: ADSENSE_CLIENT_ID }],
     // Primary Meta Tags
     ["meta", { name: "title", content: SITE_NAME }],
@@ -50,15 +55,21 @@ export default defineConfig({
     ["meta", { property: "og:url", content: SITE_URL }],
     ["meta", { property: "og:title", content: SITE_NAME }],
     ["meta", { property: "og:description", content: SITE_DESCRIPTION }],
-    ["meta", { property: "og:image", content: `${SITE_URL}/logo.svg` }], // Using logo.svg as user has it
+    ["meta", { property: "og:image", content: `${SITE_URL}/logo.svg` }],
     ["meta", { property: "og:image:width", content: "1200" }],
     ["meta", { property: "og:image:height", content: "630" }],
-    ["meta", { property: "og:image:alt", content: "zon.zig - Document-based ZON library for Zig" }],
+    [
+      "meta",
+      {
+        property: "og:image:alt",
+        content: "zon.zig - Document-based ZON library for Zig",
+      },
+    ],
     ["meta", { property: "og:site_name", content: SITE_NAME }],
     ["meta", { property: "og:locale", content: "en_US" }],
 
     // Twitter Card
-    ["meta", { name: "twitter:card", content: "summary" }], // logo.svg is small usually, summary is better 
+    ["meta", { name: "twitter:card", content: "summary" }],
     ["meta", { name: "twitter:url", content: SITE_URL }],
     ["meta", { name: "twitter:title", content: SITE_NAME }],
     ["meta", { name: "twitter:description", content: SITE_DESCRIPTION }],
@@ -78,7 +89,10 @@ export default defineConfig({
     // Google Analytics (gtag.js)
     [
       "script",
-      { async: "", src: `https://www.googletagmanager.com/gtag/js?id=${GA_ID}` },
+      {
+        async: "",
+        src: `https://www.googletagmanager.com/gtag/js?id=${GA_ID}`,
+      },
     ],
     [
       "script",
@@ -119,141 +133,162 @@ gtag('config', '${GA_ID}');`,
   ignoreDeadLinks: [/.*\.zig$/],
 
   transformPageData(pageData) {
+    // Dynamic OG image generation based on page title
     const pageTitle = pageData.title || SITE_NAME;
     const pageDescription = pageData.description || SITE_DESCRIPTION;
-    const canonicalUrl = `${SITE_URL}/${pageData.relativePath.replace(/((^|\/)index)?\.md$/, '$2').replace(/\.md$/, '')}`;
+    const canonicalUrl = `${SITE_URL}/${pageData.relativePath.replace(/((^|\/)index)?\.md$/, "$2").replace(/\.md$/, "")}`;
 
     pageData.frontmatter.head ??= [];
     pageData.frontmatter.head.push(
       ["link", { rel: "canonical", href: canonicalUrl }],
-      ["meta", { property: "og:title", content: `${pageTitle} | ${SITE_NAME}` }],
-      ["meta", { property: "og:url", content: canonicalUrl }]
+      [
+        "meta",
+        { property: "og:title", content: `${pageTitle} | ${SITE_NAME}` },
+      ],
+      ["meta", { property: "og:url", content: canonicalUrl }],
     );
 
     if (pageData.frontmatter.description) {
       pageData.frontmatter.head.push(
-        ["meta", { property: "og:description", content: pageData.frontmatter.description }],
-        ["meta", { name: "description", content: pageData.frontmatter.description }]
+        [
+          "meta",
+          {
+            property: "og:description",
+            content: pageData.frontmatter.description,
+          },
+        ],
+        [
+          "meta",
+          { name: "description", content: pageData.frontmatter.description },
+        ],
       );
     }
 
     // Dynamic JSON-LD Schema
-    const isHome = pageData.relativePath === 'index.md';
+    const isHome = pageData.relativePath === "index.md";
     const lastUpdated = pageData.lastUpdated
       ? new Date(pageData.lastUpdated).toISOString()
       : new Date().toISOString();
-    
-    // Base Graph
-    const graph: any[] = [];
 
-    // 1. WebSite Schema
+    // Base Graph
+    const graph: Record<string, unknown>[] = [];
+
+    // 1. WebSite Schema (Global, but usually best on Home)
     if (isHome) {
       graph.push({
         "@type": "WebSite",
-        "name": SITE_NAME,
-        "url": SITE_URL,
-        "description": SITE_DESCRIPTION,
-        "author": {
+        name: SITE_NAME,
+        url: SITE_URL,
+        description: SITE_DESCRIPTION,
+        author: {
           "@type": "Person",
-          "name": "Muhammad Fiaz",
-          "url": "https://github.com/muhammad-fiaz"
-        }
+          name: "Muhammad Fiaz",
+          url: "https://github.com/muhammad-fiaz",
+        },
       });
     }
 
-    // 2. Main Entity Schema
+    // 2. Main Entity Schema (SoftwareApplication or TechArticle)
     const authorSchema = {
       "@type": "Person",
-      "name": "Muhammad Fiaz",
-      "url": "https://muhammadfiaz.com",
-      "sameAs": [
+      name: "Muhammad Fiaz",
+      url: "https://muhammadfiaz.com",
+      sameAs: [
         "https://github.com/muhammad-fiaz",
         "https://www.linkedin.com/in/muhammad-fiaz-",
-        "https://x.com/muhammadfiaz_"
-      ]
+        "https://x.com/muhammadfiaz_",
+      ],
     };
 
-    const primarySchema: Record<string, any> = {
+    const primarySchema: Record<string, unknown> = {
       "@type": isHome ? "SoftwareApplication" : "TechArticle",
-      "name": isHome ? SITE_NAME : pageTitle,
-      "description": pageDescription,
-      "url": canonicalUrl,
-      "image": `${SITE_URL}/logo.svg`,
-      "author": authorSchema,
-      "publisher": {
+      name: isHome ? SITE_NAME : pageTitle,
+      description: pageDescription,
+      url: canonicalUrl,
+      image: `${SITE_URL}/logo.svg`,
+      author: authorSchema,
+      publisher: {
         "@type": "Organization",
-        "name": SITE_NAME,
-        "url": SITE_URL,
-        "logo": {
+        name: SITE_NAME,
+        url: SITE_URL,
+        logo: {
           "@type": "ImageObject",
-          "url": `${SITE_URL}/logo.svg`
-        }
-      }
+          url: `${SITE_URL}/logo.svg`,
+        },
+      },
     };
 
     if (isHome) {
       Object.assign(primarySchema, {
-        "applicationCategory": "DeveloperApplication",
-        "operatingSystem": "Cross-platform",
-        "programmingLanguage": "Zig",
-        "offers": {
+        applicationCategory: "DeveloperApplication",
+        operatingSystem: "Cross-platform",
+        programmingLanguage: "Zig",
+        offers: {
           "@type": "Offer",
-          "price": "0",
-          "priceCurrency": "USD"
+          price: "0",
+          priceCurrency: "USD",
         },
-        "downloadUrl": "https://github.com/muhammad-fiaz/zon.zig",
-        "softwareVersion": "0.0.5", 
-        "license": "https://opensource.org/licenses/MIT"
+        downloadUrl: "https://github.com/muhammad-fiaz/zon.zig",
+        softwareVersion: "0.0.5",
+        license: "https://opensource.org/licenses/MIT",
       });
     } else {
-      const pathParts = pageData.relativePath.split('/');
-      const section = pathParts.length > 1 
-        ? pathParts[0].charAt(0).toUpperCase() + pathParts[0].slice(1) 
-        : 'Documentation';
+      // Extract section from path (e.g. guide/getting-started -> Guide)
+      const pathParts: string[] = String(pageData.relativePath).split("/");
+      const section =
+        pathParts.length > 1
+          ? pathParts[0].charAt(0).toUpperCase() + pathParts[0].slice(1)
+          : "Documentation";
 
       Object.assign(primarySchema, {
-        "headline": pageTitle,
-        "articleSection": section,
-        "mainEntityOfPage": {
+        headline: pageTitle,
+        articleSection: section,
+        mainEntityOfPage: {
           "@type": "WebPage",
-          "@id": canonicalUrl
+          "@id": canonicalUrl,
         },
-        "datePublished": "2025-01-01T00:00:00Z",
-        "dateModified": lastUpdated
+        datePublished: "2025-01-01T00:00:00Z", // Approximate launch date
+        dateModified: lastUpdated,
       });
     }
     graph.push(primarySchema);
 
     // 3. BreadcrumbList Schema
-    const breadcrumbs: any[] = [
+    const breadcrumbs: Record<string, unknown>[] = [
       {
         "@type": "ListItem",
-        "position": 1,
-        "name": "Home",
-        "item": SITE_URL
-      }
+        position: 1,
+        name: "Home",
+        item: SITE_URL,
+      },
     ];
 
     if (!isHome) {
-      const pathParts = pageData.relativePath.replace(/\.md$/, '').split('/');
+      const pathParts: string[] = String(pageData.relativePath)
+        .replace(/\.md$/, "")
+        .split("/");
       let currentPath = SITE_URL;
-      
-      pathParts.forEach((part, index) => {
+
+      pathParts.forEach((part: string, index: number) => {
         currentPath += `/${part}`;
-        const name = part.split('-').map(s => s.charAt(0).toUpperCase() + s.slice(1)).join(' ');
-        
+        // Best effort capitalization
+        const name = part
+          .split("-")
+          .map((s: string) => s.charAt(0).toUpperCase() + s.slice(1))
+          .join(" ");
+
         breadcrumbs.push({
           "@type": "ListItem",
-          "position": index + 2,
-          "name": name,
-          "item": index === pathParts.length - 1 ? canonicalUrl : currentPath
+          position: index + 2,
+          name: name,
+          item: index === pathParts.length - 1 ? canonicalUrl : currentPath, // Ensure last item points to canonical
         });
       });
     }
 
     graph.push({
       "@type": "BreadcrumbList",
-      "itemListElement": breadcrumbs
+      itemListElement: breadcrumbs,
     });
 
     pageData.frontmatter.head.push([
@@ -261,8 +296,8 @@ gtag('config', '${GA_ID}');`,
       { type: "application/ld+json" },
       JSON.stringify({
         "@context": "https://schema.org",
-        "@graph": graph
-      })
+        "@graph": graph,
+      }),
     ]);
   },
 
@@ -278,7 +313,10 @@ gtag('config', '${GA_ID}');`,
       {
         text: "Support",
         items: [
-          { text: "💖 Sponsor", link: "https://github.com/sponsors/muhammad-fiaz" },
+          {
+            text: "💖 Sponsor",
+            link: "https://github.com/sponsors/muhammad-fiaz",
+          },
           { text: "☕ Donate", link: "https://pay.muhammadfiaz.com" },
         ],
       },
@@ -341,7 +379,7 @@ gtag('config', '${GA_ID}');`,
 
     footer: {
       message: "Released under the MIT License.",
-      copyright: "Copyright © 2025 Muhammad Fiaz",
+      copyright: `Copyright © 2025-${new Date().getFullYear()} Muhammad Fiaz`,
     },
 
     search: {
@@ -349,7 +387,8 @@ gtag('config', '${GA_ID}');`,
     },
 
     editLink: {
-      pattern: "https://github.com/muhammad-fiaz/zon.zig/edit/main/docs/:path",
+      pattern:
+        "https://github.com/muhammad-fiaz/zon.zig/edit/main/docs/:path",
       text: "Edit this page on GitHub",
     },
 
