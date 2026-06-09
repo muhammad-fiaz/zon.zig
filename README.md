@@ -161,7 +161,7 @@ A **document-based** ZON (Zig Object Notation) library for Zig, designed for con
 For **Zig 0.16.0** support (recommended), use `v0.0.5`:
 
 ```bash
-zig fetch --save https://github.com/muhammad-fiaz/zon.zig/archive/refs/tags/v0.0.5.tar.gz
+zig fetch --save https://github.com/muhammad-fiaz/zon.zig/archive/refs/tags/0.0.5.tar.gz
 ```
 
 For **Zig 0.15.0**, use `v0.0.4`:
