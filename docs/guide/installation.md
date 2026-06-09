@@ -17,7 +17,7 @@ Add to your `build.zig.zon`:
     .version = "0.1.0",
     .dependencies = .{
         .zon = .{
-            .url = "https://github.com/muhammad-fiaz/zon.zig/archive/refs/tags/v0.0.5.tar.gz",
+            .url = "https://github.com/muhammad-fiaz/zon.zig/archive/refs/tags/0.0.5.tar.gz",
             .hash = "...",
         },
     },
@@ -30,7 +30,7 @@ Add to your `build.zig.zon`:
 Run this command to get the hash:
 
 ```bash
-zig fetch --save https://github.com/muhammad-fiaz/zon.zig/archive/refs/tags/v0.0.5.tar.gz
+zig fetch --save https://github.com/muhammad-fiaz/zon.zig/archive/refs/tags/0.0.5.tar.gz
 ```
 
 or
@@ -196,7 +196,7 @@ zon.zig version: 0.0.5
 If you get a hash mismatch error:
 
 ```bash
-zig fetch --save https://github.com/muhammad-fiaz/zon.zig/archive/refs/tags/v0.0.5.tar.gz
+zig fetch --save https://github.com/muhammad-fiaz/zon.zig/archive/refs/tags/0.0.5.tar.gz
 ```
 
 ### Module Not Found
