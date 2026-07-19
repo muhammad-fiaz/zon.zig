@@ -1,0 +1,55 @@
+name: "\u2753 Question"
+description: Ask a question about using zon.zig
+title: "[Question]: "
+labels: ["question"]
+body:
+  - type: textarea
+    id: question
+    attributes:
+      label: Question
+      description: Your question here.
+    validations:
+      required: true
+  - type: textarea
+    id: context
+    attributes:
+      label: Context
+      description: What are you trying to accomplish?
+    validations:
+      required: true
+  - type: textarea
+    id: tried
+    attributes:
+      label: What I've Tried
+      description: Describe what you've already tried.
+    validations:
+      required: false
+  - type: input
+    id: os
+    attributes:
+      label: OS
+      description: "e.g., Windows 11, Ubuntu 22.04, macOS 14"
+    validations:
+      required: true
+  - type: input
+    id: zig-version
+    attributes:
+      label: Zig Version
+      description: "e.g., 0.16.0"
+    validations:
+      required: true
+  - type: input
+    id: zon-version
+    attributes:
+      label: zon.zig Version
+      description: "e.g., 0.0.5"
+    validations:
+      required: true
+  - type: textarea
+    id: code
+    attributes:
+      label: Code Example
+      description: Provide a code example if applicable.
+      render: zig
+    validations:
+      required: false
