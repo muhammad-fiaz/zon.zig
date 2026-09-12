@@ -63,25 +63,47 @@ pub const Document = struct {
 
         const info = @typeInfo(@TypeOf(map));
         if (info == .@"struct") {
-            inline for (info.@"struct".fields) |field| {
-                const val = @field(map, field.name);
-                switch (@typeInfo(@TypeOf(val))) {
-                    .int, .comptime_int => try doc.setInt(field.name, @intCast(val)),
-                    .float, .comptime_float => try doc.setFloat(field.name, @floatCast(val)),
-                    .bool => try doc.setBool(field.name, val),
-                    .pointer => |p| {
-                        if (p.size == .slice) {
-                            if (p.child == u8) try doc.setString(field.name, val);
-                        } else if (p.size == .one) {
-                            const child_info = @typeInfo(p.child);
-                            if (child_info == .array and child_info.array.child == u8) {
-                                try doc.setString(field.name, val[0..]);
+            if (@hasField(@TypeOf(info.@"struct"), "field_names")) {
+                inline for (0..info.@"struct".field_names.len) |i| {
+                    const val = @field(map, info.@"struct".field_names[i]);
+                    switch (@typeInfo(@TypeOf(val))) {
+                        .int, .comptime_int => try doc.setInt(info.@"struct".field_names[i], @intCast(val)),
+                        .float, .comptime_float => try doc.setFloat(info.@"struct".field_names[i], @floatCast(val)),
+                        .bool => try doc.setBool(info.@"struct".field_names[i], val),
+                        .pointer => |p| {
+                            if (p.size == .slice) {
+                                if (p.child == u8) try doc.setString(info.@"struct".field_names[i], val);
+                            } else if (p.size == .one) {
+                                const child_info = @typeInfo(p.child);
+                                if (child_info == .array and child_info.array.child == u8) {
+                                    try doc.setString(info.@"struct".field_names[i], val[0..]);
+                                }
                             }
-                        }
-                    },
-                    else => {},
+                        },
+                        else => {},
+                    }
                 }
-            }
+            } else if (@hasField(@TypeOf(info.@"struct"), "fields")) {
+                inline for (info.@"struct".fields) |field| {
+                    const val = @field(map, field.name);
+                    switch (@typeInfo(@TypeOf(val))) {
+                        .int, .comptime_int => try doc.setInt(field.name, @intCast(val)),
+                        .float, .comptime_float => try doc.setFloat(field.name, @floatCast(val)),
+                        .bool => try doc.setBool(field.name, val),
+                        .pointer => |p| {
+                            if (p.size == .slice) {
+                                if (p.child == u8) try doc.setString(field.name, val);
+                            } else if (p.size == .one) {
+                                const child_info = @typeInfo(p.child);
+                                if (child_info == .array and child_info.array.child == u8) {
+                                    try doc.setString(field.name, val[0..]);
+                                }
+                            }
+                        },
+                        else => {},
+                    }
+                }
+            } else unreachable;
         }
         return doc;
     }

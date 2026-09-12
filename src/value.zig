@@ -736,18 +736,33 @@ pub const Value = union(enum) {
             .@"struct" => |info| {
                 if (self.asObjectConst()) |obj| {
                     var res: T = undefined;
-                    inline for (info.fields) |field| {
-                        if (obj.get(field.name)) |val| {
-                            @field(res, field.name) = try val.to(allocator, field.type);
-                        } else {
-                            if (field.default_value_ptr) |def_ptr| {
-                                const def_val: *const field.type = @ptrCast(@alignCast(def_ptr));
-                                @field(res, field.name) = def_val.*;
+                    if (@hasField(@TypeOf(info), "field_names")) {
+                        inline for (0..info.field_names.len) |i| {
+                            if (obj.get(info.field_names[i])) |val| {
+                                @field(res, info.field_names[i]) = try val.to(allocator, info.field_types[i]);
                             } else {
-                                return error.MissingField;
+                                if (info.field_attrs[i].default_value_ptr) |def_ptr| {
+                                    const def_val: *const info.field_types[i] = @ptrCast(@alignCast(def_ptr));
+                                    @field(res, info.field_names[i]) = def_val.*;
+                                } else {
+                                    return error.MissingField;
+                                }
                             }
                         }
-                    }
+                    } else if (@hasField(@TypeOf(info), "fields")) {
+                        inline for (info.fields) |field| {
+                            if (obj.get(field.name)) |val| {
+                                @field(res, field.name) = try val.to(allocator, field.type);
+                            } else {
+                                if (field.default_value_ptr) |def_ptr| {
+                                    const def_val: *const field.type = @ptrCast(@alignCast(def_ptr));
+                                    @field(res, field.name) = def_val.*;
+                                } else {
+                                    return error.MissingField;
+                                }
+                            }
+                        }
+                    } else unreachable;
                     return res;
                 }
                 return error.TypeMismatch;
@@ -801,10 +816,17 @@ pub const Value = union(enum) {
             .@"struct" => |info| {
                 var obj = Object.init(allocator);
                 errdefer obj.deinit();
-                inline for (info.fields) |field| {
-                    const field_val = @field(value, field.name);
-                    try obj.put(field.name, try Value.from(allocator, field_val));
-                }
+                if (@hasField(@TypeOf(info), "field_names")) {
+                    inline for (0..info.field_names.len) |i| {
+                        const field_val = @field(value, info.field_names[i]);
+                        try obj.put(info.field_names[i], try Value.from(allocator, field_val));
+                    }
+                } else if (@hasField(@TypeOf(info), "fields")) {
+                    inline for (info.fields) |field| {
+                        const field_val = @field(value, field.name);
+                        try obj.put(field.name, try Value.from(allocator, field_val));
+                    }
+                } else unreachable;
                 return .{ .object = obj };
             },
             .optional => {
