@@ -1,7 +1,7 @@
 ---
 # https://vitepress.dev/reference/default-theme-home-page
 layout: home
-title: "zon.zig"
+title: "ZON File Library for Reading, Writing, and Updating in Zig"
 description: "zon.zig is a document-based Zig library for reading, writing, and manipulating ZON configuration files. Supports editing, find & replace, merge & clone, arrays, and pretty printing."
 keywords:
   [
@@ -18,7 +18,7 @@ keywords:
 hero:
   name: "ZON.zig"
   text: "Document-Based ZON Library"
-  tagline: Read, write, and manipulate ZON files — complementary to std.zon
+  tagline: A library for reading, writing, and updating ZON files — complementary to std.zon
   image:
     src: /logo.svg
     alt: zon.zig
@@ -77,7 +77,6 @@ pub fn main() !void {
     defer _ = gpa.deinit();
     const allocator = gpa.allocator();
 
-
     var doc = zon.create(allocator);
     defer doc.deinit();
 
@@ -113,7 +112,6 @@ Install the latest stable release:
 |-------------|-----------------|---------|
 | **Zig 0.17.x** | **v0.0.6** | `zig fetch --save https://github.com/muhammad-fiaz/zon.zig/archive/refs/tags/0.0.6.tar.gz` |
 | **Zig 0.16.x** | **v0.0.5** | `zig fetch --save https://github.com/muhammad-fiaz/zon.zig/archive/refs/tags/0.0.5.tar.gz` |
-| **Zig 0.15.x** | **v0.0.4 or older** | `zig fetch --save https://github.com/muhammad-fiaz/zon.zig/archive/refs/tags/0.0.4.tar.gz` |
 
 ### Nightly Installation
 

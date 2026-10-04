@@ -499,6 +499,7 @@ The `examples/` directory contains comprehensive examples:
 - **pick_omit.zig** - Creating document subsets with pick and omit
 - **sort_format.zig** - Key sorting and stringify sortKeys option
 - **validation_sort.zig** - Type checking, case utilities, array sorting, truncation, filter
+- **explicit_io.zig** - Explicit client-side I/O with `std.Io` (no library file helpers)
 
 ### File helpers and utilities
 

@@ -32,6 +32,7 @@ pub fn build(b: *std.Build) void {
         .{ .name = "pick_omit", .path = "examples/pick_omit.zig" },
         .{ .name = "sort_format", .path = "examples/sort_format.zig" },
         .{ .name = "validation_sort", .path = "examples/validation_sort.zig" },
+        .{ .name = "explicit_io", .path = "examples/explicit_io.zig" },
     };
 
     const run_all_examples = b.step("run-all-examples", "Run all examples sequentially (one at a time)");

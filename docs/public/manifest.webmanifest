@@ -1,0 +1,18 @@
+{
+  "name": "zon.zig - Document-Based ZON Library for Zig",
+  "short_name": "zon.zig",
+  "description": "A library for reading, writing, and updating ZON files — complementary to std.zon.",
+  "start_url": "/zon.zig/",
+  "scope": "/zon.zig/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#f7a41d",
+  "icons": [
+    {
+      "src": "/zon.zig/logo.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}
