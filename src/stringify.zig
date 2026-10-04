@@ -14,16 +14,16 @@ const utils = @import("utils.zig");
 /// Stringification options.
 pub const StringifyOptions = struct {
     indent: usize = 4,
-    initial_indent: usize = 0,
-    quote_keys: bool = false,
-    sort_keys: bool = true,
+    initialIndent: usize = 0,
+    quoteKeys: bool = false,
+    sortKeys: bool = true,
 };
 
 pub const StringifyError = Allocator.Error;
 
 pub const Buffer = struct {
     allocator: Allocator,
-    data: std.ArrayListUnmanaged(u8),
+    data: std.ArrayList(u8),
 
     pub fn init(allocator: Allocator) Buffer {
         return .{
@@ -57,7 +57,7 @@ pub fn stringify(allocator: Allocator, value: *const Value, options: StringifyOp
     var buffer = Buffer.init(allocator);
     errdefer buffer.deinit();
 
-    try stringifyValue(&buffer, value, options.initial_indent, options.indent, options.quote_keys, options.sort_keys);
+    try stringifyValue(&buffer, value, options.initialIndent, options.indent, options.quoteKeys, options.sortKeys);
 
     return buffer.toOwnedSlice();
 }
@@ -77,26 +77,26 @@ pub fn writeToFileAtomic(allocator: Allocator, value: *const Value, path: []cons
     const output = try stringify(allocator, value, options);
     defer allocator.free(output);
 
-    const tmp_path = try std.fmt.allocPrint(allocator, "{s}.tmp", .{path});
-    defer allocator.free(tmp_path);
+    const tmpPath = try std.fmt.allocPrint(allocator, "{s}.tmp", .{path});
+    defer allocator.free(tmpPath);
 
-    const file = try utils.fs.createFile(tmp_path, .{});
+    const file = try utils.fs.createFile(tmpPath, .{});
     defer utils.fs.closeFile(file);
 
     try utils.fs.writeFile(file, output);
     try utils.fs.writeFile(file, "\n");
 
-    try utils.fs.rename(tmp_path, path);
+    try utils.fs.rename(tmpPath, path);
 }
 
-fn stringifyValue(buffer: *Buffer, value: *const Value, indent: usize, indent_size: usize, quote_keys: bool, sort_keys: bool) StringifyError!void {
+fn stringifyValue(buffer: *Buffer, value: *const Value, indent: usize, indentSize: usize, quoteKeys: bool, sortKeys: bool) StringifyError!void {
     switch (value.*) {
-        .null_val => try buffer.appendSlice("null"),
-        .bool_val => |b| try buffer.appendSlice(if (b) "true" else "false"),
+        .nullVal => try buffer.appendSlice("null"),
+        .boolVal => |b| try buffer.appendSlice(if (b) "true" else "false"),
         .number => |n| switch (n) {
             .int => |i| {
-                var num_buf: [32]u8 = undefined;
-                const slice = std.fmt.bufPrint(&num_buf, "{d}", .{i}) catch unreachable;
+                var numBuf: [32]u8 = undefined;
+                const slice = std.fmt.bufPrint(&numBuf, "{d}", .{i}) catch unreachable;
                 try buffer.appendSlice(slice);
             },
             .float => |f| {
@@ -107,16 +107,16 @@ fn stringifyValue(buffer: *Buffer, value: *const Value, indent: usize, indent_si
                 } else if (std.math.isNan(f)) {
                     try buffer.appendSlice("nan");
                 } else {
-                    var num_buf: [64]u8 = undefined;
-                    const slice = std.fmt.bufPrint(&num_buf, "{d}", .{f}) catch unreachable;
+                    var numBuf: [64]u8 = undefined;
+                    const slice = std.fmt.bufPrint(&numBuf, "{d}", .{f}) catch unreachable;
                     try buffer.appendSlice(slice);
                 }
             },
         },
         .string => |s| try stringifyString(buffer, s),
         .identifier => |s| try stringifyIdentifier(buffer, s),
-        .object => |o| try stringifyObject(buffer, &o, indent, indent_size, quote_keys, sort_keys),
-        .array => |a| try stringifyArray(buffer, &a, indent, indent_size, quote_keys, sort_keys),
+        .object => |o| try stringifyObject(buffer, &o, indent, indentSize, quoteKeys, sortKeys),
+        .array => |a| try stringifyArray(buffer, &a, indent, indentSize, quoteKeys, sortKeys),
     }
 }
 
@@ -140,7 +140,7 @@ fn stringifyString(buffer: *Buffer, s: []const u8) StringifyError!void {
     try buffer.append('"');
 }
 
-fn stringifyObject(buffer: *Buffer, obj: *const Value.Object, indent: usize, indent_size: usize, quote_keys: bool, sort_keys: bool) StringifyError!void {
+fn stringifyObject(buffer: *Buffer, obj: *const Value.Object, indent: usize, indentSize: usize, quoteKeys: bool, sortKeys: bool) StringifyError!void {
     if (obj.count() == 0) {
         try buffer.appendSlice(".{}");
         return;
@@ -151,22 +151,22 @@ fn stringifyObject(buffer: *Buffer, obj: *const Value.Object, indent: usize, ind
     const keys = try obj.keys(buffer.allocator);
     defer buffer.allocator.free(keys);
 
-    if (sort_keys) {
+    if (sortKeys) {
         std.mem.sort([]const u8, keys, {}, utils.stringLessThan);
     }
 
     for (keys) |key| {
-        const val_ptr = obj.entries.getPtr(key).?;
+        const valPtr = obj.entries.getPtr(key).?;
 
-        try appendIndent(buffer, indent + indent_size);
+        try appendIndent(buffer, indent + indentSize);
         try buffer.append('.');
-        if (quote_keys or !utils.isValidIdentifier(key)) {
+        if (quoteKeys or !utils.isValidIdentifier(key)) {
             try stringifyString(buffer, key); // Writes "key"
         } else {
             try buffer.appendSlice(key);
         }
         try buffer.appendSlice(" = ");
-        try stringifyValue(buffer, val_ptr, indent + indent_size, indent_size, quote_keys, sort_keys);
+        try stringifyValue(buffer, valPtr, indent + indentSize, indentSize, quoteKeys, sortKeys);
         try buffer.appendSlice(",\n");
     }
 
@@ -176,12 +176,12 @@ fn stringifyObject(buffer: *Buffer, obj: *const Value.Object, indent: usize, ind
 
 fn stringifyValueJson(buffer: *Buffer, value: *const Value) StringifyError!void {
     switch (value.*) {
-        .null_val => try buffer.appendSlice("null"),
-        .bool_val => |b| try buffer.appendSlice(if (b) "true" else "false"),
+        .nullVal => try buffer.appendSlice("null"),
+        .boolVal => |b| try buffer.appendSlice(if (b) "true" else "false"),
         .number => |n| switch (n) {
             .int => |i| {
-                var num_buf: [32]u8 = undefined;
-                const slice = std.fmt.bufPrint(&num_buf, "{d}", .{i}) catch unreachable;
+                var numBuf: [32]u8 = undefined;
+                const slice = std.fmt.bufPrint(&numBuf, "{d}", .{i}) catch unreachable;
                 try buffer.appendSlice(slice);
             },
             .float => |f| {
@@ -192,8 +192,8 @@ fn stringifyValueJson(buffer: *Buffer, value: *const Value) StringifyError!void 
                 } else if (std.math.isNan(f)) {
                     try buffer.appendSlice("null");
                 } else {
-                    var num_buf: [64]u8 = undefined;
-                    const slice = std.fmt.bufPrint(&num_buf, "{d}", .{f}) catch unreachable;
+                    var numBuf: [64]u8 = undefined;
+                    const slice = std.fmt.bufPrint(&numBuf, "{d}", .{f}) catch unreachable;
                     try buffer.appendSlice(slice);
                 }
             },
@@ -224,7 +224,7 @@ fn stringifyValueJson(buffer: *Buffer, value: *const Value) StringifyError!void 
     }
 }
 
-fn stringifyArray(buffer: *Buffer, arr: *const Value.Array, indent: usize, indent_size: usize, quote_keys: bool, sort_keys: bool) StringifyError!void {
+fn stringifyArray(buffer: *Buffer, arr: *const Value.Array, indent: usize, indentSize: usize, quoteKeys: bool, sortKeys: bool) StringifyError!void {
     if (arr.len() == 0) {
         try buffer.appendSlice(".{}");
         return;
@@ -233,8 +233,8 @@ fn stringifyArray(buffer: *Buffer, arr: *const Value.Array, indent: usize, inden
     try buffer.appendSlice(".{\n");
 
     for (arr.items.items) |*item| {
-        try appendIndent(buffer, indent + indent_size);
-        try stringifyValue(buffer, item, indent + indent_size, indent_size, quote_keys, sort_keys);
+        try appendIndent(buffer, indent + indentSize);
+        try stringifyValue(buffer, item, indent + indentSize, indentSize, quoteKeys, sortKeys);
         try buffer.appendSlice(",\n");
     }
 
@@ -248,7 +248,7 @@ fn appendIndent(buffer: *Buffer, count: usize) StringifyError!void {
 
 test "stringify: null" {
     const allocator = std.testing.allocator;
-    var val: Value = .null_val;
+    var val: Value = .nullVal;
     const result = try stringify(allocator, &val, .{});
     defer allocator.free(result);
     try std.testing.expectEqualStrings("null", result);
@@ -256,7 +256,7 @@ test "stringify: null" {
 
 test "stringify: bool true" {
     const allocator = std.testing.allocator;
-    var val: Value = .{ .bool_val = true };
+    var val: Value = .{ .boolVal = true };
     const result = try stringify(allocator, &val, .{});
     defer allocator.free(result);
     try std.testing.expectEqualStrings("true", result);
@@ -264,7 +264,7 @@ test "stringify: bool true" {
 
 test "stringify: bool false" {
     const allocator = std.testing.allocator;
-    var val: Value = .{ .bool_val = false };
+    var val: Value = .{ .boolVal = false };
     const result = try stringify(allocator, &val, .{});
     defer allocator.free(result);
     try std.testing.expectEqualStrings("false", result);
@@ -345,7 +345,7 @@ test "stringify: object with value" {
 test "stringify: compact output" {
     const allocator = std.testing.allocator;
     var obj = Value.Object.init(allocator);
-    try obj.put("a", .{ .bool_val = true });
+    try obj.put("a", .{ .boolVal = true });
     var val: Value = .{ .object = obj };
     defer val.deinit(allocator);
 
@@ -355,10 +355,10 @@ test "stringify: compact output" {
     try std.testing.expect(std.mem.indexOf(u8, result, "    ") == null);
 }
 
-test "stringify: sort_keys respects ordering" {
+test "stringify: sortKeys respects ordering" {
     const allocator = std.testing.allocator;
 
-    // Insert keys z, a, y - with sort_keys=true (default), output should be a, y, z
+    // Insert keys z, a, y - with sortKeys=true (default), output should be a, y, z
     var obj = Value.Object.init(allocator);
     try obj.put("z", .{ .string = try allocator.dupe(u8, "last") });
     // We need to put keys in reverse order to observe the sort effect
@@ -367,7 +367,7 @@ test "stringify: sort_keys respects ordering" {
     var val: Value = .{ .object = obj };
     defer val.deinit(allocator);
 
-    // With sort_keys=true (default), keys should appear in sorted order
+    // With sortKeys=true (default), keys should appear in sorted order
     const result = try stringify(allocator, &val, .{});
     defer allocator.free(result);
 
@@ -376,9 +376,9 @@ test "stringify: sort_keys respects ordering" {
     try std.testing.expect(std.mem.indexOf(u8, result, ".z = \"last\"") != null);
 
     // .a should appear before .y which should appear before .z in sorted output
-    const a_pos = std.mem.indexOf(u8, result, ".a").?;
-    const y_pos = std.mem.indexOf(u8, result, ".y").?;
-    const z_pos = std.mem.indexOf(u8, result, ".z").?;
-    try std.testing.expect(a_pos < y_pos);
-    try std.testing.expect(y_pos < z_pos);
+    const aPos = std.mem.indexOf(u8, result, ".a").?;
+    const yPos = std.mem.indexOf(u8, result, ".y").?;
+    const zPos = std.mem.indexOf(u8, result, ".z").?;
+    try std.testing.expect(aPos < yPos);
+    try std.testing.expect(yPos < zPos);
 }

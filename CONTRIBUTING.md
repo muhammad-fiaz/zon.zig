@@ -13,7 +13,7 @@ Please be respectful and constructive in all interactions. We welcome contributo
 3. Create a feature branch: `git checkout -b feature/your-feature`
 4. Make your changes
 5. Run tests: `zig build test`
-6. Format code: `zig fmt src/ examples/`
+6. Format code: `zig fmt src/ examples/ bench/`
 7. Commit your changes: `git commit -m "Add your feature"`
 8. Push to your fork: `git push origin feature/your-feature`
 9. Open a Pull Request
@@ -22,7 +22,7 @@ Please be respectful and constructive in all interactions. We welcome contributo
 
 ### Prerequisites
 
-- Zig 0.16.0 or later
+- Zig 0.17.0 or later
 - Git
 
 ### Building
@@ -37,8 +37,14 @@ zig build
 # Run example
 zig build example
 
+# Run all examples
+zig build run-all-examples
+
+# Run benchmarks
+zig build bench
+
 # Format code
-zig fmt src/ examples/
+zig fmt src/ examples/ bench/
 ```
 
 ## Pull Request Guidelines

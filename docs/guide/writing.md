@@ -18,7 +18,6 @@ pub fn main() !void {
     defer _ = gpa.deinit();
     const allocator = gpa.allocator();
 
-    zon.disableUpdateCheck();
 
     var doc = zon.create(allocator);
     defer doc.close(); // semantic alias for deinit()
@@ -301,20 +300,20 @@ defer allocator.free(compact);
 }
 ```
 
-### Key Sorting (sort_keys)
+### Key Sorting (sortKeys)
 
-The `sort_keys` option controls whether object keys are output in alphabetical order. Default is `true` (sorted).
+The `sortKeys` option controls whether object keys are output in alphabetical order. Default is `true` (sorted).
 
 ```zig
 const std = @import("std");
 const zon = @import("zon");
 
-// Stringify with sort_keys=false (insertion order)
-const unsorted = try zon.stringify(allocator, &doc.root, .{ .sort_keys = false });
+// Stringify with sortKeys=false (insertion order)
+const unsorted = try zon.stringify(allocator, &doc.root, .{ .sortKeys = false });
 defer allocator.free(unsorted);
 
-// Stringify with sort_keys=true (alphabetical) — default behavior
-const sorted = try zon.stringify(allocator, &doc.root, .{ .sort_keys = true });
+// Stringify with sortKeys=true (alphabetical) — default behavior
+const sorted = try zon.stringify(allocator, &doc.root, .{ .sortKeys = true });
 defer allocator.free(sorted);
 ```
 
@@ -401,7 +400,6 @@ pub fn main() !void {
     defer _ = gpa.deinit();
     const allocator = gpa.allocator();
 
-    zon.disableUpdateCheck();
 
     var doc = zon.create(allocator);
     defer doc.deinit();
@@ -409,7 +407,7 @@ pub fn main() !void {
     // Package info
     try doc.setIdentifier("name", "my_package");
     try doc.setString("version", "0.1.0");
-    try doc.setString("minimum_zig_version", "0.16.0");
+    try doc.setString("minimum_zig_version" = "0.17.0");
 
     // Fingerprint (u64 / large hex)
     const fp: u64 = 0xee480fa30d50cbf6;
@@ -446,7 +444,7 @@ pub fn main() !void {
         },
     },
     .fingerprint = 0xee480fa30d50cbf6,
-    .minimum_zig_version = "0.16.0",
+    .minimum_zig_version" = "0.17.0",
     .name = .my_package,
     .paths = .{
         "build.zig",

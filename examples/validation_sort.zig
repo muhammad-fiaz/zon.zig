@@ -7,8 +7,6 @@ pub fn main() !void {
     defer _ = gpa.deinit();
     const allocator = gpa.allocator();
 
-    zon.disableUpdateCheck();
-
     std.debug.print("=== Type Checking ===\n\n", .{});
 
     var doc = zon.create(allocator);
@@ -97,21 +95,21 @@ pub fn main() !void {
     try obj.put("a", .{ .string = try allocator.dupe(u8, "first") });
     try obj.put("m", .{ .string = try allocator.dupe(u8, "middle") });
 
-    var desc_doc = zon.Document{ .allocator = allocator, .root = .{ .object = obj }, .file_path = null };
-    defer desc_doc.deinit();
+    var descDoc = zon.Document{ .allocator = allocator, .root = .{ .object = obj }, .filePath = null };
+    defer descDoc.deinit();
 
-    desc_doc.sortKeysDesc();
-    const desc_str = try desc_doc.toString();
-    defer allocator.free(desc_str);
-    std.debug.print("{s}\n\n", .{desc_str});
+    descDoc.sortKeysDesc();
+    const descStr = try descDoc.toString();
+    defer allocator.free(descStr);
+    std.debug.print("{s}\n\n", .{descStr});
 
     std.debug.print("=== filter ===\n\n", .{});
 
-    var filter_doc = zon.create(allocator);
-    defer filter_doc.deinit();
-    try filter_doc.setString("name", "test");
-    try filter_doc.setInt("version", 1);
-    try filter_doc.setBool("active", true);
+    var filterDoc = zon.create(allocator);
+    defer filterDoc.deinit();
+    try filterDoc.setString("name", "test");
+    try filterDoc.setInt("version", 1);
+    try filterDoc.setBool("active", true);
 
     const Ctx = struct {
         fn isString(_: *@This(), _: []const u8, value: *const zon.Value) bool {
@@ -120,11 +118,11 @@ pub fn main() !void {
     };
 
     var ctx = Ctx{};
-    var filtered = try filter_doc.filter(allocator, &ctx, Ctx.isString);
+    var filtered = try filterDoc.filter(&ctx, Ctx.isString);
     defer filtered.deinit();
 
     std.debug.print("Filtered (only strings):\n", .{});
-    const filtered_str = try filtered.toPrettyString(2);
-    defer allocator.free(filtered_str);
-    std.debug.print("{s}\n", .{filtered_str});
+    const filteredStr = try filtered.toPrettyString(2);
+    defer allocator.free(filteredStr);
+    std.debug.print("{s}\n", .{filteredStr});
 }

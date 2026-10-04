@@ -154,12 +154,12 @@ pub const Tokenizer = struct {
             },
             '/' => {
                 if (self.index + 1 < self.source.len and self.source[self.index + 1] == '/') {
-                    const is_doc = if (self.index + 2 < self.source.len and self.source[self.index + 2] == '/') true else false;
-                    self.index += if (is_doc) @as(usize, 3) else @as(usize, 2);
+                    const isDoc = if (self.index + 2 < self.source.len and self.source[self.index + 2] == '/') true else false;
+                    self.index += if (isDoc) @as(usize, 3) else @as(usize, 2);
                     while (self.index < self.source.len and self.source[self.index] != '\n') {
                         self.index += 1;
                     }
-                    return .{ .tag = if (is_doc) .doc_comment else .comment, .start = start, .end = self.index };
+                    return .{ .tag = if (isDoc) .doc_comment else .comment, .start = start, .end = self.index };
                 }
                 self.index += 1;
                 return .{ .tag = .invalid, .start = start, .end = self.index };
@@ -321,7 +321,8 @@ pub const Tokenizer = struct {
 
     /// Scans a number literal.
     ///
-    /// Supports decimal, hexadecimal (0x), octal (0o), binary (0b), and floats.
+    /// Supports decimal, hexadecimal (0x), octal (0o), binary (0b), floats,
+    /// exponents, and `_` digit separators.
     fn scanNumber(self: *Tokenizer) Token {
         const start = self.index;
 
@@ -335,21 +336,21 @@ pub const Tokenizer = struct {
                 switch (self.source[self.index]) {
                     'x', 'X' => {
                         self.index += 1;
-                        while (self.index < self.source.len and isHexDigit(self.source[self.index])) {
+                        while (self.index < self.source.len and (isHexDigit(self.source[self.index]) or self.source[self.index] == '_')) {
                             self.index += 1;
                         }
                         return .{ .tag = .number_literal, .start = start, .end = self.index };
                     },
                     'o', 'O' => {
                         self.index += 1;
-                        while (self.index < self.source.len and isOctalDigit(self.source[self.index])) {
+                        while (self.index < self.source.len and (isOctalDigit(self.source[self.index]) or self.source[self.index] == '_')) {
                             self.index += 1;
                         }
                         return .{ .tag = .number_literal, .start = start, .end = self.index };
                     },
                     'b', 'B' => {
                         self.index += 1;
-                        while (self.index < self.source.len and isBinaryDigit(self.source[self.index])) {
+                        while (self.index < self.source.len and (isBinaryDigit(self.source[self.index]) or self.source[self.index] == '_')) {
                             self.index += 1;
                         }
                         return .{ .tag = .number_literal, .start = start, .end = self.index };
@@ -359,14 +360,14 @@ pub const Tokenizer = struct {
             }
         }
 
-        while (self.index < self.source.len and isDigit(self.source[self.index])) {
+        while (self.index < self.source.len and (isDigit(self.source[self.index]) or self.source[self.index] == '_')) {
             self.index += 1;
         }
 
         if (self.index < self.source.len and self.source[self.index] == '.') {
             if (self.index + 1 < self.source.len and isDigit(self.source[self.index + 1])) {
                 self.index += 1;
-                while (self.index < self.source.len and isDigit(self.source[self.index])) {
+                while (self.index < self.source.len and (isDigit(self.source[self.index]) or self.source[self.index] == '_')) {
                     self.index += 1;
                 }
             }
@@ -377,7 +378,7 @@ pub const Tokenizer = struct {
             if (self.index < self.source.len and (self.source[self.index] == '+' or self.source[self.index] == '-')) {
                 self.index += 1;
             }
-            while (self.index < self.source.len and isDigit(self.source[self.index])) {
+            while (self.index < self.source.len and (isDigit(self.source[self.index]) or self.source[self.index] == '_')) {
                 self.index += 1;
             }
         }

@@ -7,8 +7,6 @@ pub fn main() !void {
     defer _ = gpa.deinit();
     const allocator = gpa.allocator();
 
-    zon.disableUpdateCheck();
-
     std.debug.print("=== Nested ZON Creation Example ===\n\n", .{});
 
     var doc = zon.create(allocator);
@@ -27,7 +25,7 @@ pub fn main() !void {
     // Level 3: SSL configuration (nested inside server)
     try doc.setBool("server.ssl.enabled", true);
     try doc.setString("server.ssl.cert_path", "/etc/ssl/certs/server.crt");
-    try doc.setString("server.ssl.key_path", "/etc/ssl/private/server.key");
+    try doc.setString("server.ssl.keyPath", "/etc/ssl/private/server.key");
     try doc.setInt("server.ssl.port", 443);
 
     // Level 3: CORS configuration (nested inside server)
@@ -72,7 +70,7 @@ pub fn main() !void {
 
     // Level 2: API configuration
     try doc.setString("api.version", "v1");
-    try doc.setString("api.base_path", "/api");
+    try doc.setString("api.basePath", "/api");
     try doc.setInt("api.rate_limit", 1000);
     try doc.setInt("api.timeout_ms", 30000);
 
@@ -113,9 +111,9 @@ pub fn main() !void {
     std.debug.print("HTTP dep hash: {s}\n", .{doc.getString("dependencies.http.hash").?});
 
     // Save to file
-    try doc.saveAs("nested_config.zon");
-    std.debug.print("\nSaved to nested_config.zon\n", .{});
+    try doc.saveAs("nestedConfig.zon");
+    std.debug.print("\nSaved to nestedConfig.zon\n", .{});
 
     // Cleanup
-    try zon.deleteFile("nested_config.zon");
+    try zon.deleteFile("nestedConfig.zon");
 }

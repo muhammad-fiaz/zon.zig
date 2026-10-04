@@ -1,14 +1,13 @@
 .{
     .name = .zon,
-    .version = "0.0.5",
+    .version = "0.0.6",
     .fingerprint = 0xee480fa30d50cbf6,
-    .minimum_zig_version = "0.16.0",
+    .minimum_zig_version = "0.17.0",
     .paths = .{
         "build.zig",
         "build.zig.zon",
         "src",
         "examples",
-        "README.md",
         "LICENSE",
     },
 }

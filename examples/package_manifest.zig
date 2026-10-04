@@ -7,8 +7,6 @@ pub fn main() !void {
     defer _ = gpa.deinit();
     const allocator = gpa.allocator();
 
-    zon.disableUpdateCheck();
-
     std.debug.print("=== Parsing build.zig.zon format ===\n\n", .{});
 
     const source =
@@ -16,7 +14,7 @@ pub fn main() !void {
         \\    .name = .my_package,
         \\    .version = "0.1.0",
         \\    .fingerprint = 0xee480fa30d50cbf6,
-        \\    .minimum_zig_version = "0.16.0",
+        \\    .minimum_zig_version = "0.17.0",
         \\    .paths = .{
         \\        "build.zig",
         \\        "build.zig.zon",

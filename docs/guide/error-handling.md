@@ -173,7 +173,6 @@ pub fn main() !void {
     defer _ = gpa.deinit();
     const allocator = gpa.allocator();
 
-    zon.disableUpdateCheck();
 
     // Safe file open with fallback
     var doc = zon.open(allocator, "config.zon") catch {

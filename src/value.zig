@@ -6,8 +6,8 @@ const utils = @import("utils.zig");
 
 /// ZON value types.
 pub const Value = union(enum) {
-    null_val,
-    bool_val: bool,
+    nullVal,
+    boolVal: bool,
     number: Number,
     string: []const u8,
     identifier: []const u8,
@@ -55,18 +55,16 @@ pub const Value = union(enum) {
             return self.get(key);
         }
 
-        // ... (Value def)
-
         pub fn put(self: *Object, key: []const u8, value: Value) !void {
-            const owned_key = try utils.dupeString(self.allocator, key);
-            errdefer self.allocator.free(owned_key);
+            const ownedKey = try utils.dupeString(self.allocator, key);
+            errdefer self.allocator.free(ownedKey);
 
             if (self.entries.getPtr(key)) |existing| {
                 existing.deinit(self.allocator);
                 existing.* = value;
-                self.allocator.free(owned_key);
+                self.allocator.free(ownedKey);
             } else {
-                try self.entries.put(self.allocator, owned_key, value);
+                try self.entries.put(self.allocator, ownedKey, value);
             }
         }
 
@@ -115,8 +113,8 @@ pub const Value = union(enum) {
         }
 
         pub fn keys(self: *const Object, allocator: Allocator) ![][]const u8 {
-            const key_count = self.entries.count();
-            const result = try allocator.alloc([]const u8, key_count);
+            const keyCount = self.entries.count();
+            const result = try allocator.alloc([]const u8, keyCount);
             var i: usize = 0;
             var it = self.entries.keyIterator();
             while (it.next()) |key| {
@@ -167,7 +165,7 @@ pub const Value = union(enum) {
     /// Array type - ordered list of values.
     pub const Array = struct {
         allocator: Allocator,
-        items: std.ArrayListUnmanaged(Value),
+        items: std.ArrayList(Value),
 
         pub fn init(allocator: Allocator) Array {
             return .{
@@ -297,27 +295,27 @@ pub const Value = union(enum) {
     /// Creates a deep copy.
     pub fn clone(self: *const Value, allocator: Allocator) !Value {
         return switch (self.*) {
-            .null_val => .null_val,
-            .bool_val => |b| .{ .bool_val = b },
+            .nullVal => .nullVal,
+            .boolVal => |b| .{ .boolVal = b },
             .number => |n| .{ .number = n },
             .string => |s| .{ .string = try utils.dupeString(allocator, s) },
             .identifier => |s| .{ .identifier = try utils.dupeString(allocator, s) },
             .object => |o| blk: {
-                var new_obj = Object.init(allocator);
+                var newObj = Object.init(allocator);
                 var it = o.entries.iterator();
                 while (it.next()) |entry| {
-                    const cloned_val = try entry.value_ptr.clone(allocator);
-                    try new_obj.put(entry.key_ptr.*, cloned_val);
+                    const clonedVal = try entry.value_ptr.clone(allocator);
+                    try newObj.put(entry.key_ptr.*, clonedVal);
                 }
-                break :blk .{ .object = new_obj };
+                break :blk .{ .object = newObj };
             },
             .array => |a| blk: {
-                var new_arr = Array.init(allocator);
+                var newArr = Array.init(allocator);
                 for (a.items.items) |*item| {
-                    const cloned_item = try item.clone(allocator);
-                    try new_arr.append(cloned_item);
+                    const clonedItem = try item.clone(allocator);
+                    try newArr.append(clonedItem);
                 }
-                break :blk .{ .array = new_arr };
+                break :blk .{ .array = newArr };
             },
         };
     }
@@ -343,7 +341,7 @@ pub const Value = union(enum) {
 
     pub fn asBool(self: *const Value) ?bool {
         return switch (self.*) {
-            .bool_val => |b| b,
+            .boolVal => |b| b,
             else => null,
         };
     }
@@ -380,7 +378,7 @@ pub const Value = union(enum) {
     }
 
     pub fn isNull(self: *const Value) bool {
-        return self.* == .null_val;
+        return self.* == .nullVal;
     }
 
     pub fn isString(self: *const Value) bool {
@@ -388,7 +386,7 @@ pub const Value = union(enum) {
     }
 
     pub fn isBool(self: *const Value) bool {
-        return self.* == .bool_val;
+        return self.* == .boolVal;
     }
 
     pub fn isInt(self: *const Value) bool {
@@ -505,10 +503,10 @@ pub const Value = union(enum) {
 
     /// Updates the hasher with the content of this value.
     fn updateHash(self: *const Value, hasher: *std.hash.Wyhash) void {
-        hasher.update(std.mem.asBytes(&@as(u8, @intFromEnum(std.meta.activeTag(self.*)))));
+        hasher.update(std.mem.asBytes(&@as(u8, @backingInt(std.meta.activeTag(self.*)))));
         switch (self.*) {
-            .null_val => {},
-            .bool_val => |b| hasher.update(std.mem.asBytes(&b)),
+            .nullVal => {},
+            .boolVal => |b| hasher.update(std.mem.asBytes(&b)),
             .number => |n| switch (n) {
                 .int => |i| hasher.update(std.mem.asBytes(&i)),
                 .float => |f| hasher.update(std.mem.asBytes(&f)),
@@ -520,14 +518,14 @@ pub const Value = union(enum) {
                 // or sort keys. Since we want a single stable hash, we sort.
                 // Note: For extreme performance, we could XOR the hashes of (key + val).
                 // But for ZON configs, sorting is fast enough and more robust.
-                var keys_buf: std.ArrayListUnmanaged([]const u8) = .empty;
-                defer keys_buf.deinit(o.allocator);
+                var keysBuf: std.ArrayList([]const u8) = .empty;
+                defer keysBuf.deinit(o.allocator);
 
                 var it = o.entries.keyIterator();
-                while (it.next()) |k| keys_buf.append(o.allocator, k.*) catch break;
-                std.mem.sort([]const u8, keys_buf.items, {}, utils.stringLessThan);
+                while (it.next()) |k| keysBuf.append(o.allocator, k.*) catch break;
+                std.mem.sort([]const u8, keysBuf.items, {}, utils.stringLessThan);
 
-                for (keys_buf.items) |key| {
+                for (keysBuf.items) |key| {
                     hasher.update(key);
                     const val = o.entries.getPtr(key).?;
                     val.updateHash(hasher);
@@ -560,9 +558,9 @@ pub const Value = union(enum) {
     /// Returns true if this value deeply equals another value.
     pub fn eql(self: *const Value, other: *const Value) bool {
         return switch (self.*) {
-            .null_val => other.* == .null_val,
-            .bool_val => |a| switch (other.*) {
-                .bool_val => |b| a == b,
+            .nullVal => other.* == .nullVal,
+            .boolVal => |a| switch (other.*) {
+                .boolVal => |b| a == b,
                 else => false,
             },
             .number => |a| switch (other.*) {
@@ -594,8 +592,8 @@ pub const Value = union(enum) {
                     if (a.count() != b.count()) break :blk false;
                     var it = a.entries.iterator();
                     while (it.next()) |entry| {
-                        const other_val = b.entries.getPtr(entry.key_ptr.*) orelse break :blk false;
-                        if (!entry.value_ptr.eql(other_val)) break :blk false;
+                        const otherVal = b.entries.getPtr(entry.key_ptr.*) orelse break :blk false;
+                        if (!entry.value_ptr.eql(otherVal)) break :blk false;
                     }
                     break :blk true;
                 },
@@ -617,8 +615,8 @@ pub const Value = union(enum) {
     /// Returns the type name as a string.
     pub fn typeName(self: *const Value) []const u8 {
         return switch (self.*) {
-            .null_val => "null",
-            .bool_val => "bool",
+            .nullVal => "null",
+            .boolVal => "bool",
             .number => |n| switch (n) {
                 .int => "int",
                 .float => "float",
@@ -637,8 +635,8 @@ pub const Value = union(enum) {
     /// - empty string/array/object -> false, else true
     pub fn toBool(self: *const Value) bool {
         return switch (self.*) {
-            .null_val => false,
-            .bool_val => |b| b,
+            .nullVal => false,
+            .boolVal => |b| b,
             .number => |n| switch (n) {
                 .int => |i| i != 0,
                 .float => |f| f != 0.0 and !std.math.isNan(f),
@@ -700,12 +698,12 @@ pub const Value = union(enum) {
                 // Support other slices (arrays)
                 if (ptr.size == .slice) {
                     if (self.asArrayConst()) |arr| {
-                        const new_slice = try allocator.alloc(ptr.child, arr.len());
-                        errdefer allocator.free(new_slice);
+                        const newSlice = try allocator.alloc(ptr.child, arr.len());
+                        errdefer allocator.free(newSlice);
                         for (arr.items.items, 0..) |*item, i| {
-                            new_slice[i] = try item.to(allocator, ptr.child);
+                            newSlice[i] = try item.to(allocator, ptr.child);
                         }
-                        return new_slice;
+                        return newSlice;
                     }
                     return error.TypeMismatch;
                 }
@@ -723,10 +721,10 @@ pub const Value = union(enum) {
                     }
                 }
                 // Array of items
-                if (self.asArrayConst()) |zon_arr| {
-                    if (zon_arr.len() != arr.len) return error.ArrayLengthMismatch;
+                if (self.asArrayConst()) |zonArr| {
+                    if (zonArr.len() != arr.len) return error.ArrayLengthMismatch;
                     var res: T = undefined;
-                    for (zon_arr.items.items, 0..) |*item, i| {
+                    for (zonArr.items.items, 0..) |*item, i| {
                         res[i] = try item.to(allocator, arr.child);
                     }
                     return res;
@@ -736,16 +734,16 @@ pub const Value = union(enum) {
             .@"struct" => |info| {
                 if (self.asObjectConst()) |obj| {
                     var res: T = undefined;
-                    inline for (info.fields) |field| {
-                        if (obj.get(field.name)) |val| {
-                            @field(res, field.name) = try val.to(allocator, field.type);
+                    inline for (0..info.field_names.len) |i| {
+                        const fieldName = info.field_names[i];
+                        const FieldType = info.field_types[i];
+                        const attrs = info.field_attrs[i];
+                        if (obj.get(fieldName)) |val| {
+                            @field(res, fieldName) = try val.to(allocator, FieldType);
+                        } else if (attrs.defaultValue(FieldType)) |default| {
+                            @field(res, fieldName) = default;
                         } else {
-                            if (field.default_value_ptr) |def_ptr| {
-                                const def_val: *const field.type = @ptrCast(@alignCast(def_ptr));
-                                @field(res, field.name) = def_val.*;
-                            } else {
-                                return error.MissingField;
-                            }
+                            return error.MissingField;
                         }
                     }
                     return res;
@@ -765,8 +763,8 @@ pub const Value = union(enum) {
     pub fn from(allocator: Allocator, value: anytype) !Value {
         const T = @TypeOf(value);
         switch (@typeInfo(T)) {
-            .null => return .null_val,
-            .bool => return .{ .bool_val = value },
+            .null => return .nullVal,
+            .bool => return .{ .boolVal = value },
             .int, .comptime_int => return .{ .number = .{ .int = @intCast(value) } },
             .float, .comptime_float => return .{ .number = .{ .float = @floatCast(value) } },
             .pointer => |ptr| {
@@ -791,25 +789,26 @@ pub const Value = union(enum) {
                 if (arr.child == u8) {
                     return .{ .string = try utils.dupeString(allocator, &value) };
                 }
-                var zon_arr = Array.init(allocator);
-                errdefer zon_arr.deinit();
+                var zonArr = Array.init(allocator);
+                errdefer zonArr.deinit();
                 for (value) |item| {
-                    try zon_arr.append(try Value.from(allocator, item));
+                    try zonArr.append(try Value.from(allocator, item));
                 }
-                return .{ .array = zon_arr };
+                return .{ .array = zonArr };
             },
             .@"struct" => |info| {
                 var obj = Object.init(allocator);
                 errdefer obj.deinit();
-                inline for (info.fields) |field| {
-                    const field_val = @field(value, field.name);
-                    try obj.put(field.name, try Value.from(allocator, field_val));
+                inline for (0..info.field_names.len) |i| {
+                    const fieldName = info.field_names[i];
+                    const fieldVal = @field(value, fieldName);
+                    try obj.put(fieldName, try Value.from(allocator, fieldVal));
                 }
                 return .{ .object = obj };
             },
             .optional => {
                 if (value) |v| return Value.from(allocator, v);
-                return .null_val;
+                return .nullVal;
             },
             .@"enum" => {
                 return .{ .string = try utils.dupeString(allocator, @tagName(value)) };
@@ -821,48 +820,48 @@ pub const Value = union(enum) {
 
     /// Converts value to a string representation for debugging.
     pub fn toDebugString(self: *const Value, allocator: Allocator) ![]u8 {
-        var buf = std.ArrayList(u8).init(allocator);
-        errdefer buf.deinit();
+        var buf: std.ArrayList(u8) = .empty;
+        errdefer buf.deinit(allocator);
 
-        try self.formatDebug(buf.writer());
-        return buf.toOwnedSlice();
+        try self.formatDebug(&buf, allocator);
+        return buf.toOwnedSlice(allocator);
     }
 
-    fn formatDebug(self: *const Value, writer: anytype) !void {
+    fn formatDebug(self: *const Value, buf: *std.ArrayList(u8), allocator: Allocator) !void {
         switch (self.*) {
-            .null_val => try writer.writeAll("null"),
-            .bool_val => |b| try writer.print("{}", .{b}),
+            .nullVal => try buf.appendSlice(allocator, "null"),
+            .boolVal => |b| try buf.appendSlice(allocator, if (b) "true" else "false"),
             .number => |n| switch (n) {
-                .int => |i| try writer.print("{d}", .{i}),
+                .int => |i| try buf.print(allocator, "{d}", .{i}),
                 .float => |f| {
                     if (std.math.isPositiveInf(f)) {
-                        try writer.writeAll("inf");
+                        try buf.appendSlice(allocator, "inf");
                     } else if (std.math.isNegativeInf(f)) {
-                        try writer.writeAll("-inf");
+                        try buf.appendSlice(allocator, "-inf");
                     } else if (std.math.isNan(f)) {
-                        try writer.writeAll("nan");
+                        try buf.appendSlice(allocator, "nan");
                     } else {
-                        try writer.print("{d}", .{f});
+                        try buf.print(allocator, "{d}", .{f});
                     }
                 },
             },
-            .string => |s| try writer.print("\"{s}\"", .{s}),
-            .identifier => |s| try writer.print(".{s}", .{s}),
-            .object => try writer.writeAll(".{...}"),
-            .array => try writer.writeAll(".{...}"),
+            .string => |s| try buf.print(allocator, "\"{s}\"", .{s}),
+            .identifier => |s| try buf.print(allocator, ".{s}", .{s}),
+            .object => try buf.appendSlice(allocator, ".{...}"),
+            .array => try buf.appendSlice(allocator, ".{...}"),
         }
     }
 };
 
 test "Value: null" {
-    var val: Value = .null_val;
+    var val: Value = .nullVal;
     try std.testing.expect(val.isNull());
     try std.testing.expect(val.asString() == null);
 }
 
 test "Value: bool" {
-    const val_true: Value = .{ .bool_val = true };
-    const val_false: Value = .{ .bool_val = false };
+    const val_true: Value = .{ .boolVal = true };
+    const val_false: Value = .{ .boolVal = false };
 
     try std.testing.expectEqual(true, val_true.asBool().?);
     try std.testing.expectEqual(false, val_false.asBool().?);
@@ -917,7 +916,7 @@ test "Value.Object: put and get" {
     var obj = Value.Object.init(allocator);
     defer obj.deinit();
 
-    try obj.put("name", .{ .bool_val = true });
+    try obj.put("name", .{ .boolVal = true });
     const val = obj.get("name").?;
     try std.testing.expectEqual(true, val.asBool().?);
 }
@@ -927,7 +926,7 @@ test "Value.Object: remove" {
     var obj = Value.Object.init(allocator);
     defer obj.deinit();
 
-    try obj.put("name", .{ .bool_val = true });
+    try obj.put("name", .{ .boolVal = true });
     try std.testing.expect(obj.remove("name"));
     try std.testing.expect(obj.get("name") == null);
 }
@@ -937,8 +936,8 @@ test "Value.Object: count and keys" {
     var obj = Value.Object.init(allocator);
     defer obj.deinit();
 
-    try obj.put("a", .{ .bool_val = true });
-    try obj.put("b", .{ .bool_val = false });
+    try obj.put("a", .{ .boolVal = true });
+    try obj.put("b", .{ .boolVal = false });
 
     try std.testing.expectEqual(@as(usize, 2), obj.count());
 
@@ -952,8 +951,8 @@ test "Value.Array: append and get" {
     var arr = Value.Array.init(allocator);
     defer arr.deinit();
 
-    try arr.append(.{ .bool_val = true });
-    try arr.append(.{ .bool_val = false });
+    try arr.append(.{ .boolVal = true });
+    try arr.append(.{ .boolVal = false });
 
     try std.testing.expectEqual(@as(usize, 2), arr.len());
     try std.testing.expectEqual(true, arr.get(0).?.asBool().?);
@@ -966,7 +965,7 @@ test "Value: to(T) struct conversion" {
     defer obj.deinit();
 
     try obj.put("x", .{ .number = .{ .int = 10 } });
-    try obj.put("y", .{ .bool_val = true });
+    try obj.put("y", .{ .boolVal = true });
     try obj.put("z", .{ .string = try utils.dupeString(allocator, "hello") });
 
     const val = Value{ .object = obj };

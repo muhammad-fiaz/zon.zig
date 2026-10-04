@@ -34,6 +34,8 @@ pub fn build(b: *std.Build) void {
         .{ .name = "validation_sort", .path = "examples/validation_sort.zig" },
     };
 
+    const run_all_examples = b.step("run-all-examples", "Run all examples sequentially (one at a time)");
+
     inline for (examples) |example| {
         const exe = b.addExecutable(.{
             .name = example.name,
@@ -54,6 +56,7 @@ pub fn build(b: *std.Build) void {
         run_exe.step.dependOn(&install_exe.step);
         const run_step = b.step("run-" ++ example.name, "Run " ++ example.name ++ " example");
         run_step.dependOn(&run_exe.step);
+        run_all_examples.dependOn(&run_exe.step);
     }
 
     // Backward compatibility: "example" runs basic example
@@ -69,8 +72,6 @@ pub fn build(b: *std.Build) void {
     const run_basic = b.addRunArtifact(basic_exe);
     const example_step = b.step("example", "Run basic example");
     example_step.dependOn(&run_basic.step);
-
-    const run_all_examples = b.step("run-all-examples", "Run all examples sequentially (one at a time)");
 
     // Alias: "examples" runs all examples
     const examples_step = b.step("examples", "Run all examples");

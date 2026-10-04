@@ -11,8 +11,8 @@ The `Value` type represents all possible ZON data types.
 
 ```zig
 pub const Value = union(enum) {
-    null_val,
-    bool_val: bool,
+    nullVal,
+    boolVal: bool,
     number: Number,
     string: []const u8,
     identifier: []const u8,
@@ -122,7 +122,7 @@ Ordered list of values.
 ```zig
 pub const Array = struct {
     allocator: Allocator,
-    items: std.ArrayListUnmanaged(Value),
+    items: std.ArrayList(Value),
 };
 ```
 
@@ -158,10 +158,10 @@ pub const Array = struct {
 const allocator = std.heap.page_allocator;
 
 // Null
-var null_val: Value = .null_val;
+var nullVal: Value = .nullVal;
 
 // Boolean
-var bool_val: Value = .{ .bool_val = true };
+var boolVal: Value = .{ .boolVal = true };
 
 // Integer
 var int_val: Value = .{ .number = .{ .int = 42 } };
@@ -207,7 +207,7 @@ defer obj.deinit();
 
 // Add values
 try obj.put("name", .{ .string = try allocator.dupe(u8, "test") });
-try obj.put("enabled", .{ .bool_val = true });
+try obj.put("enabled", .{ .boolVal = true });
 try obj.put("count", .{ .number = .{ .int = 42 } });
 
 // Read values

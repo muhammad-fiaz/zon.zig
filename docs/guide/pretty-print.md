@@ -98,7 +98,6 @@ pub fn main() !void {
     defer _ = gpa.deinit();
     const allocator = gpa.allocator();
 
-    zon.disableUpdateCheck();
 
     var doc = zon.create(allocator);
     defer doc.deinit();

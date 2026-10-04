@@ -22,16 +22,16 @@ const Mtime = i128;
 pub const Document = struct {
     allocator: Allocator,
     root: Value,
-    file_path: ?[]const u8,
-    last_mtime: Mtime = 0,
+    filePath: ?[]const u8,
+    lastMtime: Mtime = 0,
 
     /// Creates an empty document.
     pub fn initEmpty(allocator: Allocator) Document {
         return .{
             .allocator = allocator,
             .root = .{ .object = Value.Object.init(allocator) },
-            .file_path = null,
-            .last_mtime = 0,
+            .filePath = null,
+            .lastMtime = 0,
         };
     }
 
@@ -41,8 +41,8 @@ pub const Document = struct {
         return .{
             .allocator = allocator,
             .root = root,
-            .file_path = null,
-            .last_mtime = 0,
+            .filePath = null,
+            .lastMtime = 0,
         };
     }
 
@@ -52,7 +52,7 @@ pub const Document = struct {
         return .{
             .allocator = allocator,
             .root = root,
-            .file_path = null,
+            .filePath = null,
         };
     }
 
@@ -63,19 +63,21 @@ pub const Document = struct {
 
         const info = @typeInfo(@TypeOf(map));
         if (info == .@"struct") {
-            inline for (info.@"struct".fields) |field| {
-                const val = @field(map, field.name);
+            const s = info.@"struct";
+            inline for (0..s.field_names.len) |i| {
+                const fieldName = s.field_names[i];
+                const val = @field(map, fieldName);
                 switch (@typeInfo(@TypeOf(val))) {
-                    .int, .comptime_int => try doc.setInt(field.name, @intCast(val)),
-                    .float, .comptime_float => try doc.setFloat(field.name, @floatCast(val)),
-                    .bool => try doc.setBool(field.name, val),
+                    .int, .comptime_int => try doc.setInt(fieldName, @intCast(val)),
+                    .float, .comptime_float => try doc.setFloat(fieldName, @floatCast(val)),
+                    .bool => try doc.setBool(fieldName, val),
                     .pointer => |p| {
                         if (p.size == .slice) {
-                            if (p.child == u8) try doc.setString(field.name, val);
+                            if (p.child == u8) try doc.setString(fieldName, val);
                         } else if (p.size == .one) {
-                            const child_info = @typeInfo(p.child);
-                            if (child_info == .array and child_info.array.child == u8) {
-                                try doc.setString(field.name, val[0..]);
+                            const childInfo = @typeInfo(p.child);
+                            if (childInfo == .array and childInfo.array.child == u8) {
+                                try doc.setString(fieldName, val[0..]);
                             }
                         }
                     },
@@ -92,7 +94,7 @@ pub const Document = struct {
         return .{
             .allocator = allocator,
             .root = root,
-            .file_path = null,
+            .filePath = null,
         };
     }
 
@@ -108,15 +110,15 @@ pub const Document = struct {
         defer allocator.free(source);
 
         var doc = try initFromSource(allocator, source);
-        doc.file_path = try utils.dupeString(allocator, path);
-        doc.last_mtime = mtime;
+        doc.filePath = try utils.dupeString(allocator, path);
+        doc.lastMtime = mtime;
         return doc;
     }
 
     /// Frees all resources.
     pub fn deinit(self: *Document) void {
         self.root.deinit(self.allocator);
-        if (self.file_path) |path| {
+        if (self.filePath) |path| {
             self.allocator.free(path);
         }
     }
@@ -238,7 +240,7 @@ pub const Document = struct {
     /// Returns true if the value at the path is a bool.
     pub fn isBool(self: *const Document, path: []const u8) bool {
         const val = self.getValueByPath(path) orelse return false;
-        return val.* == .bool_val;
+        return val.* == .boolVal;
     }
 
     /// Returns true if the value at the path is an integer.
@@ -372,8 +374,8 @@ pub const Document = struct {
     pub fn getType(self: *const Document, path: []const u8) ?[]const u8 {
         const val = self.getValueByPath(path) orelse return null;
         return switch (val.*) {
-            .null_val => "null",
-            .bool_val => "bool",
+            .nullVal => "null",
+            .boolVal => "bool",
             .number => |n| switch (n) {
                 .int => "int",
                 .float => "float",
@@ -444,7 +446,7 @@ pub const Document = struct {
 
     /// Sets a boolean value at the given path.
     pub fn setBool(self: *Document, path: []const u8, value: bool) !void {
-        try self.setValueByPath(path, .{ .bool_val = value });
+        try self.setValueByPath(path, .{ .boolVal = value });
     }
 
     /// Sets an integer value at the given path.
@@ -474,7 +476,7 @@ pub const Document = struct {
 
     /// Sets the value at the path to null.
     pub fn setNull(self: *Document, path: []const u8) !void {
-        try self.setValueByPath(path, .null_val);
+        try self.setValueByPath(path, .nullVal);
     }
 
     /// Alias for setNull().
@@ -533,26 +535,26 @@ pub const Document = struct {
         return current.remove(parts[parts.len - 1]);
     }
 
-    /// Renames a key from old_path to new_path.
-    pub fn rename(self: *Document, old_path: []const u8, new_path: []const u8) !bool {
-        const val = self.getValue(old_path) orelse return false;
+    /// Renames a key from oldPath to newPath.
+    pub fn rename(self: *Document, oldPath: []const u8, newPath: []const u8) !bool {
+        const val = self.getValue(oldPath) orelse return false;
         const cloned = try val.clone(self.allocator);
-        try self.setValue(new_path, cloned);
-        _ = self.delete(old_path);
+        try self.setValue(newPath, cloned);
+        _ = self.delete(oldPath);
         return true;
     }
 
-    /// Copies a value from src_path to dst_path.
-    pub fn copy(self: *Document, src_path: []const u8, dst_path: []const u8) !bool {
-        const val = self.getValue(src_path) orelse return false;
+    /// Copies a value from srcPath to dstPath.
+    pub fn copy(self: *Document, srcPath: []const u8, dstPath: []const u8) !bool {
+        const val = self.getValue(srcPath) orelse return false;
         const cloned = try val.clone(self.allocator);
-        try self.setValue(dst_path, cloned);
+        try self.setValue(dstPath, cloned);
         return true;
     }
 
     /// Alias for rename().
-    pub fn move(self: *Document, old_path: []const u8, new_path: []const u8) !bool {
-        return self.rename(old_path, new_path);
+    pub fn move(self: *Document, oldPath: []const u8, newPath: []const u8) !bool {
+        return self.rename(oldPath, newPath);
     }
 
     /// Alias for delete().
@@ -599,7 +601,7 @@ pub const Document = struct {
 
     /// Finds all paths containing the given string.
     pub fn findString(self: *const Document, needle: []const u8) ![][]const u8 {
-        var results: std.ArrayListUnmanaged([]const u8) = .empty;
+        var results: std.ArrayList([]const u8) = .empty;
         errdefer {
             for (results.items) |item| self.allocator.free(item);
             results.deinit(self.allocator);
@@ -611,7 +613,7 @@ pub const Document = struct {
 
     /// Finds all paths with an exact string match.
     pub fn findExact(self: *const Document, needle: []const u8) ![][]const u8 {
-        var results: std.ArrayListUnmanaged([]const u8) = .empty;
+        var results: std.ArrayList([]const u8) = .empty;
         errdefer {
             for (results.items) |item| self.allocator.free(item);
             results.deinit(self.allocator);
@@ -623,7 +625,7 @@ pub const Document = struct {
 
     /// Finds all paths where the value matches a predicate.
     pub fn findWhere(self: *const Document, predicate: *const fn (*const Value) bool) ![][]const u8 {
-        var results: std.ArrayListUnmanaged([]const u8) = .empty;
+        var results: std.ArrayList([]const u8) = .empty;
         errdefer {
             for (results.items) |item| self.allocator.free(item);
             results.deinit(self.allocator);
@@ -640,20 +642,20 @@ pub const Document = struct {
 
     /// Replaces the first occurrence of a string value.
     pub fn replaceFirst(self: *Document, needle: []const u8, replacement: []const u8) !bool {
-        const count_val = self.replaceInValue(&self.root, needle, replacement, .first) catch |err| return err;
-        return count_val > 0;
+        const countVal = self.replaceInValue(&self.root, needle, replacement, .first) catch |err| return err;
+        return countVal > 0;
     }
 
     /// Replaces the last occurrence of a string value.
     pub fn replaceLast(self: *Document, needle: []const u8, replacement: []const u8) !bool {
-        const found_paths = self.findExact(needle) catch |err| return err;
+        const foundPaths = self.findExact(needle) catch |err| return err;
         defer {
-            for (found_paths) |p| self.allocator.free(p);
-            self.allocator.free(found_paths);
+            for (foundPaths) |p| self.allocator.free(p);
+            self.allocator.free(foundPaths);
         }
 
-        if (found_paths.len == 0) return false;
-        self.setString(found_paths[found_paths.len - 1], replacement) catch |err| return err;
+        if (foundPaths.len == 0) return false;
+        self.setString(foundPaths[foundPaths.len - 1], replacement) catch |err| return err;
         return true;
     }
 
@@ -738,7 +740,7 @@ pub const Document = struct {
         const val = self.getMutableValueByPath(path);
         if (val) |v| {
             if (v.asArray()) |arr| {
-                arr.append(.{ .bool_val = value }) catch |err| return err;
+                arr.append(.{ .boolVal = value }) catch |err| return err;
                 return;
             }
         }
@@ -848,7 +850,7 @@ pub const Document = struct {
 
     /// Saves the document to the original file path.
     pub fn save(self: *const Document) !void {
-        const path = self.file_path orelse return error.NoFilePath;
+        const path = self.filePath orelse return error.NoFilePath;
         self.saveAs(path) catch |err| return err;
     }
 
@@ -869,26 +871,26 @@ pub const Document = struct {
         const output = try stringify.stringify(self.allocator, &self.root, .{});
         defer self.allocator.free(output);
 
-        const tmp_path = try std.fmt.allocPrint(self.allocator, "{s}.tmp", .{path});
-        defer self.allocator.free(tmp_path);
+        const tmpPath = try std.fmt.allocPrint(self.allocator, "{s}.tmp", .{path});
+        defer self.allocator.free(tmpPath);
 
-        const tmp_file = try utils.fs.createFile(tmp_path, .{});
-        defer utils.fs.closeFile(tmp_file);
+        const tmpFile = try utils.fs.createFile(tmpPath, .{});
+        defer utils.fs.closeFile(tmpFile);
 
-        try utils.fs.writeFile(tmp_file, output);
-        try utils.fs.writeFile(tmp_file, "\n");
+        try utils.fs.writeFile(tmpFile, output);
+        try utils.fs.writeFile(tmpFile, "\n");
 
-        try utils.fs.rename(tmp_path, path);
+        try utils.fs.rename(tmpPath, path);
 
         // Update mtime if this document is associated with this path
-        if (self.file_path) |fp| {
+        if (self.filePath) |fp| {
             if (std.mem.eql(u8, fp, path)) {
-                if (utils.fs.openFile(path, .{})) |mut_f| {
-                    const f = mut_f;
+                if (utils.fs.openFile(path, .{})) |mutFile| {
+                    const f = mutFile;
                     defer utils.fs.closeFile(f);
                     if (utils.fs.fileStat(f)) |stat| {
-                        const self_mut = @constCast(self);
-                        self_mut.last_mtime = stat.mtime.nanoseconds;
+                        const selfMut = @constCast(self);
+                        selfMut.lastMtime = stat.mtime.nanoseconds;
                     } else |_| {}
                 } else |_| {}
             }
@@ -897,15 +899,15 @@ pub const Document = struct {
 
     /// Save the document to the original file path, creating a backup of the previous file
     /// using the supplied extension (for example, ".bak") if it exists.
-    pub fn saveWithBackup(self: *const Document, backup_ext: []const u8) !void {
-        const path = self.file_path orelse return error.NoFilePath;
+    pub fn saveWithBackup(self: *const Document, backupExt: []const u8) !void {
+        const path = self.filePath orelse return error.NoFilePath;
 
-        const file_opt = utils.fs.openFile(path, .{}) catch null;
-        if (file_opt) |mut_f| {
-            const file = mut_f;
+        const fileOpt = utils.fs.openFile(path, .{}) catch null;
+        if (fileOpt) |mutFile| {
+            const file = mutFile;
             defer utils.fs.closeFile(file);
 
-            const backup = try std.fmt.allocPrint(self.allocator, "{s}{s}", .{ path, backup_ext });
+            const backup = try std.fmt.allocPrint(self.allocator, "{s}{s}", .{ path, backupExt });
             defer self.allocator.free(backup);
             try utils.fs.rename(path, backup);
         }
@@ -915,25 +917,25 @@ pub const Document = struct {
 
     /// Save only if document content differs from existing file. Returns `true` if a write occurred.
     pub fn saveIfChanged(self: *const Document) !bool {
-        const path = self.file_path orelse return error.NoFilePath;
+        const path = self.filePath orelse return error.NoFilePath;
 
-        const new_output = stringify.stringify(self.allocator, &self.root, .{}) catch |err| return err;
-        defer self.allocator.free(new_output);
+        const newOutput = stringify.stringify(self.allocator, &self.root, .{}) catch |err| return err;
+        defer self.allocator.free(newOutput);
 
-        const file_opt = utils.fs.openFile(path, .{}) catch null;
-        if (file_opt == null) {
+        const fileOpt = utils.fs.openFile(path, .{}) catch null;
+        if (fileOpt == null) {
             self.saveAs(path) catch |err| return err;
             return true;
         }
-        const file = file_opt.?;
+        const file = fileOpt.?;
         defer utils.fs.closeFile(file);
 
         const existing = try utils.fs.readFileAlloc(self.allocator, path, .limited(1024 * 1024 * 16));
         defer self.allocator.free(existing);
 
         // Normalize trailing newline when comparing (we write a trailing newline on save)
-        const existing_trim = if (existing.len > 0 and existing[existing.len - 1] == '\n') existing[0 .. existing.len - 1] else existing;
-        if (existing_trim.len == new_output.len and std.mem.eql(u8, existing_trim, new_output)) {
+        const existingTrim = if (existing.len > 0 and existing[existing.len - 1] == '\n') existing[0 .. existing.len - 1] else existing;
+        if (existingTrim.len == newOutput.len and std.mem.eql(u8, existingTrim, newOutput)) {
             return false;
         }
 
@@ -943,49 +945,49 @@ pub const Document = struct {
 
     /// Deletes the backing file from disk.
     pub fn deleteFileOnDisk(self: *Document) !void {
-        const path = self.file_path orelse return error.NoFilePath;
+        const path = self.filePath orelse return error.NoFilePath;
         try utils.fs.deleteFile(path);
     }
 
-    /// Renames the backing file on disk and updates file_path.
-    pub fn renameFileOnDisk(self: *Document, new_path: []const u8) !void {
-        const old_path = self.file_path orelse return error.NoFilePath;
-        try utils.fs.rename(old_path, new_path);
+    /// Renames the backing file on disk and updates filePath.
+    pub fn renameFileOnDisk(self: *Document, newPath: []const u8) !void {
+        const oldPath = self.filePath orelse return error.NoFilePath;
+        try utils.fs.rename(oldPath, newPath);
 
-        self.allocator.free(old_path);
-        self.file_path = try utils.dupeString(self.allocator, new_path);
+        self.allocator.free(oldPath);
+        self.filePath = try utils.dupeString(self.allocator, newPath);
     }
 
     /// Reloads the document from disk, discarding current changes.
     pub fn reload(self: *Document) !void {
-        const path = self.file_path orelse return error.NoFilePath;
+        const path = self.filePath orelse return error.NoFilePath;
 
         const file = try utils.fs.openFile(path, .{});
         defer utils.fs.closeFile(file);
 
         const stat = try utils.fs.fileStat(file);
-        self.last_mtime = stat.mtime.nanoseconds;
+        self.lastMtime = stat.mtime.nanoseconds;
 
         const source = try utils.fs.readFileAlloc(self.allocator, path, .limited(1024 * 1024 * 16));
         defer self.allocator.free(source);
 
         // Parse new root
-        const new_root = try parser.parse(self.allocator, source);
+        const newRoot = try parser.parse(self.allocator, source);
 
         // Replace old root
         self.root.deinit(self.allocator);
-        self.root = new_root;
+        self.root = newRoot;
     }
 
     /// Checks if the file on disk has changed since load/save.
     pub fn hasChangedOnDisk(self: *const Document) bool {
-        const path = self.file_path orelse return false;
+        const path = self.filePath orelse return false;
 
         const file = utils.fs.openFile(path, .{}) catch return false;
         defer utils.fs.closeFile(file);
 
         const stat = utils.fs.fileStat(file) catch return false;
-        return stat.mtime.nanoseconds > self.last_mtime;
+        return stat.mtime.nanoseconds > self.lastMtime;
     }
 
     /// Returns the ZON string with default formatting.
@@ -999,8 +1001,8 @@ pub const Document = struct {
     }
 
     /// Recursively search for the first occurrence of a key in the document.
-    pub fn find(self: *const Document, key_to_find: []const u8) ?*const Value {
-        return self.findInValue(&self.root, key_to_find);
+    pub fn find(self: *const Document, keyToFind: []const u8) ?*const Value {
+        return self.findInValue(&self.root, keyToFind);
     }
 
     /// Gets the string at path, or putting a default if missing.
@@ -1026,65 +1028,65 @@ pub const Document = struct {
 
     /// Recursively search for all occurrences of a key in the document.
     /// Returns a list of paths. Caller must free results and each path.
-    pub fn findAll(self: *const Document, key_to_find: []const u8) ![][]const u8 {
-        var results: std.ArrayListUnmanaged([]const u8) = .empty;
+    pub fn findAll(self: *const Document, keyToFind: []const u8) ![][]const u8 {
+        var results: std.ArrayList([]const u8) = .empty;
         errdefer {
             for (results.items) |p| self.allocator.free(p);
             results.deinit(self.allocator);
         }
 
-        self.findAllInValue(&self.root, key_to_find, "", &results) catch |err| return err;
+        self.findAllInValue(&self.root, keyToFind, "", &results) catch |err| return err;
         return results.toOwnedSlice(self.allocator);
     }
 
-    fn findAllInValue(self: *const Document, val: *const Value, key_to_find: []const u8, prefix: []const u8, results: *std.ArrayListUnmanaged([]const u8)) !void {
+    fn findAllInValue(self: *const Document, val: *const Value, keyToFind: []const u8, prefix: []const u8, results: *std.ArrayList([]const u8)) !void {
         switch (val.*) {
             .object => |*o| {
-                if (o.entries.getPtr(key_to_find)) |_| {
+                if (o.entries.getPtr(keyToFind)) |_| {
                     const path = if (prefix.len == 0)
-                        self.allocator.dupe(u8, key_to_find) catch |err| return err
+                        self.allocator.dupe(u8, keyToFind) catch |err| return err
                     else
-                        std.fmt.allocPrint(self.allocator, "{s}.{s}", .{ prefix, key_to_find }) catch |err| return err;
+                        std.fmt.allocPrint(self.allocator, "{s}.{s}", .{ prefix, keyToFind }) catch |err| return err;
                     results.append(self.allocator, path) catch |err| return err;
                 }
                 var it = o.entries.iterator();
                 while (it.next()) |entry| {
-                    const next_prefix = if (prefix.len == 0)
+                    const nextPrefix = if (prefix.len == 0)
                         self.allocator.dupe(u8, entry.key_ptr.*) catch |err| return err
                     else
                         std.fmt.allocPrint(self.allocator, "{s}.{s}", .{ prefix, entry.key_ptr.* }) catch |err| return err;
-                    defer self.allocator.free(next_prefix);
-                    self.findAllInValue(entry.value_ptr, key_to_find, next_prefix, results) catch |err| return err;
+                    defer self.allocator.free(nextPrefix);
+                    self.findAllInValue(entry.value_ptr, keyToFind, nextPrefix, results) catch |err| return err;
                 }
             },
             .array => |*a| {
                 for (a.items.items, 0..) |*item, i| {
-                    const next_prefix = if (prefix.len == 0)
+                    const nextPrefix = if (prefix.len == 0)
                         std.fmt.allocPrint(self.allocator, "[{d}]", .{i}) catch |err| return err
                     else
                         std.fmt.allocPrint(self.allocator, "{s}[{d}]", .{ prefix, i }) catch |err| return err;
-                    defer self.allocator.free(next_prefix);
-                    self.findAllInValue(item, key_to_find, next_prefix, results) catch |err| return err;
+                    defer self.allocator.free(nextPrefix);
+                    self.findAllInValue(item, keyToFind, nextPrefix, results) catch |err| return err;
                 }
             },
             else => {},
         }
     }
 
-    fn findInValue(self: *const Document, val: *const Value, key_to_find: []const u8) ?*const Value {
+    fn findInValue(self: *const Document, val: *const Value, keyToFind: []const u8) ?*const Value {
         switch (val.*) {
             .object => |*o| {
-                if (o.entries.getPtr(key_to_find)) |v| return v;
+                if (o.entries.getPtr(keyToFind)) |v| return v;
                 var it = o.entries.iterator();
                 while (it.next()) |entry| {
                     // Check if value is object or array before recursing to avoid extra calls?
                     // No, findInValue handles recursion.
-                    if (self.findInValue(entry.value_ptr, key_to_find)) |v| return v;
+                    if (self.findInValue(entry.value_ptr, keyToFind)) |v| return v;
                 }
             },
             .array => |*a| {
                 for (a.items.items) |*item| {
-                    if (self.findInValue(item, key_to_find)) |v| return v;
+                    if (self.findInValue(item, keyToFind)) |v| return v;
                 }
             },
             else => {},
@@ -1119,7 +1121,7 @@ pub const Document = struct {
     /// Compares this document with another and returns a list of paths
     /// that have different values. Caller must free results.
     pub fn diff(self: *const Document, other: *const Document) ![][]const u8 {
-        var results: std.ArrayListUnmanaged([]const u8) = .empty;
+        var results: std.ArrayList([]const u8) = .empty;
         errdefer {
             for (results.items) |p| self.allocator.free(p);
             results.deinit(self.allocator);
@@ -1129,38 +1131,38 @@ pub const Document = struct {
         return results.toOwnedSlice(self.allocator);
     }
 
-    fn diffRecursive(self: *const Document, a: *const Value, b: *const Value, path: []const u8, results: *std.ArrayListUnmanaged([]const u8)) !void {
+    fn diffRecursive(self: *const Document, a: *const Value, b: *const Value, path: []const u8, results: *std.ArrayList([]const u8)) !void {
         if (!a.eql(b)) {
             // If they are strictly different, check if they are both objects to recurse
             if (a.* == .object and b.* == .object) {
-                const obj_a = a.asObject().?;
-                const obj_b = b.asObject().?;
+                const objA = a.asObject().?;
+                const objB = b.asObject().?;
 
                 // Check keys in A
-                var it_a = obj_a.entries.iterator();
-                while (it_a.next()) |entry| {
-                    const next_path = if (path.len == 0)
+                var itA = objA.entries.iterator();
+                while (itA.next()) |entry| {
+                    const nextPath = if (path.len == 0)
                         self.allocator.dupe(u8, entry.key_ptr.*) catch |err| return err
                     else
                         std.fmt.allocPrint(self.allocator, "{s}.{s}", .{ path, entry.key_ptr.* }) catch |err| return err;
-                    defer self.allocator.free(next_path);
+                    defer self.allocator.free(nextPath);
 
-                    if (obj_b.get(entry.key_ptr.*)) |val_b| {
-                        self.diffRecursive(entry.value_ptr, val_b, next_path, results) catch |err| return err;
+                    if (objB.get(entry.key_ptr.*)) |valB| {
+                        self.diffRecursive(entry.value_ptr, valB, nextPath, results) catch |err| return err;
                     } else {
-                        results.append(self.allocator, self.allocator.dupe(u8, next_path) catch |err| return err) catch |err| return err;
+                        results.append(self.allocator, self.allocator.dupe(u8, nextPath) catch |err| return err) catch |err| return err;
                     }
                 }
 
                 // Check keys in B that are not in A
-                var it_b = obj_b.entries.iterator();
-                while (it_b.next()) |entry| {
-                    if (!obj_a.entries.contains(entry.key_ptr.*)) {
-                        const next_path = if (path.len == 0)
+                var itB = objB.entries.iterator();
+                while (itB.next()) |entry| {
+                    if (!objA.entries.contains(entry.key_ptr.*)) {
+                        const nextPath = if (path.len == 0)
                             self.allocator.dupe(u8, entry.key_ptr.*) catch |err| return err
                         else
                             std.fmt.allocPrint(self.allocator, "{s}.{s}", .{ path, entry.key_ptr.* }) catch |err| return err;
-                        results.append(self.allocator, next_path) catch |err| return err;
+                        results.append(self.allocator, nextPath) catch |err| return err;
                     }
                 }
             } else {
@@ -1174,39 +1176,39 @@ pub const Document = struct {
     /// converted to dot-notation keys (e.g., "db.port").
     /// Caller must free both the keys and the values.
     pub fn flatten(self: *const Document) !Document {
-        var flat_doc = Document.initEmpty(self.allocator);
-        errdefer flat_doc.deinit();
+        var flatDoc = Document.initEmpty(self.allocator);
+        errdefer flatDoc.deinit();
 
-        self.flattenRecursive(&self.root, "", &flat_doc) catch |err| return err;
-        return flat_doc;
+        self.flattenRecursive(&self.root, "", &flatDoc) catch |err| return err;
+        return flatDoc;
     }
 
-    fn flattenRecursive(self: *const Document, val: *const Value, path: []const u8, flat_doc: *Document) !void {
+    fn flattenRecursive(self: *const Document, val: *const Value, path: []const u8, flatDoc: *Document) !void {
         switch (val.*) {
             .object => |o| {
                 var it = o.entries.iterator();
                 while (it.next()) |entry| {
-                    const new_path = if (path.len == 0)
+                    const newPath = if (path.len == 0)
                         self.allocator.dupe(u8, entry.key_ptr.*) catch |err| return err
                     else
                         std.fmt.allocPrint(self.allocator, "{s}.{s}", .{ path, entry.key_ptr.* }) catch |err| return err;
-                    defer self.allocator.free(new_path);
-                    self.flattenRecursive(entry.value_ptr, new_path, flat_doc) catch |err| return err;
+                    defer self.allocator.free(newPath);
+                    self.flattenRecursive(entry.value_ptr, newPath, flatDoc) catch |err| return err;
                 }
             },
             .array => |a| {
                 for (a.items.items, 0..) |*item, i| {
-                    const new_path = if (path.len == 0)
+                    const newPath = if (path.len == 0)
                         std.fmt.allocPrint(self.allocator, "[{d}]", .{i}) catch |err| return err
                     else
                         std.fmt.allocPrint(self.allocator, "{s}[{d}]", .{ path, i }) catch |err| return err;
-                    defer self.allocator.free(new_path);
-                    self.flattenRecursive(item, new_path, flat_doc) catch |err| return err;
+                    defer self.allocator.free(newPath);
+                    self.flattenRecursive(item, newPath, flatDoc) catch |err| return err;
                 }
             },
             else => {
                 if (path.len > 0) {
-                    flat_doc.setValue(path, val.clone(self.allocator) catch |err| return err) catch |err| return err;
+                    flatDoc.setValue(path, val.clone(self.allocator) catch |err| return err) catch |err| return err;
                 }
             },
         }
@@ -1218,8 +1220,8 @@ pub const Document = struct {
     }
 
     /// Returns the ZON string with custom indentation.
-    pub fn toPrettyString(self: *const Document, indent_size: usize) ![]u8 {
-        return stringify.stringify(self.allocator, &self.root, .{ .indent = indent_size });
+    pub fn toPrettyString(self: *const Document, indentSize: usize) ![]u8 {
+        return stringify.stringify(self.allocator, &self.root, .{ .indent = indentSize });
     }
 
     /// Merges another document into this one recursively.
@@ -1249,17 +1251,17 @@ pub const Document = struct {
 
     /// Merges another document into this one. (Old shallow-like merge preserved for compatibility)
     pub fn merge(self: *Document, other: *const Document) !void {
-        const other_obj = switch (other.root) {
+        const otherObj = switch (other.root) {
             .object => |o| o,
             else => return,
         };
 
-        const other_keys = other_obj.keys(self.allocator) catch |err| return err;
-        defer self.allocator.free(other_keys);
+        const otherKeys = otherObj.keys(self.allocator) catch |err| return err;
+        defer self.allocator.free(otherKeys);
 
-        for (other_keys) |key| {
-            if (other_obj.entries.get(key)) |other_val| {
-                const cloned = other_val.clone(self.allocator) catch |err| return err;
+        for (otherKeys) |key| {
+            if (otherObj.entries.get(key)) |otherVal| {
+                const cloned = otherVal.clone(self.allocator) catch |err| return err;
                 self.setValueByPath(key, cloned) catch |err| return err;
             }
         }
@@ -1270,7 +1272,7 @@ pub const Document = struct {
         return .{
             .allocator = self.allocator,
             .root = self.root.clone(self.allocator) catch |err| return err,
-            .file_path = if (self.file_path) |p| self.allocator.dupe(u8, p) catch |err| return err else null,
+            .filePath = if (self.filePath) |p| self.allocator.dupe(u8, p) catch |err| return err else null,
         };
     }
 
@@ -1282,8 +1284,8 @@ pub const Document = struct {
             return current.asObject();
         }
 
-        var parts_iter = std.mem.splitScalar(u8, path, '.');
-        while (parts_iter.next()) |part| {
+        var partsIter = std.mem.splitScalar(u8, path, '.');
+        while (partsIter.next()) |part| {
             switch (current.*) {
                 .object => |*obj| {
                     current = obj.get(part) orelse return null;
@@ -1303,8 +1305,8 @@ pub const Document = struct {
             return current.asArray();
         }
 
-        var parts_iter = std.mem.splitScalar(u8, path, '.');
-        while (parts_iter.next()) |part| {
+        var partsIter = std.mem.splitScalar(u8, path, '.');
+        while (partsIter.next()) |part| {
             switch (current.*) {
                 .object => |*obj| {
                     current = obj.get(part) orelse return null;
@@ -1323,10 +1325,10 @@ pub const Document = struct {
     }
 
     fn getValueByPath(self: *const Document, path: []const u8) ?*const Value {
-        var parts_iter = std.mem.splitScalar(u8, path, '.');
+        var partsIter = std.mem.splitScalar(u8, path, '.');
         var current: *const Value = &self.root;
 
-        while (parts_iter.next()) |part| {
+        while (partsIter.next()) |part| {
             switch (current.*) {
                 .object => |*obj| {
                     current = obj.get(part) orelse return null;
@@ -1339,10 +1341,10 @@ pub const Document = struct {
     }
 
     fn getMutableValueByPath(self: *Document, path: []const u8) ?*Value {
-        var parts_iter = std.mem.splitScalar(u8, path, '.');
+        var partsIter = std.mem.splitScalar(u8, path, '.');
         var current: *Value = &self.root;
 
-        while (parts_iter.next()) |part| {
+        while (partsIter.next()) |part| {
             switch (current.*) {
                 .object => |*obj| {
                     current = obj.get(part) orelse return null;
@@ -1381,16 +1383,16 @@ pub const Document = struct {
             }
         }
 
-        const last_key = parts[parts.len - 1];
-        if (current.get(last_key)) |existing| {
+        const lastKey = parts[parts.len - 1];
+        if (current.get(lastKey)) |existing| {
             existing.deinit(self.allocator);
             existing.* = value;
         } else {
-            current.put(last_key, value) catch |err| return err;
+            current.put(lastKey, value) catch |err| return err;
         }
     }
 
-    fn findStringRecursive(self: *const Document, value: *const Value, prefix: []const u8, needle: []const u8, results: *std.ArrayListUnmanaged([]const u8)) !void {
+    fn findStringRecursive(self: *const Document, value: *const Value, prefix: []const u8, needle: []const u8, results: *std.ArrayList([]const u8)) !void {
         switch (value.*) {
             .string => |s| {
                 if (std.mem.indexOf(u8, s, needle) != null) {
@@ -1401,26 +1403,26 @@ pub const Document = struct {
             .object => |o| {
                 var it = o.entries.iterator();
                 while (it.next()) |entry| {
-                    const new_prefix = if (prefix.len == 0)
+                    const newPrefix = if (prefix.len == 0)
                         self.allocator.dupe(u8, entry.key_ptr.*) catch |err| return err
                     else
                         std.fmt.allocPrint(self.allocator, "{s}.{s}", .{ prefix, entry.key_ptr.* }) catch |err| return err;
-                    defer self.allocator.free(new_prefix);
-                    self.findStringRecursive(entry.value_ptr, new_prefix, needle, results) catch |err| return err;
+                    defer self.allocator.free(newPrefix);
+                    self.findStringRecursive(entry.value_ptr, newPrefix, needle, results) catch |err| return err;
                 }
             },
             .array => |a| {
                 for (a.items.items, 0..) |*item, i| {
-                    const new_prefix = std.fmt.allocPrint(self.allocator, "{s}[{d}]", .{ prefix, i }) catch |err| return err;
-                    defer self.allocator.free(new_prefix);
-                    self.findStringRecursive(item, new_prefix, needle, results) catch |err| return err;
+                    const newPrefix = std.fmt.allocPrint(self.allocator, "{s}[{d}]", .{ prefix, i }) catch |err| return err;
+                    defer self.allocator.free(newPrefix);
+                    self.findStringRecursive(item, newPrefix, needle, results) catch |err| return err;
                 }
             },
             else => {},
         }
     }
 
-    fn findExactRecursive(self: *const Document, value: *const Value, prefix: []const u8, needle: []const u8, results: *std.ArrayListUnmanaged([]const u8)) !void {
+    fn findExactRecursive(self: *const Document, value: *const Value, prefix: []const u8, needle: []const u8, results: *std.ArrayList([]const u8)) !void {
         switch (value.*) {
             .string => |s| {
                 if (std.mem.eql(u8, s, needle)) {
@@ -1431,26 +1433,26 @@ pub const Document = struct {
             .object => |o| {
                 var it = o.entries.iterator();
                 while (it.next()) |entry| {
-                    const new_prefix = if (prefix.len == 0)
+                    const newPrefix = if (prefix.len == 0)
                         self.allocator.dupe(u8, entry.key_ptr.*) catch |err| return err
                     else
                         std.fmt.allocPrint(self.allocator, "{s}.{s}", .{ prefix, entry.key_ptr.* }) catch |err| return err;
-                    defer self.allocator.free(new_prefix);
-                    self.findExactRecursive(entry.value_ptr, new_prefix, needle, results) catch |err| return err;
+                    defer self.allocator.free(newPrefix);
+                    self.findExactRecursive(entry.value_ptr, newPrefix, needle, results) catch |err| return err;
                 }
             },
             .array => |a| {
                 for (a.items.items, 0..) |*item, i| {
-                    const new_prefix = std.fmt.allocPrint(self.allocator, "{s}[{d}]", .{ prefix, i }) catch |err| return err;
-                    defer self.allocator.free(new_prefix);
-                    self.findExactRecursive(item, new_prefix, needle, results) catch |err| return err;
+                    const newPrefix = std.fmt.allocPrint(self.allocator, "{s}[{d}]", .{ prefix, i }) catch |err| return err;
+                    defer self.allocator.free(newPrefix);
+                    self.findExactRecursive(item, newPrefix, needle, results) catch |err| return err;
                 }
             },
             else => {},
         }
     }
 
-    fn findWhereRecursive(self: *const Document, value: *const Value, prefix: []const u8, predicate: *const fn (*const Value) bool, results: *std.ArrayListUnmanaged([]const u8)) !void {
+    fn findWhereRecursive(self: *const Document, value: *const Value, prefix: []const u8, predicate: *const fn (*const Value) bool, results: *std.ArrayList([]const u8)) !void {
         if (predicate(value)) {
             const path = self.allocator.dupe(u8, prefix) catch |err| return err;
             results.append(self.allocator, path) catch |err| return err;
@@ -1460,19 +1462,19 @@ pub const Document = struct {
             .object => |o| {
                 var it = o.entries.iterator();
                 while (it.next()) |entry| {
-                    const new_prefix = if (prefix.len == 0)
+                    const newPrefix = if (prefix.len == 0)
                         self.allocator.dupe(u8, entry.key_ptr.*) catch |err| return err
                     else
                         std.fmt.allocPrint(self.allocator, "{s}.{s}", .{ prefix, entry.key_ptr.* }) catch |err| return err;
-                    defer self.allocator.free(new_prefix);
-                    self.findWhereRecursive(entry.value_ptr, new_prefix, predicate, results) catch |err| return err;
+                    defer self.allocator.free(newPrefix);
+                    self.findWhereRecursive(entry.value_ptr, newPrefix, predicate, results) catch |err| return err;
                 }
             },
             .array => |a| {
                 for (a.items.items, 0..) |*item, i| {
-                    const new_prefix = std.fmt.allocPrint(self.allocator, "{s}[{d}]", .{ prefix, i }) catch |err| return err;
-                    defer self.allocator.free(new_prefix);
-                    self.findWhereRecursive(item, new_prefix, predicate, results) catch |err| return err;
+                    const newPrefix = std.fmt.allocPrint(self.allocator, "{s}[{d}]", .{ prefix, i }) catch |err| return err;
+                    defer self.allocator.free(newPrefix);
+                    self.findWhereRecursive(item, newPrefix, predicate, results) catch |err| return err;
                 }
             },
             else => {},
@@ -1481,7 +1483,7 @@ pub const Document = struct {
 
     /// Returns all paths (dot-notation) in the document recursively.
     pub fn paths(self: *const Document) ![][]const u8 {
-        var results: std.ArrayListUnmanaged([]const u8) = .empty;
+        var results: std.ArrayList([]const u8) = .empty;
         errdefer {
             for (results.items) |p| self.allocator.free(p);
             results.deinit(self.allocator);
@@ -1490,7 +1492,7 @@ pub const Document = struct {
         return results.toOwnedSlice(self.allocator);
     }
 
-    fn collectPaths(self: *const Document, value: *const Value, prefix: []const u8, results: *std.ArrayListUnmanaged([]const u8)) !void {
+    fn collectPaths(self: *const Document, value: *const Value, prefix: []const u8, results: *std.ArrayList([]const u8)) !void {
         switch (value.*) {
             .object => |*o| {
                 var it = o.entries.iterator();
@@ -1527,19 +1529,19 @@ pub const Document = struct {
             .object => |*o| {
                 var it = o.entries.iterator();
                 while (it.next()) |entry| {
-                    const next_prefix = if (prefix.len == 0)
+                    const nextPrefix = if (prefix.len == 0)
                         self.allocator.dupe(u8, entry.key_ptr.*) catch return
                     else
                         std.fmt.allocPrint(self.allocator, "{s}.{s}", .{ prefix, entry.key_ptr.* }) catch return;
-                    defer self.allocator.free(next_prefix);
-                    self.walkValue(entry.value_ptr, next_prefix, context, visitor);
+                    defer self.allocator.free(nextPrefix);
+                    self.walkValue(entry.value_ptr, nextPrefix, context, visitor);
                 }
             },
             .array => |*a| {
                 for (a.items.items, 0..) |*item, i| {
-                    const next_prefix = std.fmt.allocPrint(self.allocator, "{s}[{d}]", .{ prefix, i }) catch return;
-                    defer self.allocator.free(next_prefix);
-                    self.walkValue(item, next_prefix, context, visitor);
+                    const nextPrefix = std.fmt.allocPrint(self.allocator, "{s}[{d}]", .{ prefix, i }) catch return;
+                    defer self.allocator.free(nextPrefix);
+                    self.walkValue(item, nextPrefix, context, visitor);
                 }
             },
             else => {},
@@ -1556,49 +1558,49 @@ pub const Document = struct {
         var mutable = value;
         switch (mutable) {
             .object => |*o| {
-                var new_obj = Value.Object.init(self.allocator);
-                errdefer new_obj.deinit();
+                var newObj = Value.Object.init(self.allocator);
+                errdefer newObj.deinit();
 
-                var keys_buf: std.ArrayListUnmanaged([]const u8) = .empty;
-                defer keys_buf.deinit(self.allocator);
+                var keysBuf: std.ArrayList([]const u8) = .empty;
+                defer keysBuf.deinit(self.allocator);
                 var kit = o.entries.keyIterator();
                 while (kit.next()) |k| {
-                    try keys_buf.append(self.allocator, k.*);
+                    try keysBuf.append(self.allocator, k.*);
                 }
 
-                for (keys_buf.items) |key| {
-                    const next_prefix = if (prefix.len == 0)
+                for (keysBuf.items) |key| {
+                    const nextPrefix = if (prefix.len == 0)
                         try self.allocator.dupe(u8, key)
                     else
                         try std.fmt.allocPrint(self.allocator, "{s}.{s}", .{ prefix, key });
-                    defer self.allocator.free(next_prefix);
+                    defer self.allocator.free(nextPrefix);
 
                     const entry = o.entries.fetchRemove(key).?;
-                    const mapped_child = try self.mapValue(entry.value, next_prefix, context, mapper);
-                    try new_obj.put(entry.key, mapped_child);
+                    const mappedChild = try self.mapValue(entry.value, nextPrefix, context, mapper);
+                    try newObj.put(entry.key, mappedChild);
                     self.allocator.free(entry.key);
                 }
                 o.deinit();
-                return try mapper(context, prefix, .{ .object = new_obj });
+                return try mapper(context, prefix, .{ .object = newObj });
             },
             .array => |*a| {
-                var new_arr = Value.Array.init(self.allocator);
-                errdefer new_arr.deinit();
+                var newArr = Value.Array.init(self.allocator);
+                errdefer newArr.deinit();
                 for (a.items.items, 0..) |*item, i| {
-                    const next_prefix = try std.fmt.allocPrint(self.allocator, "{s}[{d}]", .{ prefix, i });
-                    defer self.allocator.free(next_prefix);
-                    var taken: Value = .null_val;
+                    const nextPrefix = try std.fmt.allocPrint(self.allocator, "{s}[{d}]", .{ prefix, i });
+                    defer self.allocator.free(nextPrefix);
+                    var taken: Value = .nullVal;
                     std.mem.swap(Value, item, &taken);
-                    const mapped_child = try self.mapValue(taken, next_prefix, context, mapper);
-                    try new_arr.append(mapped_child);
+                    const mappedChild = try self.mapValue(taken, nextPrefix, context, mapper);
+                    try newArr.append(mappedChild);
                 }
                 a.deinit();
-                return try mapper(context, prefix, .{ .array = new_arr });
+                return try mapper(context, prefix, .{ .array = newArr });
             },
             else => {
                 var val = value;
-                const copy_val = try val.clone(self.allocator);
-                const result = try mapper(context, prefix, copy_val);
+                const copyVal = try val.clone(self.allocator);
+                const result = try mapper(context, prefix, copyVal);
                 val.deinit(self.allocator);
                 return result;
             },
@@ -1607,24 +1609,24 @@ pub const Document = struct {
 
     /// Creates a new document containing only the specified paths.
     pub fn pick(self: *const Document, selected: []const []const u8) !Document {
-        var new_doc = Document.initEmpty(self.allocator);
-        errdefer new_doc.deinit();
+        var newDoc = Document.initEmpty(self.allocator);
+        errdefer newDoc.deinit();
         for (selected) |path| {
             if (self.getValueByPath(path)) |val| {
                 const cloned = try val.clone(self.allocator);
-                try new_doc.setValueByPath(path, cloned);
+                try newDoc.setValueByPath(path, cloned);
             }
         }
-        return new_doc;
+        return newDoc;
     }
 
     /// Creates a new document excluding the specified paths.
     pub fn omit(self: *const Document, excluded: []const []const u8) !Document {
-        var new_doc = try self.clone();
+        var newDoc = try self.clone();
         for (excluded) |path| {
-            _ = new_doc.delete(path);
+            _ = newDoc.delete(path);
         }
-        return new_doc;
+        return newDoc;
     }
 
     /// Recursively sorts object keys. Use desc=true for descending order.
@@ -1637,22 +1639,22 @@ pub const Document = struct {
 
         switch (value.*) {
             .object => |*o| {
-                var new_entries: std.StringHashMapUnmanaged(Value) = .{};
-                errdefer new_entries.deinit(self.allocator);
+                var newEntries: std.StringHashMapUnmanaged(Value) = .{};
+                errdefer newEntries.deinit(self.allocator);
 
-                var keys_buf: std.ArrayListUnmanaged([]const u8) = .empty;
-                defer keys_buf.deinit(self.allocator);
+                var keysBuf: std.ArrayList([]const u8) = .empty;
+                defer keysBuf.deinit(self.allocator);
 
                 var it = o.entries.keyIterator();
                 while (it.next()) |k| {
-                    keys_buf.append(self.allocator, k.*) catch return;
+                    keysBuf.append(self.allocator, k.*) catch return;
                 }
 
-                std.mem.sort([]const u8, keys_buf.items, {}, cmp);
+                std.mem.sort([]const u8, keysBuf.items, {}, cmp);
 
-                for (keys_buf.items) |key| {
+                for (keysBuf.items) |key| {
                     var entry = o.entries.fetchRemove(key).?;
-                    new_entries.put(self.allocator, entry.key, entry.value) catch {
+                    newEntries.put(self.allocator, entry.key, entry.value) catch {
                         self.allocator.free(entry.key);
                         entry.value.deinit(self.allocator);
                         return;
@@ -1660,10 +1662,10 @@ pub const Document = struct {
                 }
 
                 o.entries.deinit(self.allocator);
-                o.entries = new_entries;
+                o.entries = newEntries;
 
-                var child_it = o.entries.iterator();
-                while (child_it.next()) |entry| {
+                var childIt = o.entries.iterator();
+                while (childIt.next()) |entry| {
                     self.sortKeysInternal(entry.value_ptr, desc);
                 }
             },
@@ -1697,7 +1699,7 @@ pub const Document = struct {
                 if (as != null and bs != null) {
                     return std.mem.order(u8, as.?, bs.?) == .lt;
                 }
-                return @intFromEnum(std.meta.activeTag(a)) < @intFromEnum(std.meta.activeTag(b));
+                return @backingInt(std.meta.activeTag(a)) < @backingInt(std.meta.activeTag(b));
             }
         }.lessThan);
     }
@@ -1716,13 +1718,13 @@ pub const Document = struct {
     }
 
     /// Truncates the array at the path to the given new length.
-    /// Elements beyond new_len are deinitialized.
-    pub fn truncate(self: *Document, path: []const u8, new_len: usize) !void {
+    /// Elements beyond newLen are deinitialized.
+    pub fn truncate(self: *Document, path: []const u8, newLen: usize) !void {
         const val = self.getMutableValueByPath(path) orelse return error.PathNotFound;
         const arr = val.asArray() orelse return error.NotAnArray;
-        const old_len = arr.items.items.len;
-        if (new_len >= old_len) return;
-        while (arr.items.items.len > new_len) {
+        const oldLen = arr.items.items.len;
+        if (newLen >= oldLen) return;
+        while (arr.items.items.len > newLen) {
             var item = arr.pop().?;
             item.deinit(self.allocator);
         }
@@ -1732,9 +1734,9 @@ pub const Document = struct {
     pub fn dropFirst(self: *Document, path: []const u8, n: usize) !void {
         const val = self.getMutableValueByPath(path) orelse return error.PathNotFound;
         const arr = val.asArray() orelse return error.NotAnArray;
-        const drop_count = @min(n, arr.items.items.len);
+        const dropCount = @min(n, arr.items.items.len);
         var i: usize = 0;
-        while (i < drop_count) : (i += 1) {
+        while (i < dropCount) : (i += 1) {
             var item = arr.items.orderedRemove(0);
             item.deinit(self.allocator);
         }
@@ -1744,9 +1746,9 @@ pub const Document = struct {
     pub fn dropLast(self: *Document, path: []const u8, n: usize) !void {
         const val = self.getMutableValueByPath(path) orelse return error.PathNotFound;
         const arr = val.asArray() orelse return error.NotAnArray;
-        const drop_count = @min(n, arr.items.items.len);
+        const dropCount = @min(n, arr.items.items.len);
         var i: usize = 0;
-        while (i < drop_count) : (i += 1) {
+        while (i < dropCount) : (i += 1) {
             var item = arr.pop().?;
             item.deinit(self.allocator);
         }
@@ -1769,9 +1771,9 @@ pub const Document = struct {
             .array => |a| a,
             else => return null,
         };
-        const arr_len = arr.len();
-        if (arr_len == 0) return null;
-        return arr.get(arr_len - 1);
+        const arrLen = arr.len();
+        if (arrLen == 0) return null;
+        return arr.get(arrLen - 1);
     }
 
     /// Removes all null values from the array at the path in-place.
@@ -1780,7 +1782,7 @@ pub const Document = struct {
         const arr = val.asArray() orelse return error.NotAnArray;
         var i: usize = 0;
         while (i < arr.items.items.len) {
-            if (arr.items.items[i] == .null_val) {
+            if (arr.items.items[i] == .nullVal) {
                 var item = arr.items.orderedRemove(i);
                 item.deinit(self.allocator);
             } else {
@@ -1816,11 +1818,12 @@ pub const Document = struct {
 
     /// Creates a new document containing only paths where the predicate returns true.
     /// The predicate receives each path and value.
-    pub fn filter(self: *const Document, allocator: Allocator, context: anytype, predicate: fn (ctx: @TypeOf(context), path: []const u8, value: *const Value) bool) !Document {
-        var new_doc = Document.initEmpty(allocator);
-        errdefer new_doc.deinit();
-        try self.filterRecursive(&self.root, "", context, predicate, &new_doc);
-        return new_doc;
+    /// The new document reuses the source document allocator.
+    pub fn filter(self: *const Document, context: anytype, predicate: fn (ctx: @TypeOf(context), path: []const u8, value: *const Value) bool) !Document {
+        var newDoc = Document.initEmpty(self.allocator);
+        errdefer newDoc.deinit();
+        try self.filterRecursive(&self.root, "", context, predicate, &newDoc);
+        return newDoc;
     }
 
     fn filterRecursive(self: *const Document, value: *const Value, prefix: []const u8, context: anytype, predicate: fn (ctx: @TypeOf(context), path: []const u8, value: *const Value) bool, result: *Document) !void {
@@ -1838,19 +1841,19 @@ pub const Document = struct {
             .object => |*o| {
                 var it = o.entries.iterator();
                 while (it.next()) |entry| {
-                    const next_prefix = if (prefix.len == 0)
+                    const nextPrefix = if (prefix.len == 0)
                         try self.allocator.dupe(u8, entry.key_ptr.*)
                     else
                         try std.fmt.allocPrint(self.allocator, "{s}.{s}", .{ prefix, entry.key_ptr.* });
-                    defer self.allocator.free(next_prefix);
-                    try self.filterRecursive(entry.value_ptr, next_prefix, context, predicate, result);
+                    defer self.allocator.free(nextPrefix);
+                    try self.filterRecursive(entry.value_ptr, nextPrefix, context, predicate, result);
                 }
             },
             .array => |*a| {
                 for (a.items.items, 0..) |*item, i| {
-                    const next_prefix = try std.fmt.allocPrint(self.allocator, "{s}[{d}]", .{ prefix, i });
-                    defer self.allocator.free(next_prefix);
-                    try self.filterRecursive(item, next_prefix, context, predicate, result);
+                    const nextPrefix = try std.fmt.allocPrint(self.allocator, "{s}[{d}]", .{ prefix, i });
+                    defer self.allocator.free(nextPrefix);
+                    try self.filterRecursive(item, nextPrefix, context, predicate, result);
                 }
             },
             else => {},
@@ -1902,15 +1905,15 @@ pub const Document = struct {
             .object => |*o| {
                 var it = o.entries.iterator();
                 while (it.next()) |entry| {
-                    const count_val = self.replaceInValue(entry.value_ptr, needle, replacement, mode) catch |err| return err;
-                    replaced += count_val;
+                    const countVal = self.replaceInValue(entry.value_ptr, needle, replacement, mode) catch |err| return err;
+                    replaced += countVal;
                     if (mode == .first and replaced > 0) return replaced;
                 }
             },
             .array => |*a| {
                 for (a.items.items) |*item| {
-                    const count_val = self.replaceInValue(item, needle, replacement, mode) catch |err| return err;
-                    replaced += count_val;
+                    const countVal = self.replaceInValue(item, needle, replacement, mode) catch |err| return err;
+                    replaced += countVal;
                     if (mode == .first and replaced > 0) return replaced;
                 }
             },
@@ -2040,8 +2043,8 @@ test "Document: find and replace" {
     try doc.setString("b", "hello");
     try doc.setString("c", "world");
 
-    const count_val = try doc.replaceAll("hello", "goodbye");
-    try std.testing.expectEqual(@as(usize, 2), count_val);
+    const countVal = try doc.replaceAll("hello", "goodbye");
+    try std.testing.expectEqual(@as(usize, 2), countVal);
     try std.testing.expectEqualStrings("goodbye", doc.getString("a").?);
     try std.testing.expectEqualStrings("world", doc.getString("c").?);
 }
@@ -2071,8 +2074,8 @@ test "Document: saveIfChanged writes file and avoids unnecessary writes" {
 
     try doc.setString("a", "one");
 
-    // set file_path so saveIfChanged can use it
-    doc.file_path = try allocator.dupe(u8, path);
+    // set filePath so saveIfChanged can use it
+    doc.filePath = try allocator.dupe(u8, path);
 
     // First save should write the file
     const changed1 = try doc.saveIfChanged();
@@ -2201,15 +2204,15 @@ test "Document: paths" {
     try doc.setInt("server.port", 8080);
     try doc.setBool("ssl.enabled", true);
 
-    const all_paths = try doc.paths();
+    const allPaths = try doc.paths();
     defer {
-        for (all_paths) |p| allocator.free(p);
-        allocator.free(all_paths);
+        for (allPaths) |p| allocator.free(p);
+        allocator.free(allPaths);
     }
 
-    try std.testing.expectEqual(@as(usize, 5), all_paths.len);
+    try std.testing.expectEqual(@as(usize, 5), allPaths.len);
     var found: usize = 0;
-    for (all_paths) |p| {
+    for (allPaths) |p| {
         if (std.mem.eql(u8, p, "server.host") or std.mem.eql(u8, p, "server.port") or std.mem.eql(u8, p, "ssl.enabled")) {
             found += 1;
         }
@@ -2258,9 +2261,9 @@ test "Document: mapValues transforms strings" {
             _ = path;
             if (value == .string) {
                 var owned = value;
-                const result_str = try std.ascii.allocUpperString(c.allocator, owned.string);
+                const resultStr = try std.ascii.allocUpperString(c.allocator, owned.string);
                 owned.deinit(c.allocator);
-                return Value{ .string = result_str };
+                return Value{ .string = resultStr };
             }
             return value;
         }
@@ -2560,7 +2563,7 @@ test "Document: filter" {
     };
 
     var ctx = Context{};
-    var filtered = try doc.filter(allocator, &ctx, Context.isString);
+    var filtered = try doc.filter(&ctx, Context.isString);
     defer filtered.deinit();
 
     try std.testing.expectEqualStrings("test", filtered.getString("name").?);
@@ -2589,9 +2592,9 @@ test "Document: compact removes nulls from array" {
 
     try doc.setArray("arr");
     try doc.appendToArray("arr", "a");
-    try doc.setValue("arr[1]", .null_val);
+    try doc.setValue("arr[1]", .nullVal);
     try doc.appendToArray("arr", "b");
-    try doc.setValue("arr[3]", .null_val);
+    try doc.setValue("arr[3]", .nullVal);
     try doc.appendToArray("arr", "c");
 
     try doc.compact("arr");
@@ -2704,10 +2707,10 @@ test "Document: nested compact and unique" {
 
     try doc.setArray("data.vals");
     try doc.appendToArray("data.vals", "a");
-    try doc.setValue("data.vals[1]", .null_val);
+    try doc.setValue("data.vals[1]", .nullVal);
     try doc.appendToArray("data.vals", "a");
     try doc.appendToArray("data.vals", "b");
-    try doc.setValue("data.vals[4]", .null_val);
+    try doc.setValue("data.vals[4]", .nullVal);
 
     try doc.compact("data.vals");
     try std.testing.expectEqual(@as(usize, 3), doc.arrayLen("data.vals").?);
@@ -2777,7 +2780,7 @@ test "Document: nested filter" {
     };
 
     var ctx = Ctx{};
-    var filtered = try doc.filter(allocator, &ctx, Ctx.isString);
+    var filtered = try doc.filter(&ctx, Ctx.isString);
     defer filtered.deinit();
 
     try std.testing.expectEqualStrings("test", filtered.getString("app.name").?);

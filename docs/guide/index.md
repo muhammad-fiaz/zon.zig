@@ -86,7 +86,6 @@ pub fn main() !void {
     defer _ = gpa.deinit();
     const allocator = gpa.allocator();
 
-    zon.disableUpdateCheck();
 
     // Create document
     var doc = zon.create(allocator);
@@ -184,7 +183,7 @@ try doc.setInt("port", 8080);
 
 ## Requirements
 
-- Zig 0.16.0 or later
+- Zig 0.17.0 or later
 - No external dependencies
 
 ## Next Steps

@@ -7,8 +7,6 @@ pub fn main() !void {
     defer _ = gpa.deinit();
     const allocator = gpa.allocator();
 
-    zon.disableUpdateCheck();
-
     std.debug.print("=== Configuration Management Example ===\n\n", .{});
 
     var config = zon.create(allocator);
@@ -22,7 +20,7 @@ pub fn main() !void {
     try config.setInt("server.port", 8080);
     try config.setBool("server.ssl.enabled", false);
     try config.setString("server.ssl.cert_path", "/etc/ssl/cert.pem");
-    try config.setString("server.ssl.key_path", "/etc/ssl/key.pem");
+    try config.setString("server.ssl.keyPath", "/etc/ssl/key.pem");
 
     try config.setString("database.driver", "postgres");
     try config.setString("database.host", "localhost");
@@ -42,14 +40,14 @@ pub fn main() !void {
     try config.setInt("cache.port", 6379);
 
     std.debug.print("Development configuration:\n", .{});
-    const dev_config = try config.toString();
-    defer allocator.free(dev_config);
-    std.debug.print("{s}\n\n", .{dev_config});
+    const devConfig = try config.toString();
+    defer allocator.free(devConfig);
+    std.debug.print("{s}\n\n", .{devConfig});
 
     std.debug.print("=== Creating production config with mergeRecursive ===\n\n", .{});
 
-    var prod_config = try config.clone();
-    defer prod_config.deinit();
+    var prodConfig = try config.clone();
+    defer prodConfig.deinit();
 
     var overrides = zon.create(allocator);
     defer overrides.deinit();
@@ -64,12 +62,12 @@ pub fn main() !void {
     try overrides.setBool("logging.colorize", false);
     try overrides.setString("cache.host", "cache.production.example.com");
 
-    try prod_config.mergeRecursive(&overrides);
+    try prodConfig.mergeRecursive(&overrides);
 
     std.debug.print("Production configuration:\n", .{});
-    const prod_str = try prod_config.toString();
-    defer allocator.free(prod_str);
-    std.debug.print("{s}\n", .{prod_str});
+    const prodStr = try prodConfig.toString();
+    defer allocator.free(prodStr);
+    std.debug.print("{s}\n", .{prodStr});
 
     std.debug.print("\n=== Configuration summary ===\n", .{});
     std.debug.print("Development:\n", .{});
@@ -81,10 +79,10 @@ pub fn main() !void {
     });
 
     std.debug.print("\nProduction:\n", .{});
-    std.debug.print("  Environment: {s}\n", .{prod_config.getString("app.environment").?});
+    std.debug.print("  Environment: {s}\n", .{prodConfig.getString("app.environment").?});
     std.debug.print("  Database: {s}:{d}/{s}\n", .{
-        prod_config.getString("database.host").?,
-        prod_config.getInt("database.port").?,
-        prod_config.getString("database.name").?,
+        prodConfig.getString("database.host").?,
+        prodConfig.getInt("database.port").?,
+        prodConfig.getString("database.name").?,
     });
 }

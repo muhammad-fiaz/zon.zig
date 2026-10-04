@@ -5,7 +5,7 @@
 # zon.zig
 
 <a href="https://muhammad-fiaz.github.io/zon.zig/"><img src="https://img.shields.io/badge/docs-muhammad--fiaz.github.io-blue" alt="Documentation"></a>
-<a href="https://ziglang.org/"><img src="https://img.shields.io/badge/Zig-0.16.0+-orange.svg?logo=zig" alt="Zig Version"></a>
+<a href="https://ziglang.org/"><img src="https://img.shields.io/badge/Zig-0.17.0+-orange.svg?logo=zig" alt="Zig Version"></a>
 <a href="https://github.com/muhammad-fiaz/zon.zig"><img src="https://img.shields.io/github/stars/muhammad-fiaz/zon.zig" alt="GitHub stars"></a>
 <a href="https://github.com/muhammad-fiaz/zon.zig/issues"><img src="https://img.shields.io/github/issues/muhammad-fiaz/zon.zig" alt="GitHub issues"></a>
 <a href="https://github.com/muhammad-fiaz/zon.zig/pulls"><img src="https://img.shields.io/github/issues-pr/muhammad-fiaz/zon.zig" alt="GitHub pull requests"></a>
@@ -99,7 +99,6 @@ A **document-based** ZON (Zig Object Notation) library for Zig, designed for con
 | [Zero Dependencies](guide/installation) | Built entirely on the Zig standard library |
 | [High Performance](guide/basic-usage) | Efficient parsing and serialization |
 | [File Operations](guide/file-operations) | Delete, copy, rename, check existence |
-| [Update Checker](api/module) | Optional automatic update checking |
 | [Memory Flexibility](guide/allocators) | Full support for DebugAllocator, ArenaAllocator, SmpAllocator, FixedBufferAllocator, PageAllocator, and custom allocators |
 | [JSON Interop](api/module) | Import from and Export to standard JSON |
 | [Object Iterators](guide/reading) | Programmatic iteration over key-value pairs |
@@ -110,7 +109,7 @@ A **document-based** ZON (Zig Object Notation) library for Zig, designed for con
 | [Runtime Structs](guide/runtime-structs) | Convert ZON documents to Zig structs (`toStruct`) |
 | [Struct to ZON](guide/runtime-structs) | Create/Update Documents from Zig Structs (`initFromStruct`) |
 | [Smart Stringify](guide/writing) | Intelligent key quoting (ZON-compliant unquoted keys) |
-| [Sort Keys](guide/writing) | Alphabetical key sorting in stringify output (`sort_keys` option) |
+| [Sort Keys](guide/writing) | Alphabetical key sorting in stringify output (`sortKeys` option) |
 | [Walk & Map](guide/basic-usage) | Traverse and transform values with `walk()` and `mapValues()` |
 | [Pick & Omit](guide/basic-usage) | Create document subsets with `pick()` and `omit()` |
 | [Path Enumeration](guide/basic-usage) | Recursively list all paths with `paths()` |
@@ -138,7 +137,7 @@ A **document-based** ZON (Zig Object Notation) library for Zig, designed for con
 
 | Requirement          | Version                   | Notes                                                      |
 | -------------------- | ------------------------- | ---------------------------------------------------------- |
-| **Zig**              | 0.16.0+                   | Download from [ziglang.org](https://ziglang.org/download/) |
+| **Zig**              | 0.17.0+                   | Download from [ziglang.org](https://ziglang.org/download/) |
 | **Operating System** | Windows 10+, Linux, macOS | Cross-platform support                                     |
 
 ---
@@ -158,11 +157,22 @@ A **document-based** ZON (Zig Object Notation) library for Zig, designed for con
 
 ## Installation
 
-For **Zig 0.16.0** support (recommended), use `v0.0.5`:
+Current version: 0.0.6 — requires Zig 0.17.0+.
 
 ```bash
-zig fetch --save https://github.com/muhammad-fiaz/zon.zig/archive/refs/tags/0.0.5.tar.gz
+zig fetch --save https://github.com/muhammad-fiaz/zon.zig/archive/refs/tags/0.0.6.tar.gz
 ```
+
+### Compatibility
+
+| zon.zig | Zig |
+| ------- | --- |
+| 0.0.6 | 0.17.0+ |
+| 0.0.5 | 0.16.0 |
+
+If you are using Zig 0.16.0, use project version 0.0.5.
+
+If you are using Zig 0.17.0 or newer, use project version 0.0.6.
 
 For **Zig 0.15.0**, use `v0.0.4`:
 
@@ -201,8 +211,6 @@ pub fn main() !void {
     defer _ = da.deinit();
     const allocator = da.allocator();
 
-    // Optional: Disable update checking
-    zon.disableUpdateCheck();
 
     // Create a new ZON document
     var doc = zon.create(allocator);
@@ -233,9 +241,9 @@ zon.zig fully supports the `build.zig.zon` format:
 ```zig
 .{
     .name = .zon,                        // Identifier as value
-    .version = "0.0.5",                  // String
+    .version = "0.0.6",                  // String
     .fingerprint = 0xee480fa30d50cbf6,   // Multi-bit hex handled as i128
-    .minimum_zig_version = "0.16.0",
+    .minimum_zig_version = "0.17.0",
     .paths = .{                          // Array of strings
         "build.zig",
         "build.zig.zon",
@@ -376,7 +384,6 @@ defer copy.deinit();
 | `zon.moveFile(old, new, overwrite: bool)`     | Move/rename file (with optional overwrite) |
 | `zon.deleteFile(path)`                        | Delete a ZON file                          |
 | `zon.fileExists(path)`                        | Check if file exists                       |
-| `zon.disableUpdateCheck()`                    | Disable update checking                    |
 
 ### Document Methods - Getters
 
@@ -459,7 +466,7 @@ defer copy.deinit();
 | `save()`                     | Save to original file path                                                  |
 | `saveAs(path)`               | Save to specified path                                                      |
 | `saveAsAtomic(path)`         | Atomically save to specified path (temporary file + rename)                 |
-| `saveWithBackup(backup_ext)` | Save and create a backup of the previous file using the extension           |
+| `saveWithBackup(backupExt)` | Save and create a backup of the previous file using the extension           |
 | `saveIfChanged()`            | Only write when contents differ (normalizes trailing newline; returns bool) |
 | `toString()`                 | Get formatted ZON string                                                    |
 | `toCompactString()`          | Get compact ZON string                                                      |
@@ -490,7 +497,7 @@ The `examples/` directory contains comprehensive examples:
 - **error_handling.zig** - Examples of parse and file error handling
 - **walk_map.zig** - Walking and mapping values in documents
 - **pick_omit.zig** - Creating document subsets with pick and omit
-- **sort_format.zig** - Key sorting and stringify sort_keys option
+- **sort_format.zig** - Key sorting and stringify sortKeys option
 - **validation_sort.zig** - Type checking, case utilities, array sorting, truncation, filter
 
 ### File helpers and utilities
@@ -548,7 +555,9 @@ Full documentation: **https://muhammad-fiaz.github.io/zon.zig/**
 
 | Benchmark | Ops/sec (higher is better) | Avg Latency (ns) (lower is better) |
 | :--- | :--- | :--- |
-| Parse Standard ZON | 10521 | 95051 |
+| Parse Standard ZON | 11910 | 83963 |
+| Parse Identifiers | 27298 | 36633 |
+| Parse Nested ZON | 17565 | 56931 |
 </details>
 
 <details>
@@ -556,7 +565,8 @@ Full documentation: **https://muhammad-fiaz.github.io/zon.zig/**
 
 | Benchmark | Ops/sec (higher is better) | Avg Latency (ns) (lower is better) |
 | :--- | :--- | :--- |
-| Stringify to ZON | 8302 | 120449 |
+| Stringify to ZON | 9665 | 103462 |
+| Stringify Compact | 10109 | 98926 |
 </details>
 
 <details>
@@ -564,8 +574,8 @@ Full documentation: **https://muhammad-fiaz.github.io/zon.zig/**
 
 | Benchmark | Ops/sec (higher is better) | Avg Latency (ns) (lower is better) |
 | :--- | :--- | :--- |
-| Read Access (100 ops) | 47340 | 21124 |
-| Modification (100 ops) | 820 | 1219489 |
+| Read Access (100 ops) | 64933 | 15400 |
+| Modification (100 ops) | 921 | 1085803 |
 </details>
 
 <details>
@@ -573,17 +583,69 @@ Full documentation: **https://muhammad-fiaz.github.io/zon.zig/**
 
 | Benchmark | Ops/sec (higher is better) | Avg Latency (ns) (lower is better) |
 | :--- | :--- | :--- |
-| Document to Struct | 18409 | 54320 |
-| Struct to Document | 34262 | 29187 |
+| Document to Struct | 24292 | 41166 |
+| Struct to Document | 49755 | 20099 |
+</details>
+
+<details>
+<summary><strong>Type Checking</strong></summary>
+
+| Benchmark | Ops/sec (higher is better) | Avg Latency (ns) (lower is better) |
+| :--- | :--- | :--- |
+| Type Check Flat | 45600 | 21930 |
+| Type Check Nested | 17584 | 56869 |
+</details>
+
+<details>
+<summary><strong>Case Utilities</strong></summary>
+
+| Benchmark | Ops/sec (higher is better) | Avg Latency (ns) (lower is better) |
+| :--- | :--- | :--- |
+| toUpper String | 49550 | 20182 |
+| toLower String | 50035 | 19986 |
+| isUpperCase Check | 50535 | 19788 |
+</details>
+
+<details>
+<summary><strong>Sorting</strong></summary>
+
+| Benchmark | Ops/sec (higher is better) | Avg Latency (ns) (lower is better) |
+| :--- | :--- | :--- |
+| sortKeys Asc | 49420 | 20235 |
+| sortKeys Desc | 67841 | 14740 |
+| sortArray | 25506 | 39206 |
+| reverseArray | 47727 | 20953 |
+</details>
+
+<details>
+<summary><strong>Array Operations</strong></summary>
+
+| Benchmark | Ops/sec (higher is better) | Avg Latency (ns) (lower is better) |
+| :--- | :--- | :--- |
+| truncate Array | 25226 | 39642 |
+| dropFirst Array | 23993 | 41679 |
+| dropLast Array | 26770 | 37355 |
+| compact Array | 22760 | 43937 |
+| unique Array | 21849 | 45770 |
+| first/last Access | 35436 | 28220 |
+</details>
+
+<details>
+<summary><strong>Vectorized Ops</strong></summary>
+
+| Benchmark | Ops/sec (higher is better) | Avg Latency (ns) (lower is better) |
+| :--- | :--- | :--- |
+| every (all match) | 49302 | 20283 |
+| some (any match) | 49140 | 20350 |
 </details>
 
 ### Benchmark Summary
 
-- **Total benchmarks run:** 6
-- **Average throughput:** 19942 ops/sec
-- **Maximum throughput:** 47340 ops/sec (Read Access (100 ops))
-- **Minimum throughput:** 820 ops/sec (Modification (100 ops))
-- **Average latency:** 50144 ns
+- **Total benchmarks run:** 26
+- **Average throughput:** 33643 ops/sec
+- **Maximum throughput:** 67841 ops/sec (sortKeys Desc)
+- **Minimum throughput:** 921 ops/sec (Modification (100 ops))
+- **Average latency:** 29724 ns
 
 ---
 

@@ -1,6 +1,6 @@
 ---
 title: "Module Functions"
-description: "Top-level functions in the `zon` module: creation, parsing, file utilities, update checking, and version info."
+description: "Top-level functions in the `zon` module: creation, parsing, file utilities, and version info."
 ---
 
 # Module Functions
@@ -83,7 +83,7 @@ try doc.setString("name", "myapp");
 Open and parse a ZON file.
 
 ```zig
-pub fn open(allocator: Allocator, file_path: []const u8) !Document
+pub fn open(allocator: Allocator, filePath: []const u8) !Document
 ```
 
 **Example:**
@@ -136,7 +136,7 @@ defer doc.deinit();
 Check if a file exists.
 
 ```zig
-pub fn fileExists(file_path: []const u8) bool
+pub fn fileExists(filePath: []const u8) bool
 ```
 
 **Example:**
@@ -185,7 +185,7 @@ try zon.writeFileAtomic(allocator, "config.zon", data);
 Copy a file. Pass `overwrite=true` to replace an existing destination file.
 
 ```zig
-pub fn copyFile(source_path: []const u8, dest_path: []const u8, overwrite: bool) !void
+pub fn copyFile(sourcePath: []const u8, destPath: []const u8, overwrite: bool) !void
 ```
 
 **Example:**
@@ -199,7 +199,7 @@ try zon.copyFile("config.zon", "config.zon.backup", true);
 Move (rename) a file. Pass `overwrite=true` to replace an existing destination.
 
 ```zig
-pub fn moveFile(old_path: []const u8, new_path: []const u8, overwrite: bool) !void
+pub fn moveFile(oldPath: []const u8, newPath: []const u8, overwrite: bool) !void
 ```
 
 **Example:**
@@ -213,7 +213,7 @@ try zon.moveFile("temp.zon", "config.zon", true);
 Rename or move a file (alias for `moveFile`).
 
 ```zig
-pub fn renameFile(old_path: []const u8, new_path: []const u8, overwrite: bool) !void
+pub fn renameFile(oldPath: []const u8, newPath: []const u8, overwrite: bool) !void
 ```
 
 **Example:**
@@ -227,7 +227,7 @@ try zon.renameFile("config.old.zon", "config.zon", true);
 Delete a file (alias: `removeFile`).
 
 ```zig
-pub fn deleteFile(file_path: []const u8) !void
+pub fn deleteFile(filePath: []const u8) !void
 ```
 
 **Example:**
@@ -255,7 +255,7 @@ var doc = try zon.loadOrCreate(allocator, "settings.zon", ".{ .theme = .dark }")
 Moves (renames) a key path directly inside a ZON file on disk.
 
 ```zig
-pub fn movePathInFile(allocator: Allocator, path: []const u8, old_key: []const u8, new_key: []const u8) !void
+pub fn movePathInFile(allocator: Allocator, path: []const u8, oldKey: []const u8, newKey: []const u8) !void
 ```
 
 **Example:**
@@ -269,74 +269,13 @@ try zon.movePathInFile(allocator, "config.zon", "db.pass", "db.secret");
 Copies a key path directly inside a ZON file on disk.
 
 ```zig
-pub fn copyPathInFile(allocator: Allocator, path: []const u8, src_key: []const u8, dst_key: []const u8) !void
+pub fn copyPathInFile(allocator: Allocator, path: []const u8, srcKey: []const u8, dstKey: []const u8) !void
 ```
 
 **Example:**
 
 ```zig
 try zon.copyPathInFile(allocator, "config.zon", "template.settings", "user.settings");
-```
-
-## Update Checking
-
-### disableUpdateCheck
-
-Disable update notifications.
-
-```zig
-pub fn disableUpdateCheck() void
-```
-
-**Example:**
-
-```zig
-// Disable at startup
-zon.disableUpdateCheck();
-```
-
-### enableUpdateCheck
-
-Enable update notifications.
-
-```zig
-pub fn enableUpdateCheck() void
-```
-
-**Example:**
-
-```zig
-zon.enableUpdateCheck();
-```
-
-### isUpdateCheckEnabled
-
-Check if update notifications are enabled.
-
-```zig
-pub fn isUpdateCheckEnabled() bool
-```
-
-**Example:**
-
-```zig
-if (zon.isUpdateCheckEnabled()) {
-    std.debug.print("Update checking is on\n", .{});
-}
-```
-
-### checkForUpdates
-
-Manually check for updates.
-
-```zig
-pub fn checkForUpdates(allocator: Allocator) void
-```
-
-**Example:**
-
-```zig
-zon.checkForUpdates(allocator);
 ```
 
 ## Validation & Encoding
@@ -407,16 +346,16 @@ pub fn stringify(allocator: Allocator, value: *const Value, options: StringifyOp
 ```zig
 pub const StringifyOptions = struct {
     indent: usize = 4,
-    initial_indent: usize = 0,
-    quote_keys: bool = false,
-    sort_keys: bool = true,
+    initialIndent: usize = 0,
+    quoteKeys: bool = false,
+    sortKeys: bool = true,
 };
 ```
 
 - `indent` — Number of spaces per indent level (default `4`)
-- `initial_indent` — Starting indent level in spaces (default `0`)
-- `quote_keys` — Always quote object keys, even valid identifiers (default `false`)
-- `sort_keys` — Sort object keys alphabetically (default `true`)
+- `initialIndent` — Starting indent level in spaces (default `0`)
+- `quoteKeys` — Always quote object keys, even valid identifiers (default `false`)
+- `sortKeys` — Sort object keys alphabetically (default `true`)
 
 ### stringifyJson
 
@@ -550,7 +489,7 @@ std.debug.print("{s} on port {d}\n", .{ cfg.name, cfg.port });
 Library version string.
 
 ```zig
-pub const version: []const u8 = "0.0.5";
+pub const version: []const u8 = "0.0.6";
 ```
 
 **Example:**
@@ -562,7 +501,7 @@ std.debug.print("zon.zig {s}\n", .{zon.version});
 **Output:**
 
 ```
-zon.zig 0.0.5
+zon.zig 0.0.6
 ```
 
 ## Complete Example
@@ -576,8 +515,6 @@ pub fn main() !void {
     defer _ = gpa.deinit();
     const allocator = gpa.allocator();
 
-    // Disable update notifications
-    zon.disableUpdateCheck();
 
     // Print version
     std.debug.print("zon.zig {s}\n", .{zon.version});
@@ -619,7 +556,7 @@ pub fn main() !void {
 **Output (first run):**
 
 ```
-zon.zig 0.0.5
+zon.zig 0.0.6
 Creating new config
 Parsed: true
 ```
@@ -627,7 +564,7 @@ Parsed: true
 **Output (second run):**
 
 ```
-zon.zig 0.0.5
+zon.zig 0.0.6
 Found existing config
 Parsed: true
 ```

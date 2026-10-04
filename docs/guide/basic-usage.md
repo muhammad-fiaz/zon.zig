@@ -1,3 +1,8 @@
+---
+title: "Basic Usage"
+description: "Core operations for working with ZON documents: creating, reading, updating, and deleting values."
+---
+
 # Basic Usage
 
 Core operations for working with ZON documents.
@@ -13,7 +18,6 @@ pub fn main() !void {
     defer _ = gpa.deinit();
     const allocator = gpa.allocator();
 
-    zon.disableUpdateCheck();
 
     var doc = zon.create(allocator);
     defer doc.deinit(); // Always clean up
@@ -309,7 +313,7 @@ if (doc.isEmpty()) {
 ### Delete a Key
 
 ```zig
-if (doc.delete("old_key")) {
+if (doc.delete("oldKey")) {
     std.debug.print("Deleted successfully\n", .{});
 } else {
     std.debug.print("Key didn't exist\n", .{});
@@ -396,7 +400,6 @@ pub fn main() !void {
     defer _ = gpa.deinit();
     const allocator = gpa.allocator();
 
-    zon.disableUpdateCheck();
 
     // Create document
     var doc = zon.create(allocator);

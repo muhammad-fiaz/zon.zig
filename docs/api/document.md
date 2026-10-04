@@ -374,7 +374,7 @@ const Ctx = struct {
     }
 };
 var ctx = Ctx{};
-var filtered = try doc.filter(allocator, &ctx, Ctx.isString);
+var filtered = try doc.filter( &ctx, Ctx.isString);
 defer filtered.deinit();
 ```
 
@@ -582,7 +582,6 @@ pub fn main() !void {
     defer _ = gpa.deinit();
     const allocator = gpa.allocator();
 
-    zon.disableUpdateCheck();
 
     var doc = zon.create(allocator);
     defer doc.deinit();

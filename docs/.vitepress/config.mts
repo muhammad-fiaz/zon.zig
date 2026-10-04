@@ -21,6 +21,7 @@ export const KEYWORDS =
 export default defineConfig({
   lang: "en-US",
   title: SITE_NAME,
+  titleTemplate: ":title | zon.zig",
   description: SITE_DESCRIPTION,
   base: "/zon.zig/",
   lastUpdated: true,
@@ -229,7 +230,7 @@ gtag('config', '${GA_ID}');`,
           priceCurrency: "USD",
         },
         downloadUrl: "https://github.com/muhammad-fiaz/zon.zig",
-        softwareVersion: "0.0.5",
+        softwareVersion: "0.0.6",
         license: "https://opensource.org/licenses/MIT",
       });
     } else {

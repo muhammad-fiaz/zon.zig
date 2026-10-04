@@ -77,7 +77,6 @@ pub fn main() !void {
     defer _ = gpa.deinit();
     const allocator = gpa.allocator();
 
-    zon.disableUpdateCheck();
 
     var doc = zon.create(allocator);
     defer doc.deinit();
@@ -112,7 +111,8 @@ Install the latest stable release:
 
 | Zig Version | zon.zig Version | Command |
 |-------------|-----------------|---------|
-| **Zig 0.16.x** | **v0.0.5 or newer** | `zig fetch --save https://github.com/muhammad-fiaz/zon.zig/archive/refs/tags/0.0.5.tar.gz` |
+| **Zig 0.17.x** | **v0.0.6** | `zig fetch --save https://github.com/muhammad-fiaz/zon.zig/archive/refs/tags/0.0.6.tar.gz` |
+| **Zig 0.16.x** | **v0.0.5** | `zig fetch --save https://github.com/muhammad-fiaz/zon.zig/archive/refs/tags/0.0.5.tar.gz` |
 | **Zig 0.15.x** | **v0.0.4 or older** | `zig fetch --save https://github.com/muhammad-fiaz/zon.zig/archive/refs/tags/0.0.4.tar.gz` |
 
 ### Nightly Installation

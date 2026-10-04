@@ -7,8 +7,6 @@ pub fn main() !void {
     defer _ = gpa.deinit();
     const allocator = gpa.allocator();
 
-    zon.disableUpdateCheck();
-
     std.debug.print("=== Pick Example ===\n\n", .{});
 
     var doc = zon.create(allocator);
@@ -21,25 +19,25 @@ pub fn main() !void {
     try doc.setInt("config.port", 8080);
 
     std.debug.print("Original document:\n", .{});
-    const original_str = try doc.toString();
-    defer allocator.free(original_str);
-    std.debug.print("{s}\n\n", .{original_str});
+    const originalStr = try doc.toString();
+    defer allocator.free(originalStr);
+    std.debug.print("{s}\n\n", .{originalStr});
 
     // Pick only "name" and "version"
     var picked = try doc.pick(&.{ "name", "version" });
     defer picked.deinit();
 
     std.debug.print("Picked (name, version):\n", .{});
-    const picked_str = try picked.toPrettyString(2);
-    defer allocator.free(picked_str);
-    std.debug.print("{s}\n\n", .{picked_str});
+    const pickedStr = try picked.toPrettyString(2);
+    defer allocator.free(pickedStr);
+    std.debug.print("{s}\n\n", .{pickedStr});
 
     // Pick nested path "config.host"
-    var picked_nested = try doc.pick(&.{"config.host"});
-    defer picked_nested.deinit();
+    var pickedNested = try doc.pick(&.{"config.host"});
+    defer pickedNested.deinit();
 
     std.debug.print("Picked (config.host):\n", .{});
-    const picked_nested_str = try picked_nested.toPrettyString(2);
+    const picked_nested_str = try pickedNested.toPrettyString(2);
     defer allocator.free(picked_nested_str);
     std.debug.print("{s}\n\n", .{picked_nested_str});
 
@@ -50,16 +48,16 @@ pub fn main() !void {
     defer omitted.deinit();
 
     std.debug.print("Omitting 'private':\n", .{});
-    const omitted_str = try omitted.toPrettyString(2);
-    defer allocator.free(omitted_str);
-    std.debug.print("{s}\n\n", .{omitted_str});
+    const omittedStr = try omitted.toPrettyString(2);
+    defer allocator.free(omittedStr);
+    std.debug.print("{s}\n\n", .{omittedStr});
 
     // Omit the entire "config" subtree
-    var omitted_config = try doc.omit(&.{"config"});
-    defer omitted_config.deinit();
+    var omittedConfig = try doc.omit(&.{"config"});
+    defer omittedConfig.deinit();
 
     std.debug.print("Omitting 'config':\n", .{});
-    const omitted_config_str = try omitted_config.toPrettyString(2);
+    const omitted_config_str = try omittedConfig.toPrettyString(2);
     defer allocator.free(omitted_config_str);
     std.debug.print("{s}\n", .{omitted_config_str});
 }

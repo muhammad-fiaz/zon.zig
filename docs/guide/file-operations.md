@@ -51,7 +51,7 @@ These methods operate on the file associated with the document (the path used du
 - `doc.reload()`: Discards current in-memory changes and re-reads the file from disk.
 - `doc.hasChangedOnDisk()`: Returns `true` if the file's modification time is newer than when it was last loaded/saved.
 - `doc.deleteFileOnDisk()`: Deletes the file associated with the document from the filesystem.
-- `doc.renameFileOnDisk(new_path)`: Renames the file on the filesystem and updates the document's internal path reference.
+- `doc.renameFileOnDisk(newPath)`: Renames the file on the filesystem and updates the document's internal path reference.
 
 ### Parsing from files
 
