@@ -177,6 +177,16 @@ gtag('config', '${GA_ID}');`,
     // Base Graph
     const graph: Record<string, unknown>[] = [];
 
+    const publisherSchema = {
+      "@type": "Organization",
+      name: SITE_NAME,
+      url: SITE_URL,
+      logo: {
+        "@type": "ImageObject",
+        url: `${SITE_URL}/logo.svg`,
+      },
+    };
+
     // 1. WebSite Schema (Global, but usually best on Home)
     if (isHome) {
       graph.push({
@@ -189,6 +199,7 @@ gtag('config', '${GA_ID}');`,
           name: "Muhammad Fiaz",
           url: "https://github.com/muhammad-fiaz",
         },
+        publisher: publisherSchema,
       });
     }
 
@@ -211,15 +222,7 @@ gtag('config', '${GA_ID}');`,
       url: canonicalUrl,
       image: `${SITE_URL}/logo.svg`,
       author: authorSchema,
-      publisher: {
-        "@type": "Organization",
-        name: SITE_NAME,
-        url: SITE_URL,
-        logo: {
-          "@type": "ImageObject",
-          url: `${SITE_URL}/logo.svg`,
-        },
-      },
+      publisher: publisherSchema,
     };
 
     if (isHome) {
