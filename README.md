@@ -36,8 +36,6 @@ A **document-based** ZON (Zig Object Notation) library for Zig, designed for con
 
 **Related Zig projects:**
 
-- For **API framework** support, check out **[api.zig](https://github.com/muhammad-fiaz/api.zig)**.
-- For **web framework** support, check out **[zix](https://github.com/muhammad-fiaz/zix)**.
 - For **logging** support, check out **[logly.zig](https://github.com/muhammad-fiaz/logly.zig)**.
 - For **data validation and serialization** support, check out **[zigantic](https://github.com/muhammad-fiaz/zigantic)**.
 - For **HTTP Server/Client** support, check out **[httpx.zig](https://github.com/muhammad-fiaz/httpx.zig)**.
@@ -157,10 +155,20 @@ A **document-based** ZON (Zig Object Notation) library for Zig, designed for con
 
 ## Installation
 
+### Zig 0.17.0 or newer
+
 Current version: 0.0.6 — requires Zig 0.17.0+.
 
 ```bash
 zig fetch --save https://github.com/muhammad-fiaz/zon.zig/archive/refs/tags/0.0.6.tar.gz
+```
+
+### Zig 0.16.0
+
+Use project version 0.0.5:
+
+```bash
+zig fetch --save https://github.com/muhammad-fiaz/zon.zig/archive/refs/tags/0.0.5.tar.gz
 ```
 
 ### Compatibility
@@ -174,15 +182,7 @@ If you are using Zig 0.16.0, use project version 0.0.5.
 
 If you are using Zig 0.17.0 or newer, use project version 0.0.6.
 
-For **Zig 0.15.0**, use `v0.0.4`:
-
-```bash
-zig fetch --save https://github.com/muhammad-fiaz/zon.zig/archive/refs/tags/0.0.4.tar.gz
-```
-
-or
-
-for Nightly Installation, use this
+### Nightly Installation
 
 ```bash
 zig fetch --save git+https://github.com/muhammad-fiaz/zon.zig.git
