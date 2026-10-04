@@ -9,7 +9,7 @@ Learn how to install and use zon.zig in your Zig project.
 
 ## Requirements
 
-- **Zig 0.16.0** or later
+- **Zig 0.17.0** or later
 
 ## Installation
 
@@ -20,7 +20,7 @@ Add zon.zig as a dependency in your `build.zig.zon`:
 ```zig
 .dependencies = .{
     .zon = .{
-        .url = "https://github.com/muhammad-fiaz/zon.zig/archive/refs/tags/0.0.5.tar.gz",
+        .url = "https://github.com/muhammad-fiaz/zon.zig/archive/refs/tags/0.0.6.tar.gz",
         .hash = "...", // Will be provided by `zig fetch`
     },
 },
@@ -29,7 +29,7 @@ Add zon.zig as a dependency in your `build.zig.zon`:
 Or use the `zig fetch` command:
 
 ```bash
-zig fetch --save https://github.com/muhammad-fiaz/zon.zig/archive/refs/tags/0.0.5.tar.gz
+zig fetch --save https://github.com/muhammad-fiaz/zon.zig/archive/refs/tags/0.0.6.tar.gz
 ```
 
 Then update your `build.zig`:
@@ -55,8 +55,6 @@ pub fn main() !void {
     defer _ = gpa.deinit();
     const allocator = gpa.allocator();
 
-    // Disable update checking (optional)
-    zon.disableUpdateCheck();
 
     // Create a new document
     var doc = zon.create(allocator);
@@ -103,7 +101,6 @@ pub fn main() !void {
     defer _ = gpa.deinit();
     const allocator = gpa.allocator();
 
-    zon.disableUpdateCheck();
 
     // Open existing file
     var doc = try zon.open(allocator, "config.zon");
@@ -200,7 +197,6 @@ while (doc.getArrayString("paths", i)) |path| : (i += 1) {
 | `zon.copyFile(src, dst)`       | Copy file                    |
 | `zon.deleteFile(path)`         | Delete file                  |
 | `zon.renameFile(old, new)`     | Rename file                  |
-| `zon.disableUpdateCheck()`     | Disable update notifications |
 | `zon.version`                  | Library version string       |
 
 ## Next Steps

@@ -24,7 +24,6 @@
 
 const std = @import("std");
 const Allocator = std.mem.Allocator;
-const ArrayList = std.ArrayList;
 const Tokenizer = @import("tokenizer.zig").Tokenizer;
 const Token = @import("tokenizer.zig").Token;
 const Value = @import("value.zig").Value;
@@ -75,8 +74,8 @@ pub const Parser = struct {
 
     fn jsonValueToValue(allocator: Allocator, jv: std.json.Value) !Value {
         switch (jv) {
-            .null => return .null_val,
-            .bool => |b| return .{ .bool_val = b },
+            .null => return .nullVal,
+            .bool => |b| return .{ .boolVal = b },
             .integer => |i| return .{ .number = .{ .int = @intCast(i) } },
             .float => |f| return .{ .number = .{ .float = f } },
             .string => |s| return .{ .string = try utils.dupeString(allocator, s) },
@@ -134,15 +133,15 @@ pub const Parser = struct {
             .dot => return self.parseObjectOrEnum(),
             .keyword_true => {
                 self.advance();
-                return .{ .bool_val = true };
+                return .{ .boolVal = true };
             },
             .keyword_false => {
                 self.advance();
-                return .{ .bool_val = false };
+                return .{ .boolVal = false };
             },
             .keyword_null => {
                 self.advance();
-                return .null_val;
+                return .nullVal;
             },
             .string_literal => return self.parseString(),
             .multiline_string_literal => return self.parseMultilineString(),
@@ -152,13 +151,13 @@ pub const Parser = struct {
                 const slice = self.tokenizer.slice(self.current);
                 if (std.mem.eql(u8, slice, "true")) {
                     self.advance();
-                    return .{ .bool_val = true };
+                    return .{ .boolVal = true };
                 } else if (std.mem.eql(u8, slice, "false")) {
                     self.advance();
-                    return .{ .bool_val = false };
+                    return .{ .boolVal = false };
                 } else if (std.mem.eql(u8, slice, "null")) {
                     self.advance();
-                    return .null_val;
+                    return .nullVal;
                 } else if (std.mem.eql(u8, slice, "inf")) {
                     self.advance();
                     return .{ .number = .{ .float = std.math.inf(f64) } };
@@ -212,14 +211,14 @@ pub const Parser = struct {
         }
 
         if (self.current.tag == .dot) {
-            var temp_tokenizer = self.tokenizer;
-            var peek = temp_tokenizer.nextValid();
+            var tempTokenizer = self.tokenizer;
+            var peek = tempTokenizer.nextValid();
             if (peek.tag == .at_sign) {
-                peek = temp_tokenizer.nextValid();
+                peek = tempTokenizer.nextValid();
             }
             if (peek.tag == .identifier or peek.tag == .string_literal) {
-                const next_tok = temp_tokenizer.nextValid();
-                if (next_tok.tag == .equals) {
+                const nextTok = tempTokenizer.nextValid();
+                if (nextTok.tag == .equals) {
                     return self.parseObjectBody();
                 }
             }
@@ -335,7 +334,7 @@ pub const Parser = struct {
     }
 
     fn parseMultilineString(self: *Parser) ParseError!Value {
-        var result: std.ArrayListUnmanaged(u8) = .empty;
+        var result: std.ArrayList(u8) = .empty;
         errdefer result.deinit(self.allocator);
 
         while (self.current.tag == .multiline_string_literal) {
@@ -377,7 +376,7 @@ pub const Parser = struct {
     }
 
     fn unescapeString(self: *Parser, input: []const u8) ParseError![]u8 {
-        var result: std.ArrayListUnmanaged(u8) = .empty;
+        var result: std.ArrayList(u8) = .empty;
         errdefer result.deinit(self.allocator);
 
         var i: usize = 0;
@@ -454,30 +453,46 @@ pub const Parser = struct {
         const raw = self.tokenizer.slice(self.current);
         self.advance();
 
+        const stripped = if (raw.len > 0 and (raw[0] == '-' or raw[0] == '+')) raw[1..] else raw;
+        const negative = raw.len > 0 and raw[0] == '-';
+
         if (std.mem.indexOfScalar(u8, raw, '.') != null or
             std.mem.indexOfScalar(u8, raw, 'e') != null or
             std.mem.indexOfScalar(u8, raw, 'E') != null)
         {
-            const is_hex = raw.len > 2 and raw[0] == '0' and (raw[1] == 'x' or raw[1] == 'X');
-            if (!is_hex) {
+            const isHex = stripped.len > 2 and stripped[0] == '0' and (stripped[1] == 'x' or stripped[1] == 'X');
+            if (!isHex) {
+                if (std.mem.indexOfScalar(u8, raw, '_') != null) {
+                    var buf: [128]u8 = undefined;
+                    var len: usize = 0;
+                    for (raw) |c| {
+                        if (c == '_') continue;
+                        if (len >= buf.len) return error.InvalidNumber;
+                        buf[len] = c;
+                        len += 1;
+                    }
+                    const val = std.fmt.parseFloat(f64, buf[0..len]) catch return error.InvalidNumber;
+                    return .{ .number = .{ .float = val } };
+                }
                 const val = std.fmt.parseFloat(f64, raw) catch return error.InvalidNumber;
                 return .{ .number = .{ .float = val } };
             }
         }
 
-        if (raw.len > 2 and raw[0] == '0') {
-            switch (raw[1]) {
+        if (stripped.len > 2 and stripped[0] == '0') {
+            switch (stripped[1]) {
                 'x', 'X' => {
-                    const val = std.fmt.parseInt(u128, raw[2..], 16) catch return error.InvalidNumber;
-                    return .{ .number = .{ .int = @bitCast(val) } };
+                    const val = std.fmt.parseInt(u128, stripped[2..], 16) catch return error.InvalidNumber;
+                    const signed: i128 = @bitCast(val);
+                    return .{ .number = .{ .int = if (negative) -signed else signed } };
                 },
                 'o', 'O' => {
-                    const val = std.fmt.parseInt(i128, raw[2..], 8) catch return error.InvalidNumber;
-                    return .{ .number = .{ .int = val } };
+                    const val = std.fmt.parseInt(i128, stripped[2..], 8) catch return error.InvalidNumber;
+                    return .{ .number = .{ .int = if (negative) -val else val } };
                 },
                 'b', 'B' => {
-                    const val = std.fmt.parseInt(i128, raw[2..], 2) catch return error.InvalidNumber;
-                    return .{ .number = .{ .int = val } };
+                    const val = std.fmt.parseInt(i128, stripped[2..], 2) catch return error.InvalidNumber;
+                    return .{ .number = .{ .int = if (negative) -val else val } };
                 },
                 else => {},
             }
@@ -558,7 +573,7 @@ test "parse build.zig.zon style" {
         \\    .name = .zon,
         \\    .version = "0.0.3",
         \\    .fingerprint = 0xee480fa30d50cbf6,
-        \\    .minimum_zig_version = "0.16.0",
+        \\    .minimum_zig_version = "0.17.0",
         \\    .paths = .{
         \\        "build.zig",
         \\        "build.zig.zon",

@@ -140,7 +140,6 @@ pub fn main() !void {
     defer _ = gpa.deinit();
     const allocator = gpa.allocator();
 
-    zon.disableUpdateCheck();
 
     // Parse build.zig.zon style array
     const source =
@@ -176,7 +175,7 @@ pub fn main() !void {
     // Create new array
     try doc.setArray("tags");
     try doc.appendToArray("tags", "stable");
-    try doc.appendToArray("tags", "0.0.5");
+    try doc.appendToArray("tags", "0.0.6");
 
     const output = try doc.toString();
     defer allocator.free(output);

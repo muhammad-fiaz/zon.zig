@@ -7,8 +7,6 @@ pub fn main() !void {
     defer _ = gpa.deinit();
     const allocator = gpa.allocator();
 
-    zon.disableUpdateCheck();
-
     std.debug.print("=== Pretty Print Example ===\n\n", .{});
 
     var doc = zon.create(allocator);
@@ -27,17 +25,17 @@ pub fn main() !void {
     std.debug.print("{s}\n\n", .{compact});
 
     std.debug.print("=== 2-space indentation ===\n", .{});
-    const two_space = try doc.toPrettyString(2);
-    defer allocator.free(two_space);
-    std.debug.print("{s}\n\n", .{two_space});
+    const twoSpace = try doc.toPrettyString(2);
+    defer allocator.free(twoSpace);
+    std.debug.print("{s}\n\n", .{twoSpace});
 
     std.debug.print("=== 4-space indentation (default) ===\n", .{});
-    const four_space = try doc.toString();
-    defer allocator.free(four_space);
-    std.debug.print("{s}\n\n", .{four_space});
+    const fourSpace = try doc.toString();
+    defer allocator.free(fourSpace);
+    std.debug.print("{s}\n\n", .{fourSpace});
 
     std.debug.print("=== 8-space indentation ===\n", .{});
-    const eight_space = try doc.toPrettyString(8);
-    defer allocator.free(eight_space);
-    std.debug.print("{s}\n", .{eight_space});
+    const eightSpace = try doc.toPrettyString(8);
+    defer allocator.free(eightSpace);
+    std.debug.print("{s}\n", .{eightSpace});
 }

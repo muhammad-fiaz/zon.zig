@@ -1,6 +1,6 @@
 ---
 title: "API Reference"
-description: "Complete API reference for zon.zig: document creation, file utilities, update checking, version info, document methods, arrays, and more."
+description: "Complete API reference for zon.zig: document creation, file utilities, version info, document methods, arrays, and more."
 ---
 
 # API Overview
@@ -88,22 +88,6 @@ const dec = try zon.base64Decode(allocator, enc);
 // Stringify raw Value tree
 const output = try zon.stringify(allocator, &value, .{});
 const json = try zon.stringifyJson(allocator, &value);
-```
-
-### Update Checking
-
-```zig
-// Disable update notifications
-zon.disableUpdateCheck();
-
-// Enable update notifications
-zon.enableUpdateCheck();
-
-// Check if enabled
-if (zon.isUpdateCheckEnabled()) { ... }
-
-// Manual check
-zon.checkForUpdates(allocator);
 ```
 
 ### Version
@@ -332,8 +316,8 @@ doc.close();  // Alias for deinit
 
 ```zig
 pub const Value = union(enum) {
-    null_val,
-    bool_val: bool,
+    nullVal,
+    boolVal: bool,
     number: Number,
     string: []const u8,
     identifier: []const u8,
@@ -424,7 +408,6 @@ pub fn main() !void {
     defer _ = gpa.deinit();
     const allocator = gpa.allocator();
 
-    zon.disableUpdateCheck();
 
     // Create
     var doc = zon.create(allocator);

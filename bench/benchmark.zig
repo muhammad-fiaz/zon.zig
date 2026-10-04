@@ -32,27 +32,27 @@ const WARMUP = 100;
 
 fn printResults(results: []const BenchmarkResult) void {
     std.debug.print("\n", .{});
-    std.debug.print("-" ** 100, .{});
+    std.debug.print("----------------------------------------------------------------------------------------------------", .{});
     std.debug.print("\n", .{});
     std.debug.print("                                 ZON.ZIG BENCHMARK RESULTS\n", .{});
-    std.debug.print("-" ** 100, .{});
+    std.debug.print("----------------------------------------------------------------------------------------------------", .{});
     std.debug.print("\n", .{});
 
     for (BenchmarkResult.categories) |cat| {
-        var has_category = false;
+        var hasCategory = false;
         for (results) |r| {
             if (std.mem.eql(u8, r.category, cat)) {
-                has_category = true;
+                hasCategory = true;
                 break;
             }
         }
-        if (!has_category) continue;
+        if (!hasCategory) continue;
 
         std.debug.print("\n[{s}]\n", .{cat});
-        std.debug.print("-" ** 100, .{});
+        std.debug.print("----------------------------------------------------------------------------------------------------", .{});
         std.debug.print("\n", .{});
         std.debug.print("{s:<40} {s:>25} {s:>25}\n", .{ "Benchmark", "Ops/sec", "Avg Latency (ns)" });
-        std.debug.print("-" ** 100, .{});
+        std.debug.print("----------------------------------------------------------------------------------------------------", .{});
         std.debug.print("\n", .{});
 
         for (results) |r| {
@@ -67,7 +67,7 @@ fn printResults(results: []const BenchmarkResult) void {
     }
 
     std.debug.print("\n", .{});
-    std.debug.print("=" ** 130, .{});
+    std.debug.print("==================================================================================================================================", .{});
     std.debug.print("\n", .{});
 }
 
@@ -83,11 +83,11 @@ fn runBenchmark(
 
     var threaded: std.Io.Threaded = .init_single_threaded;
     const io = threaded.io();
-    const start_time = std.Io.Clock.awake.now(io);
+    const startTime = std.Io.Clock.awake.now(io);
     for (0..ITERATIONS) |_| {
         try benchFn(allocator);
     }
-    const total_time_ns = @as(u64, @intCast(start_time.untilNow(io, .awake).toNanoseconds()));
+    const total_time_ns = @as(u64, @intCast(startTime.untilNow(io, .awake).toNanoseconds()));
 
     const ops_per_sec = @as(f64, @floatFromInt(ITERATIONS)) / (@as(f64, @floatFromInt(total_time_ns)) / 1_000_000_000.0);
     const avg_latency_ns = @as(f64, @floatFromInt(total_time_ns)) / @as(f64, @floatFromInt(ITERATIONS));
@@ -132,7 +132,7 @@ const IDENTIFIER_SOURCE =
     \\.{
     \\    .name = .benchmark_pkg,
     \\    .version = "0.1.0",
-    \\    .minimum_zig_version = "0.16.0",
+    \\    .minimum_zig_version = "0.17.0",
     \\}
 ;
 
@@ -411,8 +411,6 @@ pub fn main() !void {
     var results: std.ArrayList(BenchmarkResult) = .empty;
     defer results.deinit(allocator);
 
-    zon.disableUpdateCheck();
-
     // Parsing
     try results.append(allocator, try runBenchmark("Parse Standard ZON", allocator, benchParse, "Parsing"));
     try results.append(allocator, try runBenchmark("Parse Identifiers", allocator, benchParseIdentifier, "Parsing"));
@@ -461,34 +459,34 @@ pub fn main() !void {
     printResults(results.items);
 
     // Summary Statistics
-    var total_ops: f64 = 0;
-    var max_ops: f64 = 0;
-    var min_ops: f64 = std.math.floatMax(f64);
+    var totalOps: f64 = 0;
+    var maxOps: f64 = 0;
+    var minOps: f64 = std.math.floatMax(f64);
     var count: usize = 0;
-    var max_name: []const u8 = "";
-    var min_name: []const u8 = "";
+    var maxName: []const u8 = "";
+    var minName: []const u8 = "";
 
     for (results.items) |r| {
-        total_ops += r.ops_per_sec;
+        totalOps += r.ops_per_sec;
         count += 1;
-        if (r.ops_per_sec > max_ops) {
-            max_ops = r.ops_per_sec;
-            max_name = r.name;
+        if (r.ops_per_sec > maxOps) {
+            maxOps = r.ops_per_sec;
+            maxName = r.name;
         }
-        if (r.ops_per_sec < min_ops) {
-            min_ops = r.ops_per_sec;
-            min_name = r.name;
+        if (r.ops_per_sec < minOps) {
+            minOps = r.ops_per_sec;
+            minName = r.name;
         }
     }
 
-    const avg_ops = if (count > 0) total_ops / @as(f64, @floatFromInt(count)) else 0;
-    const avg_latency = if (avg_ops > 0) 1_000_000_000.0 / avg_ops else 0;
+    const avgOps = if (count > 0) totalOps / @as(f64, @floatFromInt(count)) else 0;
+    const avgLatency = if (avgOps > 0) 1_000_000_000.0 / avgOps else 0;
 
     // Write final Markdown report
     var report: std.ArrayList(u8) = .empty;
     defer report.deinit(allocator);
 
-    const md_header =
+    const mdHeader =
         \\#### 📊 ZON.ZIG BENCHMARK RESULTS
         \\
         \\**Environment Details:**
@@ -500,8 +498,8 @@ pub fn main() !void {
         \\
     ;
 
-    var header_buf: [1024]u8 = undefined;
-    const header = std.fmt.bufPrint(&header_buf, md_header, .{
+    var headerBuf: [1024]u8 = undefined;
+    const header = std.fmt.bufPrint(&headerBuf, mdHeader, .{
         @tagName(builtin.os.tag),
         @tagName(builtin.cpu.arch),
         WARMUP,
@@ -510,16 +508,16 @@ pub fn main() !void {
     try report.appendSlice(allocator, header);
 
     for (BenchmarkResult.categories) |cat| {
-        var has_category = false;
+        var hasCategory = false;
         for (results.items) |r| {
             if (std.mem.eql(u8, r.category, cat)) {
-                has_category = true;
+                hasCategory = true;
                 break;
             }
         }
-        if (!has_category) continue;
+        if (!hasCategory) continue;
 
-        const cat_md = try std.fmt.allocPrint(allocator,
+        const catMd = try std.fmt.allocPrint(allocator,
             \\
             \\<details>
             \\<summary><strong>{s}</strong></summary>
@@ -528,13 +526,13 @@ pub fn main() !void {
             \\| :--- | :--- | :--- |
             \\
         , .{cat});
-        defer allocator.free(cat_md);
-        try report.appendSlice(allocator, cat_md);
+        defer allocator.free(catMd);
+        try report.appendSlice(allocator, catMd);
 
         for (results.items) |r| {
             if (std.mem.eql(u8, r.category, cat)) {
-                var line_buf: [1024]u8 = undefined;
-                const line = std.fmt.bufPrint(&line_buf, "| {s} | {d:.0} | {d:.0} |\n", .{
+                var lineBuf: [1024]u8 = undefined;
+                const line = std.fmt.bufPrint(&lineBuf, "| {s} | {d:.0} | {d:.0} |\n", .{
                     r.name,
                     r.ops_per_sec,
                     r.avg_latency_ns,
@@ -547,15 +545,15 @@ pub fn main() !void {
 
     if (count > 0) {
         try report.appendSlice(allocator, "\n### 📈 Benchmark Summary\n\n");
-        var summary_buf: [1024]u8 = undefined;
-        const summary = std.fmt.bufPrint(&summary_buf,
+        var summaryBuf: [1024]u8 = undefined;
+        const summary = std.fmt.bufPrint(&summaryBuf,
             \\- **Total benchmarks run:** {d}
             \\- **Average throughput:** {d:.0} ops/sec
             \\- **Maximum throughput:** {d:.0} ops/sec ({s})
             \\- **Minimum throughput:** {d:.0} ops/sec ({s})
             \\- **Average latency:** {d:.0} ns
             \\
-        , .{ count, avg_ops, max_ops, max_name, min_ops, min_name, avg_latency }) catch "";
+        , .{ count, avgOps, maxOps, maxName, minOps, minName, avgLatency }) catch "";
         try report.appendSlice(allocator, summary);
     }
 

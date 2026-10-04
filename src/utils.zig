@@ -12,17 +12,17 @@ pub fn dupeString(allocator: Allocator, str: []const u8) ![]u8 {
 
 /// Splits a dot-separated path into segments. Caller must free the result.
 pub fn splitPath(allocator: Allocator, path: []const u8) ![][]const u8 {
-    var parts_iter = std.mem.splitScalar(u8, path, '.');
-    var count_val: usize = 0;
+    var partsIter = std.mem.splitScalar(u8, path, '.');
+    var countVal: usize = 0;
 
-    var iter_copy = parts_iter;
-    while (iter_copy.next()) |_| {
-        count_val += 1;
+    var iterCopy = partsIter;
+    while (iterCopy.next()) |_| {
+        countVal += 1;
     }
 
-    const parts = try allocator.alloc([]const u8, count_val);
+    const parts = try allocator.alloc([]const u8, countVal);
     var i: usize = 0;
-    while (parts_iter.next()) |part| {
+    while (partsIter.next()) |part| {
         parts[i] = part;
         i += 1;
     }
@@ -56,7 +56,7 @@ pub fn stringLessThan(_: void, a: []const u8, b: []const u8) bool {
 
 /// Minimal growable byte buffer for building strings.
 pub const Buffer = struct {
-    data: std.ArrayListUnmanaged(u8) = .{},
+    data: std.ArrayList(u8) = .{},
 
     pub fn init() Buffer {
         return .{};
@@ -106,8 +106,8 @@ pub const fs = struct {
         return Dir.deleteFile(cwd(), io(), path);
     }
 
-    pub fn rename(old_path: []const u8, new_path: []const u8) Dir.RenameError!void {
-        return Dir.rename(cwd(), old_path, cwd(), new_path, io());
+    pub fn rename(oldPath: []const u8, newPath: []const u8) Dir.RenameError!void {
+        return Dir.rename(cwd(), oldPath, cwd(), newPath, io());
     }
 
     pub fn access(path: []const u8, options: Dir.AccessOptions) Dir.AccessError!void {
@@ -130,8 +130,8 @@ pub const fs = struct {
         file.close(io());
     }
 
-    pub fn copyFile(src_path: []const u8, dest_path: []const u8, options: Dir.CopyFileOptions) Dir.CopyFileError!void {
-        return Dir.copyFile(cwd(), src_path, cwd(), dest_path, io(), options);
+    pub fn copyFile(srcPath: []const u8, destPath: []const u8, options: Dir.CopyFileOptions) Dir.CopyFileError!void {
+        return Dir.copyFile(cwd(), srcPath, cwd(), destPath, io(), options);
     }
 
     pub fn fileStat(file: Io.File) Io.File.StatError!Io.File.Stat {

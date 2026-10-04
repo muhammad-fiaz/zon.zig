@@ -7,17 +7,17 @@ pub fn main() !void {
     const allocator = gpa.allocator();
 
     // Example paths
-    const a = "example_a.zon";
-    const b = "example_b.zon";
-    const c = "example_c.zon";
-    const backup_ext = ".bak";
+    const a = "exampleA.zon";
+    const b = "exampleB.zon";
+    const c = "exampleC.zon";
+    const backupExt = ".bak";
 
     // 1) Create a document and atomically save it
     var doc = zon.create(allocator);
     defer doc.deinit();
 
     try doc.setString("name", "file_ops_example");
-    doc.file_path = try allocator.dupe(u8, a);
+    doc.filePath = try allocator.dupe(u8, a);
 
     std.debug.print("Saving document atomically to {s}\n", .{a});
     try doc.saveAsAtomic(a);
@@ -36,8 +36,8 @@ pub fn main() !void {
     try zon.moveFile(b, c, true);
 
     // 5) Save with backup
-    std.debug.print("Saving document with backup extension {s}\n", .{backup_ext});
-    try doc.saveWithBackup(backup_ext);
+    std.debug.print("Saving document with backup extension {s}\n", .{backupExt});
+    try doc.saveWithBackup(backupExt);
 
     // 6) Modify and save only when changed
     try doc.setString("version", "1.0.0");
@@ -56,19 +56,19 @@ pub fn main() !void {
     std.debug.print("Loaded source length: {d}\n", .{src.len});
 
     // 9) Demonstrate stringify.writeToFileAtomic via zon.writeFileAtomic helper
-    const out_path = "stringified.zon";
-    const out_data = try parsed.toString();
-    defer allocator.free(out_data);
-    std.debug.print("Atomically writing parsed document to {s}\n", .{out_path});
-    try zon.writeFileAtomic(allocator, out_path, out_data);
+    const outPath = "stringified.zon";
+    const outData = try parsed.toString();
+    defer allocator.free(outData);
+    std.debug.print("Atomically writing parsed document to {s}\n", .{outPath});
+    try zon.writeFileAtomic(allocator, outPath, outData);
 
     // 10) Cleanup demo files
     zon.deleteFile(a) catch {};
     zon.deleteFile(c) catch {};
-    zon.deleteFile(out_path) catch {};
-    const backup_name = try std.fmt.allocPrint(allocator, "{s}{s}", .{ a, backup_ext });
-    defer allocator.free(backup_name);
-    zon.deleteFile(backup_name) catch {};
+    zon.deleteFile(outPath) catch {};
+    const backupName = try std.fmt.allocPrint(allocator, "{s}{s}", .{ a, backupExt });
+    defer allocator.free(backupName);
+    zon.deleteFile(backupName) catch {};
 
     std.debug.print("File operations demo completed successfully.\n", .{});
 }

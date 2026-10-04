@@ -21,6 +21,7 @@ export const KEYWORDS =
 export default defineConfig({
   lang: "en-US",
   title: SITE_NAME,
+  titleTemplate: ":title | zon.zig",
   description: SITE_DESCRIPTION,
   base: "/zon.zig/",
   lastUpdated: true,
@@ -81,6 +82,9 @@ export default defineConfig({
 
     // Favicons
     ["link", { rel: "icon", href: "/zon.zig/logo.svg" }],
+
+    // Web App Manifest
+    ["link", { rel: "manifest", href: "/zon.zig/manifest.webmanifest" }],
 
     // Theme color
     ["meta", { name: "theme-color", content: "#f7a41d" }],
@@ -229,7 +233,7 @@ gtag('config', '${GA_ID}');`,
           priceCurrency: "USD",
         },
         downloadUrl: "https://github.com/muhammad-fiaz/zon.zig",
-        softwareVersion: "0.0.5",
+        softwareVersion: "0.0.6",
         license: "https://opensource.org/licenses/MIT",
       });
     } else {
@@ -309,7 +313,7 @@ gtag('config', '${GA_ID}');`,
       { text: "Home", link: "/" },
       { text: "Guide", link: "/guide/getting-started" },
       { text: "API", link: "/api/" },
-      { text: "Examples", link: "/guide/examples" },
+      { text: "Examples", link: "/examples/" },
       {
         text: "Support",
         items: [
@@ -356,7 +360,32 @@ gtag('config', '${GA_ID}');`,
             { text: "Pretty Print", link: "/guide/pretty-print" },
             { text: "Config Management", link: "/guide/config-management" },
             { text: "Error Handling", link: "/guide/error-handling" },
-            { text: "Examples", link: "/guide/examples" },
+          ],
+        },
+      ],
+      "/examples/": [
+        {
+          text: "Examples",
+          items: [
+            { text: "Overview", link: "/examples/" },
+            { text: "Basic", link: "/examples/basic" },
+            { text: "Package Manifest", link: "/examples/package_manifest" },
+            { text: "Nested Creation", link: "/examples/nested_creation" },
+            { text: "Find & Replace", link: "/examples/find_replace" },
+            { text: "Arrays", link: "/examples/arrays" },
+            { text: "Pretty Print", link: "/examples/pretty_print" },
+            { text: "Merge & Clone", link: "/examples/merge_clone" },
+            { text: "Config Management", link: "/examples/config_management" },
+            { text: "Error Handling", link: "/examples/error_handling" },
+            { text: "File Operations", link: "/examples/file_operations" },
+            { text: "Identifier Values", link: "/examples/identifier_values" },
+            { text: "Allocators", link: "/examples/allocators" },
+            { text: "Struct Conversion", link: "/examples/struct_conversion" },
+            { text: "Walk & Map", link: "/examples/walk_map" },
+            { text: "Pick & Omit", link: "/examples/pick_omit" },
+            { text: "Sort & Format", link: "/examples/sort_format" },
+            { text: "Validation & Sort", link: "/examples/validation_sort" },
+            { text: "Explicit I/O", link: "/examples/explicit_io" },
           ],
         },
       ],

@@ -7,8 +7,6 @@ pub fn main() !void {
     defer _ = gpa.deinit();
     const allocator = gpa.allocator();
 
-    zon.disableUpdateCheck();
-
     std.debug.print("=== Merge and Clone Example ===\n\n", .{});
 
     var base = zon.create(allocator);
@@ -20,9 +18,9 @@ pub fn main() !void {
     try base.setString("database.host", "localhost");
 
     std.debug.print("Base document:\n", .{});
-    const base_str = try base.toString();
-    defer allocator.free(base_str);
-    std.debug.print("{s}\n\n", .{base_str});
+    const baseStr = try base.toString();
+    defer allocator.free(baseStr);
+    std.debug.print("{s}\n\n", .{baseStr});
 
     var override = zon.create(allocator);
     defer override.deinit();
@@ -33,16 +31,16 @@ pub fn main() !void {
     try override.setBool("debug", false);
 
     std.debug.print("Override document:\n", .{});
-    const override_str = try override.toString();
-    defer allocator.free(override_str);
-    std.debug.print("{s}\n\n", .{override_str});
+    const overrideStr = try override.toString();
+    defer allocator.free(overrideStr);
+    std.debug.print("{s}\n\n", .{overrideStr});
 
     std.debug.print("=== Merging override into base ===\n", .{});
     try base.merge(&override);
 
-    const merged_str = try base.toString();
-    defer allocator.free(merged_str);
-    std.debug.print("{s}\n\n", .{merged_str});
+    const mergedStr = try base.toString();
+    defer allocator.free(mergedStr);
+    std.debug.print("{s}\n\n", .{mergedStr});
 
     std.debug.print("=== Cloning document ===\n", .{});
     var cloned = try base.clone();

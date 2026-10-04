@@ -7,8 +7,6 @@ pub fn main() !void {
     defer _ = gpa.deinit();
     const allocator = gpa.allocator();
 
-    zon.disableUpdateCheck();
-
     std.debug.print("=== Walk Example ===\n\n", .{});
 
     var doc = zon.create(allocator);
@@ -45,15 +43,15 @@ pub fn main() !void {
             _ = path;
             if (value == .string) {
                 var owned = value;
-                const result_str = try std.ascii.allocUpperString(c.allocator, owned.string);
+                const resultStr = try std.ascii.allocUpperString(c.allocator, owned.string);
                 owned.deinit(c.allocator);
-                return zon.Value{ .string = result_str };
+                return zon.Value{ .string = resultStr };
             }
             return value;
         }
     };
-    var map_ctx = MapCtx{ .doc = &doc, .allocator = allocator };
-    try doc.mapValues(&map_ctx, MapCtx.upper);
+    var mapCtx = MapCtx{ .doc = &doc, .allocator = allocator };
+    try doc.mapValues(&mapCtx, MapCtx.upper);
 
     std.debug.print("After uppercasing strings:\n", .{});
     std.debug.print("  name = {s}\n", .{doc.getString("name").?});
@@ -61,14 +59,14 @@ pub fn main() !void {
 
     std.debug.print("\n=== Using paths() ===\n\n", .{});
 
-    const all_paths = try doc.paths();
+    const allPaths = try doc.paths();
     defer {
-        for (all_paths) |p| allocator.free(p);
-        allocator.free(all_paths);
+        for (allPaths) |p| allocator.free(p);
+        allocator.free(allPaths);
     }
 
-    std.debug.print("Number of paths: {d}\n", .{all_paths.len});
-    for (all_paths) |p| {
+    std.debug.print("Number of paths: {d}\n", .{allPaths.len});
+    for (allPaths) |p| {
         std.debug.print("  {s}\n", .{p});
     }
 }

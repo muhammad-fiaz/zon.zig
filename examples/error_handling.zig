@@ -7,21 +7,19 @@ pub fn main() !void {
     defer _ = gpa.deinit();
     const allocator = gpa.allocator();
 
-    zon.disableUpdateCheck();
-
     std.debug.print("=== Error Handling Example ===\n\n", .{});
 
     // Example 1: Valid ZON parsing
     std.debug.print("1. Parsing valid ZON:\n", .{});
     {
-        const valid_source =
+        const validSource =
             \\.{
             \\    .name = "myapp",
             \\    .version = "1.0.0",
             \\}
         ;
 
-        var doc = zon.parse(allocator, valid_source) catch |err| {
+        var doc = zon.parse(allocator, validSource) catch |err| {
             std.debug.print("   Error: {}\n", .{err});
             return;
         };
@@ -32,12 +30,12 @@ pub fn main() !void {
     // Example 2: Invalid ZON syntax
     std.debug.print("\n2. Parsing invalid ZON (missing closing brace):\n", .{});
     {
-        const invalid_source =
+        const invalidSource =
             \\.{
             \\    .name = "myapp"
         ;
 
-        var doc = zon.parse(allocator, invalid_source) catch |err| {
+        var doc = zon.parse(allocator, invalidSource) catch |err| {
             std.debug.print("   Expected error: {}\n", .{err});
             return;
         };

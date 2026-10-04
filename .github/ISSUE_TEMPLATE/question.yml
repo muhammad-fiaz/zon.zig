@@ -35,14 +35,14 @@ body:
     id: zig-version
     attributes:
       label: Zig Version
-      description: "e.g., 0.16.0"
+      description: "e.g., 0.17.0"
     validations:
       required: true
   - type: input
     id: zon-version
     attributes:
       label: zon.zig Version
-      description: "e.g., 0.0.5"
+      description: "e.g., 0.0.6"
     validations:
       required: true
   - type: textarea

@@ -14,8 +14,6 @@ const document = @import("document.zig");
 
 // File related errors used by higher-level utilities
 pub const FileError = error{FileAlreadyExists};
-pub const version_info = @import("version.zig");
-pub const update_checker = @import("update_checker.zig");
 pub const Value = @import("value.zig").Value;
 pub const utils = @import("utils.zig");
 
@@ -25,30 +23,11 @@ pub const ParseError = @import("parser.zig").ParseError;
 pub const Diagnostic = @import("parser.zig").Diagnostic;
 pub const Tokenizer = @import("tokenizer.zig").Tokenizer;
 pub const Token = @import("tokenizer.zig").Token;
-pub const version = version_info.version;
+/// Library version.
+pub const version = "0.0.6";
 pub const stringify = @import("stringify.zig").stringify;
 pub const stringifyJson = @import("stringify.zig").stringifyJson;
 pub const StringifyOptions = @import("stringify.zig").StringifyOptions;
-
-/// Disables update checking.
-pub fn disableUpdateCheck() void {
-    update_checker.disableUpdateCheck();
-}
-
-/// Enables update checking.
-pub fn enableUpdateCheck() void {
-    update_checker.enableUpdateCheck();
-}
-
-/// Returns true if update checking is enabled.
-pub fn isUpdateCheckEnabled() bool {
-    return update_checker.isUpdateCheckEnabled();
-}
-
-/// Checks for updates and prints notification if available.
-pub fn checkForUpdates(allocator: Allocator) void {
-    update_checker.checkAndNotify(allocator);
-}
 
 /// Creates a new empty ZON document.
 pub fn create(allocator: Allocator) Document {
@@ -126,13 +105,13 @@ pub fn openFile(allocator: Allocator, path: []const u8) !Document {
 }
 
 /// Opens an existing ZON file.
-pub fn open(allocator: Allocator, file_path: []const u8) !Document {
-    return Document.initFromFile(allocator, file_path);
+pub fn open(allocator: Allocator, filePath: []const u8) !Document {
+    return Document.initFromFile(allocator, filePath);
 }
 
 /// Alias for open().
-pub fn loadFile(allocator: Allocator, file_path: []const u8) !Document {
-    return open(allocator, file_path);
+pub fn loadFile(allocator: Allocator, filePath: []const u8) !Document {
+    return open(allocator, filePath);
 }
 
 /// Alias for load().
@@ -141,42 +120,42 @@ pub fn parseFile(allocator: Allocator, path: []const u8) !Document {
 }
 
 /// Deletes a file.
-pub fn deleteFile(file_path: []const u8) !void {
-    try utils.fs.deleteFile(file_path);
+pub fn deleteFile(filePath: []const u8) !void {
+    try utils.fs.deleteFile(filePath);
 }
 
 /// Returns true if the file exists.
-pub fn fileExists(file_path: []const u8) bool {
-    utils.fs.access(file_path, .{}) catch return false;
+pub fn fileExists(filePath: []const u8) bool {
+    utils.fs.access(filePath, .{}) catch return false;
     return true;
 }
 
 /// Copy a file, with optional overwrite behaviour.
-pub fn copyFile(source_path: []const u8, dest_path: []const u8, overwrite: bool) !void {
+pub fn copyFile(sourcePath: []const u8, destPath: []const u8, overwrite: bool) !void {
     if (!overwrite) {
-        const dest_file_opt = utils.fs.openFile(dest_path, .{}) catch null;
-        if (dest_file_opt) |mut_f| {
-            const dest_file = mut_f;
+        const destFileOpt = utils.fs.openFile(destPath, .{}) catch null;
+        if (destFileOpt) |mutFile| {
+            const dest_file = mutFile;
             utils.fs.closeFile(dest_file);
             return FileError.FileAlreadyExists;
         }
     }
-    try utils.fs.copyFile(source_path, dest_path, .{});
+    try utils.fs.copyFile(sourcePath, destPath, .{});
 }
 
 /// Move (rename) a file, with optional overwrite.
-pub fn moveFile(old_path: []const u8, new_path: []const u8, overwrite: bool) !void {
+pub fn moveFile(oldPath: []const u8, newPath: []const u8, overwrite: bool) !void {
     if (overwrite) {
-        _ = utils.fs.deleteFile(new_path) catch null;
+        _ = utils.fs.deleteFile(newPath) catch null;
     } else {
-        const existing_file_opt = utils.fs.openFile(new_path, .{}) catch null;
-        if (existing_file_opt) |mut_f| {
-            const existing_file = mut_f;
+        const existingFileOpt = utils.fs.openFile(newPath, .{}) catch null;
+        if (existingFileOpt) |mutFile| {
+            const existing_file = mutFile;
             utils.fs.closeFile(existing_file);
             return FileError.FileAlreadyExists;
         }
     }
-    try utils.fs.rename(old_path, new_path);
+    try utils.fs.rename(oldPath, newPath);
 }
 
 /// Read a file into an allocator-owned buffer (caller must free).
@@ -213,10 +192,10 @@ pub fn saveAtomic(allocator: Allocator, path: []const u8, data: []const u8) !voi
     try writeFileAtomic(allocator, path, data);
 }
 
-/// Loads a ZON file, or creates it with default_content if it doesn't exist.
-pub fn loadOrCreate(allocator: Allocator, path: []const u8, default_content: []const u8) !Document {
+/// Loads a ZON file, or creates it with defaultContent if it doesn't exist.
+pub fn loadOrCreate(allocator: Allocator, path: []const u8, defaultContent: []const u8) !Document {
     if (!fileExists(path)) {
-        try writeFileAtomic(allocator, path, default_content);
+        try writeFileAtomic(allocator, path, defaultContent);
     }
     return try load(allocator, path);
 }
@@ -272,26 +251,26 @@ pub fn formatFile(allocator: Allocator, path: []const u8) !void {
 }
 
 /// Rename a key path in a ZON file.
-pub fn movePathInFile(allocator: Allocator, path: []const u8, old_key: []const u8, new_key: []const u8) !void {
+pub fn movePathInFile(allocator: Allocator, path: []const u8, oldKey: []const u8, newKey: []const u8) !void {
     var doc = try load(allocator, path);
     defer doc.deinit();
-    if (try doc.rename(old_key, new_key)) {
+    if (try doc.rename(oldKey, newKey)) {
         try doc.save();
     }
 }
 
 /// Copy a key path in a ZON file.
-pub fn copyPathInFile(allocator: Allocator, path: []const u8, src_key: []const u8, dst_key: []const u8) !void {
+pub fn copyPathInFile(allocator: Allocator, path: []const u8, srcKey: []const u8, dstKey: []const u8) !void {
     var doc = try load(allocator, path);
     defer doc.deinit();
-    if (try doc.copy(src_key, dst_key)) {
+    if (try doc.copy(srcKey, dstKey)) {
         try doc.save();
     }
 }
 
 /// Alias for moveFile().
-pub fn renameFile(old_path: []const u8, new_path: []const u8, overwrite: bool) !void {
-    try moveFile(old_path, new_path, overwrite);
+pub fn renameFile(oldPath: []const u8, newPath: []const u8, overwrite: bool) !void {
+    try moveFile(oldPath, newPath, overwrite);
 }
 
 /// Alias for deleteFile().
@@ -314,18 +293,18 @@ pub fn unmarshal(doc: *const Document, comptime T: type) !T {
     return doc.toStruct(T);
 }
 
-/// Validates a semantic version string (e.g. "1.2.3", "0.16.0").
+/// Validates a semantic version string (e.g. "1.2.3", "0.17.0").
 /// Returns true if the string is a valid semver.
-pub fn validateSemVer(version_str: []const u8) bool {
-    _ = std.SemanticVersion.parse(version_str) catch return false;
+pub fn validateSemVer(versionStr: []const u8) bool {
+    _ = std.SemanticVersion.parse(versionStr) catch return false;
     return true;
 }
 
 /// Encodes bytes to base64. Caller must free the returned string.
 pub fn base64Encode(allocator: Allocator, data: []const u8) ![]const u8 {
     const encoder = std.base64.standard.Encoder;
-    const out_len = encoder.calcSize(data.len);
-    const out = try allocator.alloc(u8, out_len);
+    const outLen = encoder.calcSize(data.len);
+    const out = try allocator.alloc(u8, outLen);
     _ = encoder.encode(out, data);
     return out;
 }
@@ -333,8 +312,8 @@ pub fn base64Encode(allocator: Allocator, data: []const u8) ![]const u8 {
 /// Decodes a base64 string. Caller must free the returned bytes.
 pub fn base64Decode(allocator: Allocator, encoded: []const u8) ![]u8 {
     const decoder = std.base64.standard.Decoder;
-    const out_len = decoder.calcSizeForSlice(encoded) catch return error.InvalidBase64;
-    const out = try allocator.alloc(u8, out_len);
+    const outLen = decoder.calcSizeForSlice(encoded) catch return error.InvalidBase64;
+    const out = try allocator.alloc(u8, outLen);
     decoder.decode(out, encoded) catch return error.InvalidBase64;
     return out;
 }
@@ -343,7 +322,7 @@ test "validateSemVer" {
     const allocator = std.testing.allocator;
     _ = allocator;
     try std.testing.expect(validateSemVer("1.2.3"));
-    try std.testing.expect(validateSemVer("0.16.0"));
+    try std.testing.expect(validateSemVer("0.17.0"));
     try std.testing.expect(validateSemVer("999.999.999"));
     try std.testing.expect(!validateSemVer("1.2"));
     try std.testing.expect(!validateSemVer("not-a-version"));
@@ -435,7 +414,7 @@ test "parse build.zig.zon format" {
         \\    .name = .zon,
         \\    .version = "0.0.3",
         \\    .fingerprint = 0xee480fa30d50cbf6,
-        \\    .minimum_zig_version = "0.16.0",
+        \\    .minimum_zig_version = "0.17.0",
         \\    .paths = .{
         \\        "build.zig",
         \\        "build.zig.zon",
@@ -496,7 +475,7 @@ test "stringify document" {
     try std.testing.expect(std.mem.indexOf(u8, output, "true") != null);
 }
 
-test "stringify with sort_keys option" {
+test "stringify with sortKeys option" {
     const allocator = std.testing.allocator;
 
     var doc = create(allocator);
@@ -506,19 +485,19 @@ test "stringify with sort_keys option" {
     try doc.setString("a", "first");
     try doc.setInt("m", 42);
 
-    // With sort_keys=true (default), keys are sorted alphabetically
-    const sorted = try stringify(allocator, &doc.root, .{ .sort_keys = true });
+    // With sortKeys=true (default), keys are sorted alphabetically
+    const sorted = try stringify(allocator, &doc.root, .{ .sortKeys = true });
     defer allocator.free(sorted);
 
-    const a_pos = std.mem.indexOf(u8, sorted, ".a").?;
-    const m_pos = std.mem.indexOf(u8, sorted, ".m").?;
-    const z_pos = std.mem.indexOf(u8, sorted, ".z").?;
-    try std.testing.expect(a_pos < m_pos);
-    try std.testing.expect(m_pos < z_pos);
+    const aPos = std.mem.indexOf(u8, sorted, ".a").?;
+    const mPos = std.mem.indexOf(u8, sorted, ".m").?;
+    const zPos = std.mem.indexOf(u8, sorted, ".z").?;
+    try std.testing.expect(aPos < mPos);
+    try std.testing.expect(mPos < zPos);
 }
 
 test "version info" {
-    try std.testing.expectEqualStrings("0.0.5", version);
+    try std.testing.expectEqualStrings("0.0.6", version);
 }
 
 test "find and replace" {
@@ -531,8 +510,8 @@ test "find and replace" {
     try doc.setString("b", "hello");
     try doc.setString("c", "world");
 
-    const count_val = try doc.replaceAll("hello", "goodbye");
-    try std.testing.expectEqual(@as(usize, 2), count_val);
+    const countVal = try doc.replaceAll("hello", "goodbye");
+    try std.testing.expectEqual(@as(usize, 2), countVal);
 
     try std.testing.expectEqualStrings("goodbye", doc.getString("a").?);
     try std.testing.expectEqualStrings("goodbye", doc.getString("b").?);
@@ -584,10 +563,10 @@ test "file utilities: write/read atomic" {
     const data = " .{ .name = \"atomic\" }\n";
     try writeFileAtomic(allocator, path, data);
 
-    const read_back = try readFile(allocator, path);
-    defer allocator.free(read_back);
+    const readBack = try readFile(allocator, path);
+    defer allocator.free(readBack);
 
-    try std.testing.expect(std.mem.indexOf(u8, read_back, "atomic") != null);
+    try std.testing.expect(std.mem.indexOf(u8, readBack, "atomic") != null);
 
     // cleanup
     _ = utils.fs.deleteFile(path) catch null;
@@ -605,9 +584,9 @@ test "file utilities: copy & move with overwrite" {
     try std.testing.expect(std.mem.indexOf(u8, b_buf, "x") != null);
 
     try moveFile("b.zon", "c.zon", true);
-    const c_buf = try readFile(allocator, "c.zon");
-    defer allocator.free(c_buf);
-    try std.testing.expect(std.mem.indexOf(u8, c_buf, "x") != null);
+    const cBuf = try readFile(allocator, "c.zon");
+    defer allocator.free(cBuf);
+    try std.testing.expect(std.mem.indexOf(u8, cBuf, "x") != null);
 
     // cleanup
     _ = utils.fs.deleteFile("a.zon") catch null;
@@ -647,10 +626,10 @@ test "advanced: recursive merge" {
     defer base.deinit();
 
     const override = try parse(allocator, ".{ .db = .{ .port = 6000 }, .mode = \"prod\" }");
-    var override_mut = override;
-    defer override_mut.deinit();
+    var overrideMut = override;
+    defer overrideMut.deinit();
 
-    try base.mergeRecursive(&override_mut);
+    try base.mergeRecursive(&overrideMut);
 
     try std.testing.expectEqualStrings("localhost", base.getString("db.host").?);
     try std.testing.expectEqual(@as(i64, 6000), base.getInt("db.port").?);
@@ -724,8 +703,8 @@ test "advanced: iterators" {
     try std.testing.expectEqual(@as(i64, 6), sum);
 
     const meta = doc.root.asObject().?.get("meta").?.asObject().?;
-    var obj_it = meta.iterator();
-    if (obj_it.next()) |entry| {
+    var objIt = meta.iterator();
+    if (objIt.next()) |entry| {
         try std.testing.expectEqualStrings("id", entry.key);
         try std.testing.expectEqual(@as(i64, 100), entry.value.asInt().?);
     }
@@ -979,18 +958,18 @@ test "document file management" {
     try std.testing.expectEqualStrings("changed", doc.getString("status").?);
 
     // Verify renaming the backing file and updating internal path state.
-    const new_path = "test_doc_renamed.zon";
-    utils.fs.deleteFile(new_path) catch {};
-    defer utils.fs.deleteFile(new_path) catch {};
+    const newPath = "test_doc_renamed.zon";
+    utils.fs.deleteFile(newPath) catch {};
+    defer utils.fs.deleteFile(newPath) catch {};
 
-    try doc.renameFileOnDisk(new_path);
-    try std.testing.expectEqualStrings(new_path, doc.file_path.?);
-    try std.testing.expect(fileExists(new_path));
+    try doc.renameFileOnDisk(newPath);
+    try std.testing.expectEqualStrings(newPath, doc.filePath.?);
+    try std.testing.expect(fileExists(newPath));
     try std.testing.expect(!fileExists(path));
 
     // Test deleteFileOnDisk
     try doc.deleteFileOnDisk();
-    try std.testing.expect(!fileExists(new_path));
+    try std.testing.expect(!fileExists(newPath));
 }
 
 test "advanced: file path utilities" {
@@ -1068,7 +1047,7 @@ test "comprehensive: identifiers, types, and zon file round-trip" {
     _ = utils.fs.deleteFile(path) catch {};
     defer _ = utils.fs.deleteFile(path) catch {};
 
-    doc.file_path = try allocator.dupe(u8, path);
+    doc.filePath = try allocator.dupe(u8, path);
     try doc.save();
 
     var doc2 = try load(allocator, path);
@@ -1112,4 +1091,87 @@ test "struct conversion from top-level" {
     try std.testing.expectEqualStrings("my-lib", config.name);
     try std.testing.expectEqual(@as(i32, 1), config.version);
     try std.testing.expect(config.public);
+}
+test "0.0.6: numeric separators and exponents" {
+    const allocator = std.testing.allocator;
+    var doc = try parse(allocator, ".{ .a = 1_000, .b = 0xFF_FF, .c = 1_000.5, .d = 1e3, .e = -42, .f = 0o7_5_5, .g = 0b1_010 }");
+    defer doc.deinit();
+    try std.testing.expectEqual(@as(i64, 1000), doc.getInt("a").?);
+    try std.testing.expectEqual(@as(i64, 0xFFFF), doc.getInt("b").?);
+    try std.testing.expectApproxEqAbs(@as(f64, 1000.5), doc.getFloat("c").?, 0.001);
+    try std.testing.expectApproxEqAbs(@as(f64, 1000.0), doc.getFloat("d").?, 0.001);
+    try std.testing.expectEqual(@as(i64, -42), doc.getInt("e").?);
+    try std.testing.expectEqual(@as(i64, 0o755), doc.getInt("f").?);
+    try std.testing.expectEqual(@as(i64, 10), doc.getInt("g").?);
+}
+
+test "0.0.6: zon round-trip preserves semantics" {
+    const allocator = std.testing.allocator;
+    const sources = [_][]const u8{
+        ".{ .a = 1, .b = true, .c = null }",
+        ".{ .name = .zon, .version = \"0.0.6\", .paths = .{ \"src\", \"examples\" } }",
+        ".{ .nested = .{ .x = .{ 1, 2, .{ .y = \"hi\" } } } }",
+        ".{ .s = \"a\\n\\\"q\\\"\", .u = \"caf\\u{65}test\" }",
+        ".{ .f = 3.14, .neg = -2.5e-3, .big = 0xee480fa30d50cbf6 }",
+        ".{ // comment\n .a = 1, // trailing\n }",
+    };
+    for (sources) |src| {
+        var doc = try parse(allocator, src);
+        defer doc.deinit();
+        const out = try doc.toString();
+        defer allocator.free(out);
+        var doc2 = try parse(allocator, out);
+        defer doc2.deinit();
+        try std.testing.expect(doc.eql(&doc2));
+    }
+}
+
+test "0.0.6: real build.zig.zon with dependencies" {
+    const allocator = std.testing.allocator;
+    const source =
+        \\.{
+        \\    .name = .my_pkg,
+        \\    .version = "0.0.6",
+        \\    .fingerprint = 0xee480fa30d50cbf6,
+        \\    .minimum_zig_version = "0.17.0",
+        \\    .dependencies = .{
+        \\        .foo = .{
+        \\            .url = "https://example.com/foo.tar.gz",
+        \\            .hash = "1220abcdef",
+        \\        },
+        \\        .bar = .{
+        \\            .path = "../bar",
+        \\        },
+        \\    },
+        \\    .paths = .{
+        \\        "build.zig",
+        \\        "build.zig.zon",
+        \\        "src",
+        \\    },
+        \\}
+    ;
+    var doc = try parse(allocator, source);
+    defer doc.deinit();
+    try std.testing.expectEqualStrings("my_pkg", doc.getString("name").?);
+    try std.testing.expectEqualStrings("0.0.6", doc.getString("version").?);
+    try std.testing.expectEqualStrings("https://example.com/foo.tar.gz", doc.getString("dependencies.foo.url").?);
+    try std.testing.expectEqualStrings("../bar", doc.getString("dependencies.bar.path").?);
+    try std.testing.expectEqual(@as(usize, 3), doc.arrayLen("paths").?);
+    const out = try doc.toString();
+    defer allocator.free(out);
+    var doc2 = try parse(allocator, out);
+    defer doc2.deinit();
+    try std.testing.expect(doc.eql(&doc2));
+}
+
+test "0.0.6: comptime tokenizer and version" {
+    const tag = comptime blk: {
+        var t = Tokenizer.init(".");
+        break :blk t.next().tag;
+    };
+    try std.testing.expect(tag == .dot);
+    comptime {
+        if (version.len == 0) @compileError("version empty");
+        if (!std.mem.eql(u8, version, "0.0.6")) @compileError("version mismatch");
+    }
 }

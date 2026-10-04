@@ -72,12 +72,12 @@ fn demoArena() !void {
     // Demo 3: Opening an existing file with Arena
     std.debug.print("\n--- Demo: Open Existing File with Arena ---\n", .{});
 
-    try zon.writeFileAtomic(allocator, "existing.zon", ".{ .os = \"Zig\", .version = \"0.16.0\" }");
+    try zon.writeFileAtomic(allocator, "existing.zon", ".{ .os = \"Zig\", .version = \"0.17.0\" }");
     defer zon.deleteFile("existing.zon") catch {};
 
-    var file_doc = try zon.open(allocator, "existing.zon");
+    var fileDoc = try zon.open(allocator, "existing.zon");
     // Result
     std.debug.print("Opened existing.zon:\n", .{});
-    std.debug.print("  OS: {s}\n", .{file_doc.getString("os").?});
-    std.debug.print("  Version: {s}\n", .{file_doc.getString("version").?});
+    std.debug.print("  OS: {s}\n", .{fileDoc.getString("os").?});
+    std.debug.print("  Version: {s}\n", .{fileDoc.getString("version").?});
 }

@@ -1,0 +1,111 @@
+---
+title: "Find and Replace Example"
+description: "Find string values by path and replace first, last, or all occurrences."
+---
+
+# Find & Replace Example
+
+**Usecase:** locate every path holding a value (`findString`), then rewrite
+deployments in place with `replaceFirst`, `replaceLast`, and `replaceAll`
+(which reports how many values changed).
+
+**Run:** `zig build run-find_replace`
+
+```zig
+const std = @import("std");
+const zon = @import("zon");
+
+/// Example: Find and replace operations
+pub fn main() !void {
+    var gpa = std.heap.DebugAllocator(.{}){};
+    defer _ = gpa.deinit();
+    const allocator = gpa.allocator();
+
+    std.debug.print("=== Find and Replace Example ===\n\n", .{});
+
+    var doc = zon.create(allocator);
+    defer doc.deinit();
+
+    try doc.setString("server.host", "localhost");
+    try doc.setString("server.backup_host", "localhost");
+    try doc.setString("database.host", "localhost");
+    try doc.setString("cache.host", "192.168.1.100");
+    try doc.setInt("server.port", 8080);
+
+    std.debug.print("Initial document:\n", .{});
+    const initial = try doc.toString();
+    defer allocator.free(initial);
+    std.debug.print("{s}\n\n", .{initial});
+
+    std.debug.print("=== Finding 'localhost' ===\n", .{});
+    const found = try doc.findString("localhost");
+    defer {
+        for (found) |f| allocator.free(f);
+        allocator.free(found);
+    }
+
+    std.debug.print("Found {d} occurrences:\n", .{found.len});
+    for (found) |path| {
+        std.debug.print("  - {s}\n", .{path});
+    }
+
+    std.debug.print("\n=== Replace first 'localhost' with '127.0.0.1' ===\n", .{});
+    const replacedFirst = try doc.replaceFirst("localhost", "127.0.0.1");
+    std.debug.print("Replaced: {}\n", .{replacedFirst});
+
+    std.debug.print("\n=== Replace all remaining 'localhost' with 'production.example.com' ===\n", .{});
+    const replacedCount = try doc.replaceAll("localhost", "production.example.com");
+    std.debug.print("Replaced {d} occurrences\n", .{replacedCount});
+
+    std.debug.print("\n=== Final document ===\n", .{});
+    const final = try doc.toString();
+    defer allocator.free(final);
+    std.debug.print("{s}\n", .{final});
+}
+```
+
+```bash
+=== Find and Replace Example ===
+
+Initial document:
+.{
+    .cache = .{
+        .host = "192.168.1.100",
+    },
+    .database = .{
+        .host = "localhost",
+    },
+    .server = .{
+        .backup_host = "localhost",
+        .host = "localhost",
+        .port = 8080,
+    },
+}
+
+=== Finding 'localhost' ===
+Found 3 occurrences:
+  - server.host
+  - server.backup_host
+  - database.host
+
+=== Replace first 'localhost' with '127.0.0.1' ===
+Replaced: true
+
+=== Replace all remaining 'localhost' with 'production.example.com' ===
+Replaced 2 occurrences
+
+=== Final document ===
+.{
+    .cache = .{
+        .host = "192.168.1.100",
+    },
+    .database = .{
+        .host = "production.example.com",
+    },
+    .server = .{
+        .backup_host = "production.example.com",
+        .host = "127.0.0.1",
+        .port = 8080,
+    },
+}
+```

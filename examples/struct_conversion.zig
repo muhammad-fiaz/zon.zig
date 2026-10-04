@@ -30,7 +30,7 @@ pub fn main() !void {
     // ----------------------------------------------------
     std.debug.print("1. Creating ZON from struct...\n", .{});
 
-    const my_config = ServerConfig{
+    const myConfig = ServerConfig{
         .host = "localhost",
         .port = 8080,
         .ssl = true,
@@ -38,7 +38,7 @@ pub fn main() !void {
     };
 
     // Create a generic Document from the specific struct
-    var doc = try zon.fromStruct(allocator, my_config);
+    var doc = try zon.fromStruct(allocator, myConfig);
     defer doc.deinit();
 
     // The document is now editable!
@@ -59,15 +59,15 @@ pub fn main() !void {
     // Note: The returned struct owns its memory (strings/arrays are deeply copied using the document's allocator).
     // In a real application, consider using an ArenaAllocator for the document to simplify cleanup,
     // or manually free the allocated fields in the struct.
-    const new_config = try doc.toStruct(ServerConfig);
+    const newConfig = try doc.toStruct(ServerConfig);
 
     std.debug.print("Parsed Config:\n", .{});
-    std.debug.print("  Host: {s}\n", .{new_config.host});
-    std.debug.print("  Port: {d}\n", .{new_config.port});
-    std.debug.print("  SSL: {}\n", .{new_config.ssl});
-    std.debug.print("  Max Conn: {?}\n", .{new_config.max_connections});
+    std.debug.print("  Host: {s}\n", .{newConfig.host});
+    std.debug.print("  Port: {d}\n", .{newConfig.port});
+    std.debug.print("  SSL: {}\n", .{newConfig.ssl});
+    std.debug.print("  Max Conn: {?}\n", .{newConfig.max_connections});
     std.debug.print("  Tags:", .{});
-    for (new_config.tags) |tag| std.debug.print(" {s}", .{tag});
+    for (newConfig.tags) |tag| std.debug.print(" {s}", .{tag});
     std.debug.print("\n", .{});
 
     // ----------------------------------------------------

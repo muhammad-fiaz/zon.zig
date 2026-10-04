@@ -6,8 +6,6 @@ pub fn main() !void {
     defer _ = gpa.deinit();
     const allocator = gpa.allocator();
 
-    zon.disableUpdateCheck();
-
     std.debug.print("=== Creating new ZON document ===\n", .{});
 
     var doc = zon.create(allocator);

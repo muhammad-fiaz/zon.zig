@@ -112,7 +112,6 @@ pub fn main() !void {
     defer _ = gpa.deinit();
     const allocator = gpa.allocator();
 
-    zon.disableUpdateCheck();
 
     // Create base config
     var dev_config = zon.create(allocator);

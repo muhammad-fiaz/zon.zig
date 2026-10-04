@@ -5,6 +5,19 @@ description: "Installation instructions for zon.zig: using `zig fetch` or adding
 
 # Installation
 
+Current version: 0.0.6 — requires Zig 0.17.0+.
+
+## Compatibility
+
+| zon.zig | Zig |
+| ------- | --- |
+| 0.0.6 | 0.17.0+ |
+| 0.0.5 | 0.16.0 |
+
+If you are using Zig 0.16.0, use project version 0.0.5.
+
+If you are using Zig 0.17.0 or newer, use project version 0.0.6.
+
 ## Package Manager
 
 ### Step 1: Add Dependency
@@ -17,7 +30,7 @@ Add to your `build.zig.zon`:
     .version = "0.1.0",
     .dependencies = .{
         .zon = .{
-            .url = "https://github.com/muhammad-fiaz/zon.zig/archive/refs/tags/0.0.5.tar.gz",
+            .url = "https://github.com/muhammad-fiaz/zon.zig/archive/refs/tags/0.0.6.tar.gz",
             .hash = "...",
         },
     },
@@ -30,7 +43,7 @@ Add to your `build.zig.zon`:
 Run this command to get the hash:
 
 ```bash
-zig fetch --save https://github.com/muhammad-fiaz/zon.zig/archive/refs/tags/0.0.5.tar.gz
+zig fetch --save https://github.com/muhammad-fiaz/zon.zig/archive/refs/tags/0.0.6.tar.gz
 ```
 
 or
@@ -91,7 +104,6 @@ pub fn main() !void {
     defer _ = gpa.deinit();
     const allocator = gpa.allocator();
 
-    zon.disableUpdateCheck();
 
     var doc = zon.create(allocator);
     defer doc.deinit();
@@ -180,12 +192,12 @@ zig build run
 **Output:**
 
 ```
-zon.zig version: 0.0.5
+zon.zig version: 0.0.6
 ```
 
 ## Requirements
 
-- **Zig 0.16.0** or later
+- **Zig 0.17.0** or later
 - No external dependencies
 - Cross-platform: Windows, Linux, macOS
 
@@ -196,7 +208,7 @@ zon.zig version: 0.0.5
 If you get a hash mismatch error:
 
 ```bash
-zig fetch --save https://github.com/muhammad-fiaz/zon.zig/archive/refs/tags/0.0.5.tar.gz
+zig fetch --save https://github.com/muhammad-fiaz/zon.zig/archive/refs/tags/0.0.6.tar.gz
 ```
 
 ### Module Not Found
@@ -215,4 +227,4 @@ Check your Zig version:
 zig version
 ```
 
-Requires 0.16.0 or later.
+Requires 0.17.0 or later.

@@ -7,8 +7,6 @@ pub fn main() !void {
     defer _ = gpa.deinit();
     const allocator = gpa.allocator();
 
-    zon.disableUpdateCheck();
-
     std.debug.print("=== Find and Replace Example ===\n\n", .{});
 
     var doc = zon.create(allocator);
@@ -38,12 +36,12 @@ pub fn main() !void {
     }
 
     std.debug.print("\n=== Replace first 'localhost' with '127.0.0.1' ===\n", .{});
-    const replaced_first = try doc.replaceFirst("localhost", "127.0.0.1");
-    std.debug.print("Replaced: {}\n", .{replaced_first});
+    const replacedFirst = try doc.replaceFirst("localhost", "127.0.0.1");
+    std.debug.print("Replaced: {}\n", .{replacedFirst});
 
     std.debug.print("\n=== Replace all remaining 'localhost' with 'production.example.com' ===\n", .{});
-    const replaced_count = try doc.replaceAll("localhost", "production.example.com");
-    std.debug.print("Replaced {d} occurrences\n", .{replaced_count});
+    const replacedCount = try doc.replaceAll("localhost", "production.example.com");
+    std.debug.print("Replaced {d} occurrences\n", .{replacedCount});
 
     std.debug.print("\n=== Final document ===\n", .{});
     const final = try doc.toString();

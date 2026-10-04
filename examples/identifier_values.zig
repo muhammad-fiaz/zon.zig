@@ -10,8 +10,6 @@ pub fn main() !void {
     defer _ = gpa.deinit();
     const allocator = gpa.allocator();
 
-    zon.disableUpdateCheck();
-
     std.debug.print("=== Identifier Values Example ===\n\n", .{});
 
     // Parse a build.zig.zon style document with identifier values
@@ -20,7 +18,7 @@ pub fn main() !void {
         \\    .name = .my_package,
         \\    .version = "1.0.0",
         \\    .fingerprint = 0xee480fa30d50cbf6,
-        \\    .minimum_zig_version = "0.16.0",
+        \\    .minimum_zig_version = "0.17.0",
         \\    .dependencies = .{
         \\        .http = .{
         \\            .url = "https://github.com/example/http.git",
@@ -85,36 +83,36 @@ pub fn main() !void {
     // Create a new document with identifier-style values
     std.debug.print("\n=== Creating document with setIdentifier ===\n", .{});
 
-    var new_doc = zon.create(allocator);
-    defer new_doc.deinit();
+    var newDoc = zon.create(allocator);
+    defer newDoc.deinit();
 
     // Use setIdentifier for .name = .value syntax
-    try new_doc.setIdentifier("name", "downloader");
-    try new_doc.setString("version", "0.1.0");
-    try new_doc.setString("minimum_zig_version", "0.16.0");
+    try newDoc.setIdentifier("name", "downloader");
+    try newDoc.setString("version", "0.1.0");
+    try newDoc.setString("minimum_zig_version", "0.17.0");
 
     // Set fingerprint as large integer
     const fingerprint: u64 = 0xaabbccdd11223344;
-    try new_doc.setInt("fingerprint", @bitCast(fingerprint));
+    try newDoc.setInt("fingerprint", @bitCast(fingerprint));
 
     // Add paths array
-    try new_doc.setArray("paths");
-    try new_doc.appendToArray("paths", "build.zig");
-    try new_doc.appendToArray("paths", "build.zig.zon");
-    try new_doc.appendToArray("paths", "src");
+    try newDoc.setArray("paths");
+    try newDoc.appendToArray("paths", "build.zig");
+    try newDoc.appendToArray("paths", "build.zig.zon");
+    try newDoc.appendToArray("paths", "src");
 
     // Add dependencies
-    try new_doc.setString("dependencies.http.url", "https://github.com/example/http");
-    try new_doc.setString("dependencies.http.hash", "abc123");
+    try newDoc.setString("dependencies.http.url", "https://github.com/example/http");
+    try newDoc.setString("dependencies.http.hash", "abc123");
 
-    const output = try new_doc.toString();
+    const output = try newDoc.toString();
     defer allocator.free(output);
 
     std.debug.print("\nGenerated ZON (note .name = .downloader):\n{s}\n", .{output});
 
     // Verify the identifier
     std.debug.print("\n=== Verifying identifier ===\n", .{});
-    std.debug.print("isIdentifier('name'): {}\n", .{new_doc.isIdentifier("name")});
-    std.debug.print("getIdentifier('name'): .{s}\n", .{new_doc.getIdentifier("name").?});
-    std.debug.print("getType('name'): {s}\n", .{new_doc.getType("name").?});
+    std.debug.print("isIdentifier('name'): {}\n", .{newDoc.isIdentifier("name")});
+    std.debug.print("getIdentifier('name'): .{s}\n", .{newDoc.getIdentifier("name").?});
+    std.debug.print("getType('name'): {s}\n", .{newDoc.getType("name").?});
 }

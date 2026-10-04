@@ -1,15 +1,13 @@
 const std = @import("std");
 const zon = @import("zon");
 
-/// Example: sortKeys() and sort_keys stringify option
+/// Example: sortKeys() and sortKeys stringify option
 pub fn main() !void {
     var gpa = std.heap.DebugAllocator(.{}){};
     defer _ = gpa.deinit();
     const allocator = gpa.allocator();
 
-    zon.disableUpdateCheck();
-
-    std.debug.print("=== sort_keys Stringify Example ===\n\n", .{});
+    std.debug.print("=== sortKeys Stringify Example ===\n\n", .{});
 
     // Parse a ZON document with unsorted keys
     const source =
@@ -27,15 +25,15 @@ pub fn main() !void {
     var doc = try zon.parse(allocator, source);
     defer doc.deinit();
 
-    // Stringify with sort_keys=false preserves insertion order
-    const unsorted = try zon.stringify(allocator, &doc.root, .{ .sort_keys = false });
+    // Stringify with sortKeys=false preserves insertion order
+    const unsorted = try zon.stringify(allocator, &doc.root, .{ .sortKeys = false });
     defer allocator.free(unsorted);
-    std.debug.print("Unsorted (insertion order, sort_keys=false):\n{s}\n\n", .{unsorted});
+    std.debug.print("Unsorted (insertion order, sortKeys=false):\n{s}\n\n", .{unsorted});
 
-    // Stringify with sort_keys=true (default) sorts alphabetically
-    const sorted_str = try zon.stringify(allocator, &doc.root, .{ .sort_keys = true });
-    defer allocator.free(sorted_str);
-    std.debug.print("Sorted (alphabetical, sort_keys=true):\n{s}\n\n", .{sorted_str});
+    // Stringify with sortKeys=true (default) sorts alphabetically
+    const sortedStr = try zon.stringify(allocator, &doc.root, .{ .sortKeys = true });
+    defer allocator.free(sortedStr);
+    std.debug.print("Sorted (alphabetical, sortKeys=true):\n{s}\n\n", .{sortedStr});
 
     std.debug.print("=== sortKeys() In-Place Sort ===\n\n", .{});
 

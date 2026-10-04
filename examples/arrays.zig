@@ -7,8 +7,6 @@ pub fn main() !void {
     defer _ = gpa.deinit();
     const allocator = gpa.allocator();
 
-    zon.disableUpdateCheck();
-
     std.debug.print("=== Array Operations Example ===\n\n", .{});
 
     const source =
@@ -29,8 +27,8 @@ pub fn main() !void {
 
     std.debug.print("=== Reading arrays ===\n", .{});
 
-    const paths_len = doc.arrayLen("paths").?;
-    std.debug.print("paths has {d} elements:\n", .{paths_len});
+    const pathsLen = doc.arrayLen("paths").?;
+    std.debug.print("paths has {d} elements:\n", .{pathsLen});
 
     var i: usize = 0;
     while (doc.getArrayString("paths", i)) |path| : (i += 1) {
