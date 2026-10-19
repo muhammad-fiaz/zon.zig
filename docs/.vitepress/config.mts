@@ -27,8 +27,10 @@ export default defineConfig({
   lastUpdated: true,
   cleanUrls: true,
 
+  // Trailing slash is required: VitePress resolves page paths against this
+  // URL, so "…/zon.zig/" keeps the base path instead of replacing it.
   sitemap: {
-    hostname: SITE_URL,
+    hostname: `${SITE_URL}/`,
   },
 
   vite: {
@@ -77,14 +79,11 @@ export default defineConfig({
     ["meta", { name: "twitter:image", content: `${SITE_URL}/logo.svg` }],
     ["meta", { name: "twitter:creator", content: "@muhammadfiaz_" }],
 
-    // Canonical URL
-    ["link", { rel: "canonical", href: SITE_URL }],
-
     // Favicons
-    ["link", { rel: "icon", href: "/zon.zig/logo.svg" }],
+    ["link", { rel: "icon", href: `${SITE_URL}/logo.svg` }],
 
     // Web App Manifest
-    ["link", { rel: "manifest", href: "/zon.zig/manifest.webmanifest" }],
+    ["link", { rel: "manifest", href: `${SITE_URL}/manifest.webmanifest` }],
 
     // Theme color
     ["meta", { name: "theme-color", content: "#f7a41d" }],
